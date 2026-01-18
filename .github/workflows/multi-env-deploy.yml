@@ -14,267 +14,235 @@ on:
       - 'tsconfig.json'
       - '.github/workflows/multi-env-deploy.yml'
   workflow_run:
-    workflows: ['Terraform Infrastructure Deployment']
-    types:
-      - completed
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'app/**'
-      - 'lib/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - '.github/workflows/multi-env-deploy.yml'
+    jobs:
+      deploy-dev:
+        name: Build & Deploy (dev)
+        runs-on: ubuntu-latest
+        if: |
+          github.event_name == 'push' && github.ref_name == 'develop' ||
+          github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' ||
+          github.event_name == 'pull_request'
 
-jobs:
-  get-terraform-outputs:
-    name: Get Terraform Outputs
-    runs-on: ubuntu-latest
-    outputs:
-      dev-s3-bucket: ${{ steps.outputs.outputs.dev-s3-bucket }}
-      dev-cf-id: ${{ steps.outputs.outputs.dev-cf-id }}
-      dev-cf-domain: ${{ steps.outputs.outputs.dev-cf-domain }}
-      prod-s3-bucket: ${{ steps.outputs.outputs.prod-s3-bucket }}
-      prod-cf-id: ${{ steps.outputs.outputs.prod-cf-id }}
-      prod-cf-domain: ${{ steps.outputs.outputs.prod-cf-domain }}
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          - name: Setup Node.js
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20.x
+              cache: 'npm'
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: latest
+          - name: Install dependencies
+            run: npm ci
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          - name: Run linter
+            run: npm run lint
+            continue-on-error: true
 
-      - name: Get Terraform Outputs
-        id: outputs
-        working-directory: terraform
-        run: |
-          terraform init
-          echo "dev-s3-bucket=$(terraform output -raw -var-file=dev.tfvars s3_bucket_name)" >> $GITHUB_OUTPUT
-          echo "dev-cf-id=$(terraform output -raw -var-file=dev.tfvars cloudfront_distribution_id)" >> $GITHUB_OUTPUT
-          echo "dev-cf-domain=$(terraform output -raw -var-file=dev.tfvars cloudfront_domain_name)" >> $GITHUB_OUTPUT
-          echo "prod-s3-bucket=$(terraform output -raw -var-file=prod.tfvars s3_bucket_name)" >> $GITHUB_OUTPUT
-          echo "prod-cf-id=$(terraform output -raw -var-file=prod.tfvars cloudfront_distribution_id)" >> $GITHUB_OUTPUT
-          echo "prod-cf-domain=$(terraform output -raw -var-file=prod.tfvars cloudfront_domain_name)" >> $GITHUB_OUTPUT
-        continue-on-error: true
+          - name: Build Next.js application
+            run: npm run build
+            env:
+              CI: true
 
-  build:
-    name: Build Application
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          - name: Generate build metadata
+            id: build-info
+            run: |
+              echo "build_id=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+              echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+              echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: 'npm'
+          - name: Upload build artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: nextjs-build-${{ steps.build-info.outputs.build_id }}
+              path: |
+                .next/
+                public/
+              retention-days: 5
 
-      - name: Install dependencies
-        run: npm ci
+          - name: Try to get Terraform outputs (dev)
+            id: tf-outputs
+            run: |
+              set -e
+              cd terraform || exit 0
+              terraform init -input=false || true
+              S3=$(terraform output -raw -var-file=dev.tfvars s3_bucket_name 2>/dev/null || echo "")
+              CF_ID=$(terraform output -raw -var-file=dev.tfvars cloudfront_distribution_id 2>/dev/null || echo "")
+              CF_DOMAIN=$(terraform output -raw -var-file=dev.tfvars cloudfront_domain_name 2>/dev/null || echo "")
+              echo "DEV_S3_BUCKET=$S3" >> $GITHUB_ENV
+              echo "DEV_CF_ID=$CF_ID" >> $GITHUB_ENV
+              echo "DEV_CF_DOMAIN=$CF_DOMAIN" >> $GITHUB_ENV
+            continue-on-error: true
 
-      - name: Run linter
-        run: npm run lint
-        continue-on-error: true
+          - name: Configure AWS credentials (for deploy)
+            if: github.event_name != 'pull_request'
+            uses: aws-actions/configure-aws-credentials@v4
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-2
 
-      - name: Build Next.js application
-        run: npm run build
-        env:
-          CI: true
+          - name: Deploy to Dev S3
+            if: github.event_name != 'pull_request'
+            run: |
+              DEV_BUCKET="${DEV_S3_BUCKET:-${{ secrets.DEV_S3_BUCKET_NAME }}}"
+              echo "📤 Uploading to S3 bucket: $DEV_BUCKET"
+              if [ -d ".next/static" ]; then
+                aws s3 sync .next/static s3://$DEV_BUCKET/_next/static --delete \
+                  --cache-control "public, max-age=31536000, immutable"
+              fi
+              if [ -d "public" ]; then
+                aws s3 sync public s3://$DEV_BUCKET/ --delete \
+                  --cache-control "public, max-age=3600"
+              fi
+              find .next -name "*.html" | while read file; do
+                s3_path="${file#.next/}"
+                aws s3 cp "$file" "s3://$DEV_BUCKET/$s3_path" \
+                  --content-type "text/html" \
+                  --cache-control "public, max-age=0, must-revalidate"
+              done
+              echo "✅ Dev S3 deployment completed"
 
-      - name: Generate build metadata
-        id: build-info
-        run: |
-          echo "build_id=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
-          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
+          - name: Invalidate Dev CloudFront cache
+            if: github.event_name != 'pull_request' && env.DEV_CF_ID != ''
+            run: |
+              echo "🔄 Invalidating CloudFront cache..."
+              aws cloudfront create-invalidation \
+                --distribution-id ${DEV_CF_ID:-${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}} \
+                --paths "/*"
+              echo "✅ CloudFront invalidation completed"
 
-      - name: Print build summary
-        run: |
-          echo "✅ Build completed successfully!"
-          echo "Build ID: ${{ steps.build-info.outputs.build_id }}"
-          echo "Git SHA: ${{ steps.build-info.outputs.git_sha }}"
-          echo "Git Branch: ${{ steps.build-info.outputs.git_branch }}"
+          - name: Dev deployment summary
+            run: |
+              echo "## ✅ Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Environment**: Development" >> $GITHUB_STEP_SUMMARY
+              echo "**S3 Bucket**: ${DEV_S3_BUCKET:-${{ secrets.DEV_S3_BUCKET_NAME }}}" >> $GITHUB_STEP_SUMMARY
+              echo "**Commit SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+              echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nextjs-build-${{ steps.build-info.outputs.build_id }}
-          path: |
-            .next/
-            public/
-          retention-days: 5
+      deploy-prod:
+        name: Build & Deploy (prod)
+        runs-on: ubuntu-latest
+        if: |
+          github.event_name == 'push' && github.ref_name == 'main' ||
+          github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' ||
+          github.event_name == 'pull_request'
 
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
 
-  deploy-dev:
-    name: Deploy to Dev Environment
-    needs: [build, get-terraform-outputs]
-    if: |
-      (github.event_name == 'push' && github.ref_name == 'develop') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop')
-    runs-on: ubuntu-latest
-    
-    env:
-      DEV_S3_BUCKET: ${{ needs.get-terraform-outputs.outputs.dev-s3-bucket || secrets.DEV_S3_BUCKET_NAME }}
-      DEV_CF_ID: ${{ needs.get-terraform-outputs.outputs.dev-cf-id || secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}
+          - name: Setup Node.js
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20.x
+              cache: 'npm'
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          - name: Install dependencies
+            run: npm ci
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: 'npm'
+          - name: Run linter
+            run: npm run lint
+            continue-on-error: true
 
-      - name: Install dependencies
-        run: npm ci
+          - name: Build Next.js application
+            run: npm run build
+            env:
+              CI: true
 
-      - name: Build Next.js application
-        run: npm run build
+          - name: Generate build metadata
+            id: build-info
+            run: |
+              echo "build_id=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+              echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+              echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          - name: Upload build artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: nextjs-build-${{ steps.build-info.outputs.build_id }}
+              path: |
+                .next/
+                public/
+              retention-days: 5
 
-      - name: Deploy to Dev S3
-        run: |
-          DEV_BUCKET="${{ env.DEV_S3_BUCKET }}"
-          echo "📤 Uploading to S3 bucket: $DEV_BUCKET"
-          
-          if [ -d ".next/static" ]; then
-            aws s3 sync .next/static s3://$DEV_BUCKET/_next/static --delete \
-              --cache-control "public, max-age=31536000, immutable"
-          fi
-          
-          if [ -d "public" ]; then
-            aws s3 sync public s3://$DEV_BUCKET/ --delete \
-              --cache-control "public, max-age=3600"
-          fi
-          
-          find .next -name "*.html" | while read file; do
-            s3_path="${file#.next/}"
-            aws s3 cp "$file" "s3://$DEV_BUCKET/$s3_path" \
-              --content-type "text/html" \
-              --cache-control "public, max-age=0, must-revalidate"
-          done
-          
-          echo "✅ Dev S3 deployment completed"
+          - name: Try to get Terraform outputs (prod)
+            id: tf-outputs
+            run: |
+              set -e
+              cd terraform || exit 0
+              terraform init -input=false || true
+              S3=$(terraform output -raw -var-file=prod.tfvars s3_bucket_name 2>/dev/null || echo "")
+              CF_ID=$(terraform output -raw -var-file=prod.tfvars cloudfront_distribution_id 2>/dev/null || echo "")
+              CF_DOMAIN=$(terraform output -raw -var-file=prod.tfvars cloudfront_domain_name 2>/dev/null || echo "")
+              echo "PROD_S3_BUCKET=$S3" >> $GITHUB_ENV
+              echo "PROD_CF_ID=$CF_ID" >> $GITHUB_ENV
+              echo "PROD_CF_DOMAIN=$CF_DOMAIN" >> $GITHUB_ENV
+            continue-on-error: true
 
-      - name: Invalidate Dev CloudFront cache
-        if: env.DEV_CF_ID != ''
-        run: |
-          echo "🔄 Invalidating CloudFront cache..."
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ env.DEV_CF_ID }} \
-            --paths "/*"
-          echo "✅ CloudFront invalidation completed"
+          - name: Configure AWS credentials (for deploy)
+            if: github.event_name != 'pull_request'
+            uses: aws-actions/configure-aws-credentials@v4
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-2
 
-      - name: Dev deployment summary
-        if: success()
-        run: |
-          echo "## ✅ Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment**: Development" >> $GITHUB_STEP_SUMMARY
-          echo "**S3 Bucket**: ${{ env.DEV_S3_BUCKET }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          - name: Deploy to Prod S3
+            if: github.event_name != 'pull_request'
+            run: |
+              PROD_BUCKET="${PROD_S3_BUCKET:-${{ secrets.PROD_S3_BUCKET_NAME }}}"
+              echo "📤 Uploading to S3 bucket: $PROD_BUCKET"
+              if [ -d ".next/static" ]; then
+                aws s3 sync .next/static s3://$PROD_BUCKET/_next/static --delete \
+                  --cache-control "public, max-age=31536000, immutable"
+              fi
+              if [ -d "public" ]; then
+                aws s3 sync public s3://$PROD_BUCKET/ --delete \
+                  --cache-control "public, max-age=3600"
+              fi
+              find .next -name "*.html" | while read file; do
+                s3_path="${file#.next/}"
+                aws s3 cp "$file" "s3://$PROD_BUCKET/$s3_path" \
+                  --content-type "text/html" \
+                  --cache-control "public, max-age=0, must-revalidate"
+              done
+              echo "✅ Prod S3 deployment completed"
 
-  deploy-prod:
-    name: Deploy to Prod Environment
-    needs: [build, get-terraform-outputs]
-    if: |
-      (github.event_name == 'push' && github.ref_name == 'main') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
-    runs-on: ubuntu-latest
-    
-    env:
-      PROD_S3_BUCKET: ${{ needs.get-terraform-outputs.outputs.prod-s3-bucket || secrets.PROD_S3_BUCKET_NAME }}
-      PROD_CF_ID: ${{ needs.get-terraform-outputs.outputs.prod-cf-id || secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID }}
-      PROD_CF_DOMAIN: ${{ needs.get-terraform-outputs.outputs.prod-cf-domain || secrets.PROD_CLOUDFRONT_DOMAIN }}
+          - name: Invalidate Prod CloudFront cache
+            if: github.event_name != 'pull_request' && env.PROD_CF_ID != ''
+            run: |
+              echo "🔄 Invalidating CloudFront cache..."
+              aws cloudfront create-invalidation \
+                --distribution-id ${PROD_CF_ID:-${{ secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID }}} \
+                --paths "/*"
+              echo "✅ CloudFront invalidation completed"
 
-    environment:
-      name: production
-      url: https://${{ env.PROD_CF_DOMAIN }}
+          - name: Create GitHub deployment
+            if: github.event_name != 'pull_request'
+            uses: actions/github-script@v7
+            with:
+              script: |
+                github.rest.repos.createDeployment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: context.ref,
+                  environment: 'production',
+                  description: 'Production deployment',
+                  required_contexts: []
+                });
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Next.js application
-        run: npm run build
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
-
-      - name: Deploy to Prod S3
-        run: |
-          PROD_BUCKET="${{ env.PROD_S3_BUCKET }}"
-          echo "📤 Uploading to S3 bucket: $PROD_BUCKET"
-          
-          if [ -d ".next/static" ]; then
-            aws s3 sync .next/static s3://$PROD_BUCKET/_next/static --delete \
-              --cache-control "public, max-age=31536000, immutable"
-          fi
-          
-          if [ -d "public" ]; then
-            aws s3 sync public s3://$PROD_BUCKET/ --delete \
-              --cache-control "public, max-age=3600"
-          fi
-          
-          find .next -name "*.html" | while read file; do
-            s3_path="${file#.next/}"
-            aws s3 cp "$file" "s3://$PROD_BUCKET/$s3_path" \
-              --content-type "text/html" \
-              --cache-control "public, max-age=0, must-revalidate"
-          done
-          
-          echo "✅ Prod S3 deployment completed"
-
-      - name: Invalidate Prod CloudFront cache
-        if: env.PROD_CF_ID != ''
-        run: |
-          echo "🔄 Invalidating CloudFront cache..."
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ env.PROD_CF_ID }} \
-            --paths "/*"
-          echo "✅ CloudFront invalidation completed"
-
+          - name: Prod deployment summary
+            run: |
+              echo "## ✅ Prod Deployment Complete" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Environment**: Production" >> $GITHUB_STEP_SUMMARY
+              echo "**S3 Bucket**: ${PROD_S3_BUCKET:-${{ secrets.PROD_S3_BUCKET_NAME }}}" >> $GITHUB_STEP_SUMMARY
+              echo "**Commit SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+              echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+              echo "**URL**: https://${PROD_CF_DOMAIN:-${{ secrets.PROD_CLOUDFRONT_DOMAIN }}}" >> $GITHUB_STEP_SUMMARY
       - name: Create GitHub deployment
         uses: actions/github-script@v7
         with:

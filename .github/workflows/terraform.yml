@@ -16,17 +16,12 @@ on:
       - 'terraform/**'
 
 jobs:
-  terraform-plan-and-apply:
+  terraform-dev:
+    name: Terraform (dev)
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        environment: [dev, prod]
-    
     defaults:
       run:
         working-directory: terraform
-
     permissions:
       contents: read
       pull-requests: write
@@ -60,30 +55,19 @@ jobs:
         id: validate
         run: terraform validate -no-color
 
-      - name: Terraform Plan (${{ matrix.environment }})
+      - name: Terraform Plan (dev)
         id: plan
-        run: terraform plan -var-file=${{ matrix.environment }}.tfvars -no-color -input=false
+        run: terraform plan -var-file=dev.tfvars -no-color -input=false
         continue-on-error: true
 
-      - name: Update Pull Request with Plan (${{ matrix.environment }})
+      - name: Update Pull Request with Plan (dev)
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const tfPlanOutput = `${{ steps.plan.outputs.stdout }}`;
-            
-            const comment = `## 🏗️ Terraform Plan - ${{ matrix.environment }}
-            
-            \`\`\`terraform
-            ${tfPlanOutput}
-            \`\`\`
-            
-            **Plan Status**: ${{ steps.plan.outcome }}
-            **Validation**: ${{ steps.validate.outcome }}
-            **Format**: ${{ steps.fmt.outcome }}
-            `;
-            
+            const comment = `## 🏗️ Terraform Plan - dev\n\n\`\`\`terraform\n${tfPlanOutput}\n\`\`\`\n\n**Plan Status**: ${{ steps.plan.outcome }}\n**Validation**: ${{ steps.validate.outcome }}\n**Format**: ${{ steps.fmt.outcome }}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -92,17 +76,12 @@ jobs:
             });
 
       - name: Terraform Apply - Dev
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && matrix.environment == 'dev'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         id: apply-dev
-        run: terraform apply -var-file=${{ matrix.environment }}.tfvars -no-color -auto-approve -input=false
-
-      - name: Terraform Apply - Prod
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.environment == 'prod'
-        id: apply
-        run: terraform apply -var-file=${{ matrix.environment }}.tfvars -no-color -auto-approve -input=false
+        run: terraform apply -var-file=dev.tfvars -no-color -auto-approve -input=false
 
       - name: Get Terraform Outputs - Dev
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && matrix.environment == 'dev'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         id: tf-outputs-dev
         run: |
           echo "s3_bucket=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
@@ -110,8 +89,100 @@ jobs:
           echo "cf_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
         continue-on-error: true
 
+      - name: Terraform Output (dev)
+        if: github.event_name == 'push'
+        id: output
+        run: terraform output -no-color
+        continue-on-error: true
+
+      - name: Publish Terraform Outputs (dev)
+        if: github.event_name == 'push'
+        run: |
+          echo "## 🎯 Infrastructure Deployment Complete (dev)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Terraform Outputs:" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          terraform output -no-color >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Outputs retrieval failed"
+          echo "```" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status (dev)
+        if: always()
+        run: |
+          if [ "${{ steps.apply-dev.outcome }}" == "success" ]; then
+            echo "✅ Infrastructure (dev) deployed successfully!"
+          elif [ "${{ steps.plan.outcome }}" == "success" ]; then
+            echo "📋 Terraform plan (dev) validated successfully!"
+          else
+            echo "❌ Terraform validation or plan (dev) failed"
+            exit 1
+          fi
+
+  terraform-prod:
+    name: Terraform (prod)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan (prod)
+        id: plan
+        run: terraform plan -var-file=prod.tfvars -no-color -input=false
+        continue-on-error: true
+
+      - name: Update Pull Request with Plan (prod)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tfPlanOutput = `${{ steps.plan.outputs.stdout }}`;
+            const comment = `## 🏗️ Terraform Plan - prod\n\n\`\`\`terraform\n${tfPlanOutput}\n\`\`\`\n\n**Plan Status**: ${{ steps.plan.outcome }}\n**Validation**: ${{ steps.validate.outcome }}\n**Format**: ${{ steps.fmt.outcome }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Terraform Apply - Prod
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: apply-prod
+        run: terraform apply -var-file=prod.tfvars -no-color -auto-approve -input=false
+
       - name: Get Terraform Outputs - Prod
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.environment == 'prod'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: tf-outputs-prod
         run: |
           echo "s3_bucket=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
@@ -119,30 +190,30 @@ jobs:
           echo "cf_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      - name: Terraform Output (${{ matrix.environment }})
+      - name: Terraform Output (prod)
         if: github.event_name == 'push'
         id: output
         run: terraform output -no-color
         continue-on-error: true
 
-      - name: Publish Terraform Outputs (${{ matrix.environment }})
+      - name: Publish Terraform Outputs (prod)
         if: github.event_name == 'push'
         run: |
-          echo "## 🎯 Infrastructure Deployment Complete (${{ matrix.environment }})" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 Infrastructure Deployment Complete (prod)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Terraform Outputs:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
           terraform output -no-color >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Outputs retrieval failed"
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
 
-      - name: Notify deployment status
+      - name: Notify deployment status (prod)
         if: always()
         run: |
-          if [ "${{ steps.apply.outcome }}" == "success" ]; then
-            echo "✅ Infrastructure (${{ matrix.environment }}) deployed successfully!"
+          if [ "${{ steps.apply-prod.outcome }}" == "success" ]; then
+            echo "✅ Infrastructure (prod) deployed successfully!"
           elif [ "${{ steps.plan.outcome }}" == "success" ]; then
-            echo "📋 Terraform plan (${{ matrix.environment }}) validated successfully!"
+            echo "📋 Terraform plan (prod) validated successfully!"
           else
-            echo "❌ Terraform validation or plan (${{ matrix.environment }}) failed"
+            echo "❌ Terraform validation or plan (prod) failed"
             exit 1
           fi

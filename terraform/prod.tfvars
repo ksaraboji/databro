@@ -3,8 +3,7 @@ aws_region       = "us-east-2"
 project_name     = "databro"
 environment      = "prod"
 
-# Separate bucket names for dev and prod
-dev_bucket_name  = "databro-dev-build"
+# bucket name for prod
 prod_bucket_name = "databro-prod-build"
 
 # Prod environment settings - stricter configurations
