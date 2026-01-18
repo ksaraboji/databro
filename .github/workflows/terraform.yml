@@ -1,0 +1,130 @@
+name: Terraform Infrastructure Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+
+jobs:
+  terraform-plan-and-apply:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        environment: [dev, prod]
+    
+    defaults:
+      run:
+        working-directory: terraform
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan (${{ matrix.environment }})
+        id: plan
+        run: terraform plan -var-file=${{ matrix.environment }}.tfvars -no-color -input=false
+        continue-on-error: true
+
+      - name: Update Pull Request with Plan (${{ matrix.environment }})
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tfPlanOutput = `${{ steps.plan.outputs.stdout }}`;
+            
+            const comment = `## 🏗️ Terraform Plan - ${{ matrix.environment }}
+            
+            \`\`\`terraform
+            ${tfPlanOutput}
+            \`\`\`
+            
+            **Plan Status**: ${{ steps.plan.outcome }}
+            **Validation**: ${{ steps.validate.outcome }}
+            **Format**: ${{ steps.fmt.outcome }}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Terraform Apply - Dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && matrix.environment == 'dev'
+        id: apply-dev
+        run: terraform apply -var-file=${{ matrix.environment }}.tfvars -no-color -auto-approve -input=false
+
+      - name: Terraform Apply - Prod
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.environment == 'prod'
+        id: apply
+        run: terraform apply -var-file=${{ matrix.environment }}.tfvars -no-color -auto-approve -input=false
+
+      - name: Terraform Output (${{ matrix.environment }})
+        if: github.event_name == 'push'
+        id: output
+        run: terraform output -no-color
+        continue-on-error: true
+
+      - name: Publish Terraform Outputs (${{ matrix.environment }})
+        if: github.event_name == 'push'
+        run: |
+          echo "## 🎯 Infrastructure Deployment Complete (${{ matrix.environment }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Terraform Outputs:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          terraform output -no-color >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Outputs retrieval failed"
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ steps.apply.outcome }}" == "success" ]; then
+            echo "✅ Infrastructure (${{ matrix.environment }}) deployed successfully!"
+          elif [ "${{ steps.plan.outcome }}" == "success" ]; then
+            echo "📋 Terraform plan (${{ matrix.environment }}) validated successfully!"
+          else
+            echo "❌ Terraform validation or plan (${{ matrix.environment }}) failed"
+            exit 1
+          fi

@@ -1,65 +1,104 @@
-import Image from "next/image";
+"use client";
+
+import Link from 'next/link';
+import { ArrowRight, Database, Cpu, Bot } from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex flex-col items-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 px-3 sm:px-6 lg:px-8">
+      
+      <motion.main 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1, transition: { staggerChildren: 0.2, delayChildren: 0.1 } }}
+        className="flex-grow flex flex-col items-center justify-center w-full max-w-4xl lg:max-w-5xl space-y-8 sm:space-y-10 lg:space-y-12 py-12 sm:py-20 md:py-28 lg:py-32"
+      >
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+          className="space-y-6 text-center"
+        >
+          
+          <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-black tracking-tighter text-slate-950 drop-shadow-sm">
+            Data<span className="text-indigo-600">bro</span>.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <div className="flex flex-col sm:flex-row md:flex-row items-center justify-center gap-2 sm:gap-3 md:gap-6 mt-3 sm:mt-4 lg:mt-6">
+            <div className="flex items-center gap-2 text-slate-700 font-medium text-sm sm:text-base md:text-lg lg:text-xl">
+              <Database className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: '#2563eb' }} />
+              <span>Data Engineer by Day</span>
+            </div>
+            
+            <div className="hidden md:block h-6 w-px bg-slate-300"></div>
+            <div className="md:hidden w-8 sm:w-10 h-px bg-slate-300"></div>
+
+            <div className="flex items-center gap-2 text-slate-700 font-medium text-sm sm:text-base md:text-lg lg:text-xl">
+              <Bot className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: '#a855f7' }} />
+              <span>AI Tinkerer by Night</span>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+          className="space-y-6 sm:space-y-8 max-w-xs sm:max-w-md md:max-w-2xl mx-auto text-center px-3 sm:px-4 lg:px-6"
+        >
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-slate-600 leading-relaxed font-light">
+            <span className="font-bold text-slate-900 block mb-2 text-xl sm:text-2xl md:text-3xl lg:text-4xl">
+              Hi, I'm the guy who breaks pipelines... then fixes them.
+            </span> 
+            Professionally, I engineer robust data infrastructure that powers decisions. 
+            Unofficially? I’m obsessed with teaching AI to do cool stuff (and occasionally arguing with LLMs).
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          
+          <div className="bg-white/60 border border-indigo-100 p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-lg shadow-indigo-100/50 backdrop-blur-md group hover:shadow-xl transition-shadow duration-300">
+            <p className="text-xs sm:text-sm md:text-base text-slate-600 italic leading-relaxed">
+              "This portfolio is my sandbox—a mix of polished engineering and chaotic weekend experiments. 
+              While I build the main exhibit, I've left some power tools out for you to play with."
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+          className="flex flex-col items-center space-y-4 sm:space-y-6 pt-4 w-full sm:w-auto px-3"
+        >
+          <Link href="/tools" className="w-full sm:w-auto">
+            <button 
+              className={cn(
+                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800",
+                "hover:scale-105 active:scale-95 transition-all",
+                "shadow-lg md:shadow-xl shadow-indigo-200 text-white",
+                "flex items-center justify-center gap-2 w-full sm:w-auto"
+              )}
+            >
+              <span className="hidden sm:inline">Enter the Playground</span>
+              <span className="sm:hidden">Playground</span>
+              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+            </button>
+          </Link>
+          
+          <div className="border border-slate-300 text-slate-500 px-3 sm:px-4 py-1.5 rounded-full uppercase tracking-widest text-xs font-semibold bg-white/50 flex items-center gap-2 whitespace-nowrap">
+            <Cpu className="w-3 h-3" />
+            Warning: Useful code
+          </div>
+        </motion.div>
+
+      </motion.main>
+
+      {/* --- FOOTER --- */}
+      <footer className="w-full py-6 sm:py-8 text-center border-t border-slate-100/50 px-3">
+        <p className="text-xs sm:text-sm text-slate-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+          <span>© {new Date().getFullYear()} Databro.</span>
+          <span className="hidden sm:inline w-1 h-1 bg-slate-300 rounded-full"></span>
+          <span className="text-center">Powered by coffee & commits.</span>
+        </p>
+      </footer>
     </div>
   );
 }

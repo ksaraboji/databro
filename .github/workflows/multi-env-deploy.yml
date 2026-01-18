@@ -1,0 +1,232 @@
+name: Build and Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'app/**'
+      - 'lib/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/multi-env-deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Generate build metadata
+        id: build-info
+        run: |
+          echo "build_id=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Print build summary
+        run: |
+          echo "✅ Build completed successfully!"
+          echo "Build ID: ${{ steps.build-info.outputs.build_id }}"
+          echo "Git SHA: ${{ steps.build-info.outputs.git_sha }}"
+          echo "Git Branch: ${{ steps.build-info.outputs.git_branch }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build-${{ steps.build-info.outputs.build_id }}
+          path: |
+            .next/
+            public/
+          retention-days: 5
+
+
+  deploy-dev:
+    name: Deploy to Dev Environment
+    needs: build
+    if: github.event_name == 'push' && github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Deploy to Dev S3
+        run: |
+          DEV_BUCKET="${{ secrets.DEV_S3_BUCKET_NAME }}"
+          echo "📤 Uploading to S3 bucket: $DEV_BUCKET"
+          
+          if [ -d ".next/static" ]; then
+            aws s3 sync .next/static s3://$DEV_BUCKET/_next/static --delete \
+              --cache-control "public, max-age=31536000, immutable"
+          fi
+          
+          if [ -d "public" ]; then
+            aws s3 sync public s3://$DEV_BUCKET/ --delete \
+              --cache-control "public, max-age=3600"
+          fi
+          
+          find .next -name "*.html" | while read file; do
+            s3_path="${file#.next/}"
+            aws s3 cp "$file" "s3://$DEV_BUCKET/$s3_path" \
+              --content-type "text/html" \
+              --cache-control "public, max-age=0, must-revalidate"
+          done
+          
+          echo "✅ Dev S3 deployment completed"
+
+      - name: Invalidate Dev CloudFront cache
+        if: secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+          echo "✅ CloudFront invalidation completed"
+
+      - name: Dev deployment summary
+        if: success()
+        run: |
+          echo "## ✅ Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: Development" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket**: ${{ secrets.DEV_S3_BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy-prod:
+    name: Deploy to Prod Environment
+    needs: build
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://${{ secrets.PROD_CLOUDFRONT_DOMAIN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Deploy to Prod S3
+        run: |
+          PROD_BUCKET="${{ secrets.PROD_S3_BUCKET_NAME }}"
+          echo "📤 Uploading to S3 bucket: $PROD_BUCKET"
+          
+          if [ -d ".next/static" ]; then
+            aws s3 sync .next/static s3://$PROD_BUCKET/_next/static --delete \
+              --cache-control "public, max-age=31536000, immutable"
+          fi
+          
+          if [ -d "public" ]; then
+            aws s3 sync public s3://$PROD_BUCKET/ --delete \
+              --cache-control "public, max-age=3600"
+          fi
+          
+          find .next -name "*.html" | while read file; do
+            s3_path="${file#.next/}"
+            aws s3 cp "$file" "s3://$PROD_BUCKET/$s3_path" \
+              --content-type "text/html" \
+              --cache-control "public, max-age=0, must-revalidate"
+          done
+          
+          echo "✅ Prod S3 deployment completed"
+
+      - name: Invalidate Prod CloudFront cache
+        if: secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+          echo "✅ CloudFront invalidation completed"
+
+      - name: Create GitHub deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref,
+              environment: 'production',
+              description: 'Production deployment',
+              required_contexts: []
+            });
+
+      - name: Prod deployment summary
+        if: success()
+        run: |
+          echo "## ✅ Prod Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket**: ${{ secrets.PROD_S3_BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: https://${{ secrets.PROD_CLOUDFRONT_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
