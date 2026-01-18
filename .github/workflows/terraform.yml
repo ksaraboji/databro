@@ -101,6 +101,24 @@ jobs:
         id: apply
         run: terraform apply -var-file=${{ matrix.environment }}.tfvars -no-color -auto-approve -input=false
 
+      - name: Get Terraform Outputs - Dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && matrix.environment == 'dev'
+        id: tf-outputs-dev
+        run: |
+          echo "s3_bucket=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
+          echo "cf_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
+          echo "cf_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Get Terraform Outputs - Prod
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.environment == 'prod'
+        id: tf-outputs-prod
+        run: |
+          echo "s3_bucket=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
+          echo "cf_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
+          echo "cf_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
       - name: Terraform Output (${{ matrix.environment }})
         if: github.event_name == 'push'
         id: output

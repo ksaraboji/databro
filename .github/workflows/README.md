@@ -38,25 +38,31 @@ Builds Next.js application and deploys to S3 buckets.
 - Push to `main` or `develop` branches with application changes
 - Pull requests to `main` or `develop`
 - Paths: `app/**`, `lib/**`, `public/**`, `package.json`, `package-lock.json`, `tsconfig.json`
+- **Workflow trigger**: After successful Terraform Infrastructure Deployment workflow (depends on infrastructure being ready)
 
 **Jobs**:
-1. **build** (runs on all triggers)
+1. **get-terraform-outputs** (runs on all triggers)
+   - Initializes Terraform and retrieves infrastructure identifiers
+   - Extracts: S3 bucket names, CloudFront distribution IDs, CloudFront domains
+   - Outputs are used by deploy jobs (with fallback to optional secrets)
+
+2. **build** (runs on all triggers)
    - Installs dependencies
    - Runs linter
    - Builds Next.js application
    - Generates build metadata
    - Uploads artifacts (5-day retention)
 
-2. **deploy-dev** (runs on push to develop)
+3. **deploy-dev** (runs on push to develop with app-only changes OR after successful terraform on develop)
    - Builds Next.js application
    - Configures AWS credentials
-   - Syncs to dev S3 bucket
+   - Syncs to dev S3 bucket (from Terraform outputs)
    - Invalidates dev CloudFront cache
 
-3. **deploy-prod** (runs on push to main)
+4. **deploy-prod** (runs on push to main with app-only changes OR after successful terraform on main)
    - Builds Next.js application
    - Configures AWS credentials
-   - Syncs to prod S3 bucket
+   - Syncs to prod S3 bucket (from Terraform outputs)
    - Invalidates prod CloudFront cache
    - Creates GitHub deployment record
 
@@ -66,29 +72,50 @@ Builds Next.js application and deploys to S3 buckets.
 - ✅ CloudFront invalidation
 - ✅ Build artifact retention
 - ✅ Deployment summaries
+- ✅ **Dynamic Terraform outputs extraction** (no manual secret management for bucket names, CloudFront IDs)
+- ✅ Graceful fallback to optional secrets if Terraform outputs unavailable
+- ✅ Runs on app-only changes WITHOUT waiting for Terraform
+- ✅ Skips deployment if Terraform fails (safety check)
 
-## Workflow Separation Benefits
+## Workflow Execution Strategy
 
-| Scenario | Old Approach | New Approach |
-|----------|---|---|
-| Code-only push | Build + Terraform | ✅ Only Build |
-| Terraform-only push | Build + Terraform | ✅ Only Terraform |
-| Both | Sequential | ✅ Parallel |
-| Performance | 8 min | ✅ 3-5 min |
+| Scenario | Terraform.yml | Multi-env-deploy.yml | Note |
+|----------|---|---|---|
+| **App-only changes** | Doesn't run | ✅ Runs immediately | No infrastructure wait, faster deployments |
+| **Terraform-only changes** | ✅ Runs | Runs only if TF succeeds | Only rebuild if needed |
+| **Both changes** | ✅ Runs → | ✅ Runs after TF succeeds | Infrastructure first, then deploy |
+| **Terraform fails** | ❌ Fails | ❌ Skips deployment | Safety check, prevents broken deploys |
+
+## Performance Improvement
+
+```
+Old Approach:        Terraform + Build + Deploy (sequential)
+New Approach:        
+  - App changes:     Build + Deploy (fast!)
+  - TF changes:      Terraform → Build + Deploy (if TF succeeds)
+  - Both changes:    Terraform (parallel) Build + Deploy (sequential)
+```
 
 ## Required Secrets
 
 Configure these in GitHub repository settings:
 
+### Required (for AWS access)
 ```
 AWS_ACCESS_KEY_ID              # AWS IAM access key
 AWS_SECRET_ACCESS_KEY          # AWS IAM secret key
-DEV_S3_BUCKET_NAME            # Dev bucket name
-DEV_CLOUDFRONT_DISTRIBUTION_ID # Dev CloudFront distribution ID
-PROD_S3_BUCKET_NAME           # Prod bucket name
-PROD_CLOUDFRONT_DISTRIBUTION_ID # Prod CloudFront distribution ID
-PROD_CLOUDFRONT_DOMAIN        # Prod CloudFront domain URL
 ```
+
+### Optional (fallback only, normally obtained from Terraform)
+```
+DEV_S3_BUCKET_NAME            # Dev bucket name (auto-fetched from Terraform)
+DEV_CLOUDFRONT_DISTRIBUTION_ID # Dev CloudFront ID (auto-fetched from Terraform)
+PROD_S3_BUCKET_NAME           # Prod bucket name (auto-fetched from Terraform)
+PROD_CLOUDFRONT_DISTRIBUTION_ID # Prod CloudFront ID (auto-fetched from Terraform)
+PROD_CLOUDFRONT_DOMAIN        # Prod CloudFront domain (auto-fetched from Terraform)
+```
+
+**Note**: The optional secrets serve as fallback if Terraform outputs retrieval fails. For new setups, only the required AWS credentials are needed.
 
 **Where to configure**: GitHub Repo → Settings → Secrets and variables → Actions
 
@@ -106,17 +133,22 @@ main (Production)
 
 ### Triggering Workflows
 
-**Application Deployment** (push app code):
+**Application-only changes** (fast path):
 ```bash
-git push origin develop  # Builds and deploys to dev S3
-git push origin main     # Builds and deploys to prod S3
+git push origin develop  # Builds and deploys to dev S3 immediately
+git push origin main     # Builds and deploys to prod S3 immediately
 ```
 
-**Infrastructure Changes** (push terraform code):
+**Infrastructure changes** (with dependency):
 ```bash
-git push origin develop  # Plans and applies dev infrastructure
-git push origin main     # Plans and applies prod infrastructure
+git push origin develop  # Plans/applies dev infrastructure → builds & deploys app
+git push origin main     # Plans/applies prod infrastructure → builds & deploys app
 ```
+
+**Both app and infrastructure changes**:
+- Infrastructure deploys first (Terraform)
+- Application builds and deploys only if infrastructure succeeds
+- Ensures infrastructure exists before deploying app
 
 ### Monitoring
 
@@ -189,11 +221,17 @@ ACTIONS_STEP_DEBUG: true
 - ✅ Did you modify files in `app/`, `lib/`, `public/`, or package files?
 - ✅ Did you push to `main` or `develop` branch?
 - ✅ Check GitHub Actions tab for error messages
+- ℹ️ If Terraform workflow ran, app deployment waits for it to succeed (watch status)
 
 **Infrastructure changes** (terraform.yml):
 - ✅ Did you modify files in `terraform/` directory?
 - ✅ Did you push to `main` or `develop` branch?
 - ✅ Check GitHub Actions tab for error messages
+
+**After Terraform completes**:
+- ✅ Multi-env-deploy.yml runs automatically if Terraform succeeded
+- ⚠️ If Terraform failed, deployment is skipped (safety feature)
+- ✅ Check "Workflow runs" to see if application deployment triggered
 
 ### Build Fails
 
@@ -214,10 +252,24 @@ ACTIONS_STEP_DEBUG: true
 
 ### Deployment to S3 Fails
 
-1. Verify S3 bucket names in GitHub secrets
-2. Check AWS IAM user has s3:* permissions
-3. Confirm CloudFront distribution IDs if using CDN
-4. Check AWS credentials are still valid
+1. Verify Terraform outputs were retrieved successfully (check get-terraform-outputs job logs)
+2. If using fallback secrets, verify S3 bucket names are correct in GitHub secrets
+3. Check AWS IAM user has `s3:*` permissions
+4. Confirm CloudFront distribution IDs if using CDN
+5. Check AWS credentials are still valid
+
+### Get Terraform Outputs Fails
+
+1. Verify Terraform state file exists in S3 (databro-tf-state bucket)
+2. Check AWS credentials in GitHub secrets (used for Terraform state access)
+3. Verify DynamoDB table exists for state locking (terraform-locks)
+4. Ensure Terraform backend is properly configured (backend-dev.hcl / backend-prod.hcl)
+5. Check Terraform syntax and outputs.tf file definitions
+
+If outputs fail consistently:
+- Deployment continues using optional fallback secrets (if configured)
+- Manually configure the optional secrets as backup
+- Review Terraform state for infrastructure existence
 
 ### CloudFront Invalidation Fails
 
