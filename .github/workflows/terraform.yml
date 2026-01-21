@@ -15,6 +15,10 @@ on:
     paths:
       - 'terraform/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   terraform-dev:
     name: Terraform (dev)
@@ -49,7 +53,7 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init
+        run: terraform init -backend-config=backend-dev.hcl
 
       - name: Terraform Validate
         id: validate
@@ -150,7 +154,7 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init
+        run: terraform init -backend-config=backend-prod.hcl
 
       - name: Terraform Validate
         id: validate
