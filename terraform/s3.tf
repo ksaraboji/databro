@@ -1,8 +1,8 @@
 # Local variables for bucket names based on environment
 locals {
-  bucket_name = var.environment == "prod" ? var.prod_bucket_name : var.dev_bucket_name
+  bucket_name      = var.environment == "prod" ? var.prod_bucket_name : var.dev_bucket_name
   full_bucket_name = "${local.bucket_name}-${data.aws_caller_identity.current.account_id}"
-  log_bucket_name = "${local.bucket_name}-logs-${data.aws_caller_identity.current.account_id}"
+  log_bucket_name  = "${local.bucket_name}-logs-${data.aws_caller_identity.current.account_id}"
 }
 
 # S3 bucket for hosting the Next.js application
@@ -85,10 +85,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
 }
 
 resource "aws_s3_bucket_logging" "nextjs_build" {
-  count           = var.enable_logging ? 1 : 0
-  bucket          = aws_s3_bucket.nextjs_build.id
-  target_bucket   = aws_s3_bucket.logs[0].id
-  target_prefix   = "nextjs-build/"
+  count                 = var.enable_logging ? 1 : 0
+  bucket                = aws_s3_bucket.nextjs_build.id
+  target_bucket         = aws_s3_bucket.logs[0].id
+  target_prefix         = "nextjs-build/"
   expected_bucket_owner = data.aws_caller_identity.current.account_id
 }
 

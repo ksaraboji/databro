@@ -5,6 +5,7 @@ Infrastructure as Code for deploying Databro portfolio to AWS.
 ## 📋 Overview
 
 This Terraform configuration sets up:
+
 - S3 bucket for hosting static Next.js build
 - CloudFront distribution for CDN
 - S3 access logging and monitoring
@@ -12,15 +13,15 @@ This Terraform configuration sets up:
 
 ## 🗂️ Files
 
-| File | Purpose |
-|------|---------|
-| `main.tf` | Provider configuration, data sources |
-| `variables.tf` | Input variable definitions |
-| `outputs.tf` | Output value definitions |
-| `s3.tf` | S3 bucket and logging configuration |
-| `cloudfront.tf` | CloudFront distribution and OAI |
-| `terraform.tfvars.example` | Example variables file |
-| `.gitignore` | Git ignore rules for sensitive files |
+| File                       | Purpose                              |
+| -------------------------- | ------------------------------------ |
+| `main.tf`                  | Provider configuration, data sources |
+| `variables.tf`             | Input variable definitions           |
+| `outputs.tf`               | Output value definitions             |
+| `s3.tf`                    | S3 bucket and logging configuration  |
+| `cloudfront.tf`            | CloudFront distribution and OAI      |
+| `terraform.tfvars.example` | Example variables file               |
+| `.gitignore`               | Git ignore rules for sensitive files |
 
 ## 🚀 Getting Started
 
@@ -158,6 +159,7 @@ terraform output -json
 ## 🛡️ Security Features
 
 ### S3 Bucket
+
 - ✅ Public access blocked
 - ✅ Server-side encryption (AES256)
 - ✅ Versioning enabled
@@ -165,12 +167,14 @@ terraform output -json
 - ✅ Lifecycle policies
 
 ### CloudFront
+
 - ✅ Origin Access Identity (OAI)
 - ✅ HTTPS enforcement
 - ✅ IPv6 support
 - ✅ Caching strategy
 
 ### IAM
+
 - ✅ Least privilege principle
 - ✅ Separate credentials for CI/CD
 - ✅ Policy documents in configuration
@@ -279,6 +283,7 @@ unset TF_LOG
 ### Common Issues
 
 **Error: "Bucket already exists"**
+
 ```
 Solution: S3 bucket names are globally unique. Try:
 - Change s3_bucket_name in terraform.tfvars
@@ -286,6 +291,7 @@ Solution: S3 bucket names are globally unique. Try:
 ```
 
 **Error: "AccessDenied"**
+
 ```
 Solution: Ensure AWS credentials have permissions for:
 - s3:CreateBucket
@@ -295,6 +301,7 @@ Solution: Ensure AWS credentials have permissions for:
 ```
 
 **Error: "The count operation... is not supported"**
+
 ```
 Solution: Ensure enable_cloudfront or enable_logging is explicitly true/false
 ```
@@ -313,13 +320,13 @@ terraform plan -json | tfcost
 
 ## 🔗 AWS Resources Created
 
-| Resource | Type | Details |
-|----------|------|---------|
-| S3 Bucket | `aws_s3_bucket` | Next.js static build storage |
-| S3 Logging | `aws_s3_bucket` | Access logs storage |
-| S3 Policy | `aws_s3_bucket_policy` | CloudFront access |
-| CloudFront | `aws_cloudfront_distribution` | CDN distribution |
-| OAI | `aws_cloudfront_origin_access_identity` | Secure S3 access |
+| Resource   | Type                                    | Details                      |
+| ---------- | --------------------------------------- | ---------------------------- |
+| S3 Bucket  | `aws_s3_bucket`                         | Next.js static build storage |
+| S3 Logging | `aws_s3_bucket`                         | Access logs storage          |
+| S3 Policy  | `aws_s3_bucket_policy`                  | CloudFront access            |
+| CloudFront | `aws_cloudfront_distribution`           | CDN distribution             |
+| OAI        | `aws_cloudfront_origin_access_identity` | Secure S3 access             |
 
 ## 🚀 CI/CD Integration
 
@@ -352,6 +359,7 @@ Before deploying:
 ## 📞 Support
 
 For issues:
+
 1. Check terraform plan output
 2. Review error messages carefully
 3. Check AWS IAM permissions

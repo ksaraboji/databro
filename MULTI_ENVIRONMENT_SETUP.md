@@ -54,12 +54,14 @@ terraform/
 ## 🚀 Deployment Flow
 
 ### Development Environment
+
 - **Trigger**: Push to `develop` branch
 - **Bucket**: `databro-dev-build-{account-id}`
 - **CloudFront**: Dev distribution
 - **Workflow**: `multi-env-deploy.yml` → `deploy-dev` job
 
 ### Production Environment
+
 - **Trigger**: Push to `main` branch
 - **Bucket**: `databro-prod-build-{account-id}`
 - **CloudFront**: Prod distribution
@@ -89,11 +91,13 @@ enable_cloudfront  = true
 ### AWS Resources Created
 
 **Dev Environment**:
+
 - S3 Bucket: `databro-dev-build-{account-id}`
 - S3 Logs: `databro-dev-build-logs-{account-id}`
 - CloudFront Distribution (if enabled)
 
 **Prod Environment**:
+
 - S3 Bucket: `databro-prod-build-{account-id}`
 - S3 Logs: `databro-prod-build-logs-{account-id}`
 - CloudFront Distribution (if enabled)
@@ -181,6 +185,7 @@ git push origin develop
 ```
 
 This automatically triggers:
+
 - Build Next.js app
 - Deploy to dev S3 bucket
 - Invalidate dev CloudFront
@@ -195,6 +200,7 @@ git push origin main
 ```
 
 This automatically triggers:
+
 - Build Next.js app
 - Deploy to prod S3 bucket
 - Invalidate prod CloudFront
@@ -226,6 +232,7 @@ backend "s3" {
 ```
 
 Then:
+
 ```bash
 terraform init
 ```
@@ -233,12 +240,14 @@ terraform init
 ## 🛡️ Best Practices
 
 ### Dev Environment
+
 - Lower costs preferred
 - Shorter log retention (15 days)
 - Rapid iteration allowed
 - Can test without approval
 
 ### Prod Environment
+
 - High availability required
 - Longer log retention (90 days)
 - Manual approval gates
@@ -289,6 +298,7 @@ Error: BadRequest: The bucket already exists and you must be its owner
 ```
 
 **Solution**: S3 bucket names are globally unique. Try:
+
 - Use a longer, more unique name in tfvars
 - Include company prefix or department
 
@@ -321,6 +331,7 @@ terraform force-unlock <lock-id>
 To add staging environment:
 
 1. Create `staging.tfvars`:
+
 ```hcl
 environment      = "staging"
 dev_bucket_name  = "databro-dev-build"
@@ -336,6 +347,7 @@ prod_bucket_name = "databro-prod-build"
 To deploy to multiple regions:
 
 1. Create regional subdirectories:
+
 ```
 terraform/
 ├── us-east-2/

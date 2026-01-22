@@ -1,12 +1,12 @@
 # CloudFront distribution for S3 bucket (optional)
 resource "aws_cloudfront_origin_access_identity" "nextjs_build" {
-  count   = var.enable_cloudfront ? 1 : 0
+  count   = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
   comment = "OAI for ${var.project_name} NextJS build (${var.environment})"
 }
 
 # S3 bucket policy for CloudFront
 resource "aws_s3_bucket_policy" "nextjs_build" {
-  count  = var.enable_cloudfront ? 1 : 0
+  count  = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
   bucket = aws_s3_bucket.nextjs_build.id
 
   policy = jsonencode({
@@ -26,10 +26,25 @@ resource "aws_s3_bucket_policy" "nextjs_build" {
 }
 
 resource "aws_cloudfront_distribution" "nextjs_build" {
-  count           = var.enable_cloudfront ? 1 : 0
-  enabled         = true
-  is_ipv6_enabled = true
-  comment         = "${var.project_name} NextJS Distribution (${var.environment})"
+  count               = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "${var.project_name} NextJS Distribution (${var.environment})"
+  default_root_object = "index.html"
+
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
+  }
 
   origin {
     domain_name = aws_s3_bucket.nextjs_build.bucket_regional_domain_name

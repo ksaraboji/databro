@@ -60,6 +60,7 @@ npm start
 ### Option 2: Manual Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
+
 - Setting up Terraform
 - Configuring AWS credentials
 - Deploying infrastructure
@@ -68,6 +69,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
 ### Quick Deployment Steps
 
 1. **Setup Infrastructure**:
+
    ```bash
    cd terraform
    terraform init
@@ -84,6 +86,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
 ## 📋 Terraform & Infrastructure
 
 Infrastructure setup with Terraform includes:
+
 - **S3 Bucket** - Static file hosting with encryption and versioning
 - **CloudFront** - CDN for faster content delivery
 - **Access Logging** - Monitor and audit S3 access
@@ -94,6 +97,7 @@ See [terraform/README.md](terraform/README.md) for detailed infrastructure docum
 ## 🔄 CI/CD Workflows
 
 GitHub Actions workflows handle:
+
 - **Build** - Install dependencies, run linter, build Next.js
 - **Deploy** - Sync to S3, invalidate CloudFront
 - **Infrastructure** - Terraform plan and apply
@@ -103,6 +107,7 @@ See [.github/workflows/README.md](.github/workflows/README.md) for workflow docu
 ## 🔐 Environment Variables
 
 Required for deployment:
+
 ```bash
 AWS_ACCESS_KEY_ID          # AWS IAM access key
 AWS_SECRET_ACCESS_KEY      # AWS IAM secret key

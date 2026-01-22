@@ -16,9 +16,11 @@ This separation provides cleaner, faster, and more maintainable workflows.
 **File**: `.github/workflows/terraform.yml`
 
 ### Purpose
+
 Manages AWS infrastructure (S3 buckets, CloudFront, IAM) for both dev and prod environments.
 
 ### Trigger Events
+
 ```yaml
 on:
   push:
@@ -26,17 +28,18 @@ on:
       - main
       - develop
     paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform.yml'
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
   pull_request:
     branches:
       - main
       - develop
     paths:
-      - 'terraform/**'
+      - "terraform/**"
 ```
 
 **Triggers when:**
+
 - Changes to any file in `terraform/` directory
 - Changes to the workflow file itself
 - On PRs targeting main or develop
@@ -44,6 +47,7 @@ on:
 ### Workflow Steps
 
 #### Plan Phase (Always runs)
+
 1. ✅ Checkout code
 2. ✅ Setup Terraform (v1.6.0)
 3. ✅ Configure AWS credentials
@@ -54,19 +58,24 @@ on:
 8. ✅ Comment on PR with plan output (if PR)
 
 #### Apply Phase (Main/Develop only)
+
 - **Dev**: Applies when pushing to `develop` branch
 - **Prod**: Applies when pushing to `main` branch
 
 #### Output Phase
+
 - Displays infrastructure outputs in GitHub workflow summary
 - Shows deployment status
 
 ### Matrix Strategy
+
 Runs for both environments simultaneously:
+
 - `dev` - Uses `terraform/dev.tfvars`
 - `prod` - Uses `terraform/prod.tfvars`
 
 ### Example Trigger
+
 ```bash
 # This will trigger terraform.yml workflow
 git push origin develop  # Plans/applies dev environment
@@ -80,9 +89,11 @@ git push origin main     # Plans/applies prod environment
 **File**: `.github/workflows/multi-env-deploy.yml`
 
 ### Purpose
+
 Builds Next.js application and deploys to S3 buckets for dev/prod environments.
 
 ### Trigger Events
+
 ```yaml
 on:
   push:
@@ -90,13 +101,13 @@ on:
       - main
       - develop
     paths:
-      - 'app/**'
-      - 'lib/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - '.github/workflows/multi-env-deploy.yml'
+      - "app/**"
+      - "lib/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/multi-env-deploy.yml"
   pull_request:
     branches:
       - main
@@ -104,6 +115,7 @@ on:
 ```
 
 **Triggers when:**
+
 - Changes to application code (`app/`, `lib/`, `public/`)
 - Changes to dependencies (`package.json`, `package-lock.json`)
 - Changes to TypeScript config (`tsconfig.json`)
@@ -113,9 +125,11 @@ on:
 ### Workflow Jobs
 
 #### 1. Build Job
+
 **Always runs on PRs and pushes**
 
 Steps:
+
 1. ✅ Checkout code
 2. ✅ Setup Node.js 20.x
 3. ✅ Install dependencies (`npm ci`)
@@ -127,11 +141,13 @@ Steps:
 **Output**: Build artifacts (`.next/`, `public/`)
 
 #### 2. Deploy-Dev Job
+
 **Runs only when pushing to `develop` branch**
 
 Dependencies: Requires `build` job to succeed
 
 Steps:
+
 1. ✅ Checkout code
 2. ✅ Setup Node.js 20.x
 3. ✅ Install dependencies
@@ -147,6 +163,7 @@ Steps:
 **Target**: `databro-dev-build-{account-id}` S3 bucket
 
 #### 3. Deploy-Prod Job
+
 **Runs only when pushing to `main` branch**
 
 Dependencies: Requires `build` job to succeed
@@ -154,6 +171,7 @@ Dependencies: Requires `build` job to succeed
 Environment Protection: GitHub environment `production` (optional approval)
 
 Steps:
+
 1. ✅ Checkout code
 2. ✅ Setup Node.js 20.x
 3. ✅ Install dependencies
@@ -170,10 +188,12 @@ Steps:
 **Target**: `databro-prod-build-{account-id}` S3 bucket
 
 ### Branch-Based Deployment
+
 - **`develop` branch** → Deploy to dev environment
 - **`main` branch** → Deploy to prod environment
 
 ### Example Trigger
+
 ```bash
 # This will trigger multi-env-deploy.yml workflow
 git push origin develop  # Builds and deploys to dev S3
@@ -185,24 +205,28 @@ git push origin main     # Builds and deploys to prod S3
 ## 📊 Workflow Separation Benefits
 
 ### Performance
-| Aspect | Before | After |
-|--------|--------|-------|
-| Build only changes | Build + Terraform runs | ✅ Only Build runs |
+
+| Aspect                 | Before                 | After                  |
+| ---------------------- | ---------------------- | ---------------------- |
+| Build only changes     | Build + Terraform runs | ✅ Only Build runs     |
 | Terraform only changes | Build + Terraform runs | ✅ Only Terraform runs |
-| Parallel execution | Sequential | ✅ Simultaneous |
+| Parallel execution     | Sequential             | ✅ Simultaneous        |
 
 ### Clarity
+
 - ✅ Each workflow has single responsibility
 - ✅ Cleaner log output
 - ✅ Easier to debug
 - ✅ Clear trigger conditions
 
 ### Maintenance
+
 - ✅ Easier to update one without affecting the other
 - ✅ Simpler to add new jobs
 - ✅ Better code organization
 
 ### Cost
+
 - ✅ Fewer unnecessary job runs
 - ✅ Faster feedback to developers
 - ✅ Reduced GitHub Actions minutes
@@ -290,6 +314,7 @@ GitHub Repo → Settings → Secrets and variables → Actions
 ## 🚀 Deploying Changes
 
 ### Development Deployment (Dev)
+
 ```bash
 # 1. Feature work on develop branch
 git checkout develop
@@ -312,6 +337,7 @@ git push origin develop
 ```
 
 ### Production Deployment (Prod)
+
 ```bash
 # 1. Merge develop to main
 git checkout main
@@ -330,6 +356,7 @@ git push origin main
 ```
 
 ### Infrastructure Updates
+
 ```bash
 # 1. Modify Terraform files
 git checkout develop
@@ -374,17 +401,21 @@ git push origin main
 ## 🔍 Monitoring Workflows
 
 ### View Workflow Status
+
 1. Go to GitHub repository
 2. Click on **Actions** tab
 3. See all workflow runs
 4. Click on a run to see details
 
 ### Filter by Workflow
+
 - **"Terraform Infrastructure Deployment"** - Infrastructure changes
 - **"Build and Deploy Application"** - Application changes
 
 ### View Logs
+
 Each job shows detailed logs of every step. Click on a step to expand:
+
 - **Setup steps**: Show environment information
 - **Build step**: Shows compilation errors/warnings
 - **Deploy step**: Shows S3 sync output
@@ -395,28 +426,35 @@ Each job shows detailed logs of every step. Click on a step to expand:
 ## 🆘 Troubleshooting
 
 ### Build Workflow Didn't Trigger
+
 **Check**: Did you modify files in `app/`, `lib/`, `public/`, or package files?
 
 If yes, but workflow didn't run:
+
 1. Push to `develop` or `main` branch (not feature branch)
 2. Check GitHub Actions tab for any error messages
 3. Verify branch protection rules aren't blocking
 
 ### Terraform Workflow Didn't Trigger
+
 **Check**: Did you modify files in `terraform/` directory?
 
 If yes, but workflow didn't run:
+
 1. Push to `develop` or `main` branch (not feature branch)
 2. Check GitHub Actions tab for any error messages
 3. Verify branch protection rules aren't blocking
 
 ### Both Workflows Triggered
+
 This is expected! If you changed both app code and infrastructure, both should run.
 
 ### Deployment Failed - AWS Credentials
+
 **Error**: `An error occurred (InvalidUserID.NotFound) when calling...`
 
 **Fix**:
+
 1. Check GitHub secrets are configured correctly
 2. Verify AWS IAM user has necessary permissions:
    - `s3:*` for S3 buckets
@@ -424,9 +462,11 @@ This is expected! If you changed both app code and infrastructure, both should r
 3. Check AWS credentials aren't expired
 
 ### Deployment Failed - S3 Bucket Not Found
+
 **Error**: `An error occurred (NoSuchBucket) when calling...`
 
 **Fix**:
+
 1. Verify `DEV_S3_BUCKET_NAME` and `PROD_S3_BUCKET_NAME` secrets are correct
 2. Check buckets exist in AWS:
    ```bash
@@ -436,9 +476,11 @@ This is expected! If you changed both app code and infrastructure, both should r
 4. Check GitHub secrets spelling (case-sensitive)
 
 ### Deployment Failed - CloudFront Not Found
+
 **Error**: `An error occurred (InvalidArgument)...`
 
 **Fix**:
+
 1. Verify `DEV_CLOUDFRONT_DISTRIBUTION_ID` and `PROD_CLOUDFRONT_DISTRIBUTION_ID` are correct
 2. Check distribution IDs exist in AWS:
    ```bash
@@ -461,6 +503,7 @@ This is expected! If you changed both app code and infrastructure, both should r
 ## Summary
 
 The workflow separation provides:
+
 - ✅ **Clarity**: Clear responsibility for each workflow
 - ✅ **Performance**: Only relevant workflows trigger
 - ✅ **Maintainability**: Easier to update without side effects
@@ -468,5 +511,6 @@ The workflow separation provides:
 - ✅ **Cost**: Fewer unnecessary job runs
 
 **Remember:**
+
 - **terraform.yml** → Infrastructure only (AWS resources)
 - **multi-env-deploy.yml** → Application only (Build & deploy)
