@@ -41,6 +41,7 @@ terraform/
 ### Step 1: Configure Terraform
 
 1. Copy the example variables file:
+
    ```bash
    cd terraform
    cp terraform.tfvars.example terraform.tfvars
@@ -70,6 +71,7 @@ terraform/
 **Option A: Using GitHub Actions (Recommended)**
 
 1. Push changes to the `main` branch:
+
    ```bash
    git add terraform/
    git commit -m "Add Terraform infrastructure"
@@ -101,10 +103,12 @@ terraform apply -var-file=terraform.tfvars
 ### 1. Build and Deploy Workflow (`build-and-deploy.yml`)
 
 **Triggers:**
+
 - Push to `main` or `develop` branches
 - Changes to app files, package.json, etc.
 
 **Jobs:**
+
 1. **Build Job:**
    - Checkout code
    - Setup Node.js
@@ -120,6 +124,7 @@ terraform apply -var-file=terraform.tfvars
    - Invalidate CloudFront cache (if enabled)
 
 **Environment Variables/Secrets Used:**
+
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `S3_BUCKET_NAME`
@@ -128,10 +133,12 @@ terraform apply -var-file=terraform.tfvars
 ### 2. Terraform Workflow (`terraform.yml`)
 
 **Triggers:**
+
 - Push to `main` branch with terraform changes
 - Pull requests to `main` branch with terraform changes
 
 **Jobs:**
+
 1. **Terraform Job:**
    - Checkout code
    - Initialize Terraform
@@ -142,6 +149,7 @@ terraform apply -var-file=terraform.tfvars
    - Publish outputs
 
 **Environment Variables/Secrets Used:**
+
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - Terraform variables from `.tfvars` file
@@ -149,6 +157,7 @@ terraform apply -var-file=terraform.tfvars
 ## 📋 Terraform Resources
 
 ### S3 Bucket (`s3.tf`)
+
 - **Resource**: `aws_s3_bucket`
 - **Features**:
   - Public access blocked
@@ -159,6 +168,7 @@ terraform apply -var-file=terraform.tfvars
   - Lifecycle policies for log cleanup
 
 ### CloudFront Distribution (`cloudfront.tf`)
+
 - **Resource**: `aws_cloudfront_distribution`
 - **Features**:
   - Origin Access Identity (OAI) for secure S3 access
@@ -188,11 +198,13 @@ terraform apply -var-file=terraform.tfvars
 ### View Logs
 
 **GitHub Actions:**
+
 1. Go to `Actions` tab in your GitHub repository
 2. Click on the workflow run
 3. View logs for each job/step
 
 **AWS CloudWatch:**
+
 ```bash
 # View S3 access logs
 aws s3 ls s3://databro-logs-prod-<account-id>/ --recursive
@@ -229,6 +241,7 @@ Terraform Changes → Plan → Validate → Apply → Update Infrastructure
 ### Update S3 Bucket Configuration
 
 Edit `terraform/terraform.tfvars`:
+
 ```hcl
 enable_versioning = false
 log_retention_days = 60
@@ -239,6 +252,7 @@ Push changes, and GitHub Actions will automatically apply them.
 ### Manual S3 Upload
 
 If you need to upload manually:
+
 ```bash
 # Build locally
 npm run build
@@ -288,6 +302,7 @@ terraform destroy -var-file=terraform.tfvars
 ### "InvalidIdentityTokenException" in GitHub Actions
 
 **Solution**: Ensure your AWS IAM user has these permissions:
+
 - `s3:ListBucket`
 - `s3:GetObject`
 - `s3:PutObject`
@@ -297,6 +312,7 @@ terraform destroy -var-file=terraform.tfvars
 ### Terraform Plan Fails with "AccessDenied"
 
 **Solution**: Check IAM permissions include:
+
 - `ec2:DescribeAccountAttributes`
 - `sts:GetCallerIdentity`
 - `s3:CreateBucket`
@@ -305,6 +321,7 @@ terraform destroy -var-file=terraform.tfvars
 ### S3 Deployment Slow
 
 **Solution**: Use CloudFront distribution and implement versioning strategy:
+
 - Static assets: Cache for 1 year
 - HTML files: Cache for 0 seconds
 - Other: Cache for 1 hour
@@ -319,6 +336,7 @@ terraform destroy -var-file=terraform.tfvars
 ## 📞 Support
 
 For issues or questions:
+
 1. Check GitHub Issues in the repository
 2. Review AWS documentation
 3. Check Terraform registry documentation

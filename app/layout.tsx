@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Databro.",
-  description: "Data Engineer crafting data pipelines and infrastructure. Portfolio showcasing projects in data engineering, analytics, and cloud technologies.",
+  description:
+    "Data Engineer crafting data pipelines and infrastructure. Portfolio showcasing projects in data engineering, analytics, and cloud technologies.",
   icons: {
     icon: "/favicon.svg",
   },

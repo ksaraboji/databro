@@ -9,12 +9,14 @@ Your Terraform and GitHub Actions infrastructure has been updated to support **s
 ### Terraform Configuration
 
 #### `variables.tf` - Updated
+
 - Removed single `s3_bucket_name` variable
 - Added `dev_bucket_name` and `prod_bucket_name` variables
 - Environment validation now supports dev/prod only
 - Added local variables for dynamic bucket naming
 
 #### `s3.tf` - Enhanced
+
 - **Locals Block**: Determines bucket names based on environment
   ```hcl
   locals {
@@ -26,11 +28,13 @@ Your Terraform and GitHub Actions infrastructure has been updated to support **s
 - **Tags**: Include environment label for easy identification
 
 #### `cloudfront.tf` - Updated
+
 - CloudFront distributions now environment-specific
 - OAI comments include environment name
 - Distribution comments include environment identifier
 
 #### `outputs.tf` - Expanded
+
 - New outputs showing both dev and prod bucket names
 - `all_buckets_info` output shows current environment and both buckets
 - Deployment instructions now environment-specific
@@ -38,6 +42,7 @@ Your Terraform and GitHub Actions infrastructure has been updated to support **s
 ### New Files
 
 #### `dev.tfvars` - Development Configuration
+
 ```hcl
 environment = "dev"
 dev_bucket_name = "databro-dev-build"
@@ -46,6 +51,7 @@ log_retention_days = 15  # Shorter retention
 ```
 
 #### `prod.tfvars` - Production Configuration
+
 ```hcl
 environment = "prod"
 log_retention_days = 90  # Longer retention
@@ -56,6 +62,7 @@ enable_logging = true
 ### GitHub Actions Workflows
 
 #### `.github/workflows/multi-env-deploy.yml` - New
+
 - **Replaces** `build-and-deploy.yml` for multi-environment support
 - Two separate deployment jobs: `deploy-dev` and `deploy-prod`
 - **Dev Job Triggers**: Push to `develop` branch
@@ -64,6 +71,7 @@ enable_logging = true
 - Separate S3 buckets and CloudFront distributions per environment
 
 #### `.github/workflows/terraform.yml` - Updated
+
 - Matrix strategy: Runs for both dev and prod environments
 - **Dev Deploy**: Triggered on push to `develop`
 - **Prod Deploy**: Triggered on push to `main`
@@ -99,6 +107,7 @@ Root Files:
 ## 🚀 Deployment Flow
 
 ### Development Environment
+
 ```
 Feature Branch → develop → GitHub Actions
                             ↓
@@ -113,6 +122,7 @@ Feature Branch → develop → GitHub Actions
 **Access**: Direct from develop branch pushes
 
 ### Production Environment
+
 ```
 Feature Branch → develop → main → GitHub Actions
                             ↓
@@ -151,14 +161,15 @@ PROD_CLOUDFRONT_DOMAIN         # Prod CloudFront domain
    - Customize bucket names if needed
 
 2. **Deploy Infrastructure**:
+
    ```bash
    cd terraform
    terraform init
-   
+
    # Deploy Dev
    terraform plan -var-file=dev.tfvars
    terraform apply -var-file=dev.tfvars
-   
+
    # Deploy Prod
    terraform plan -var-file=prod.tfvars
    terraform apply -var-file=prod.tfvars
@@ -179,14 +190,14 @@ PROD_CLOUDFRONT_DOMAIN         # Prod CloudFront domain
 
 ## 🎯 Differences Between Dev and Prod
 
-| Feature | Dev | Prod |
-|---------|-----|------|
-| **Trigger** | develop branch | main branch |
-| **Bucket Name** | `databro-dev-build-*` | `databro-prod-build-*` |
-| **Log Retention** | 15 days | 90 days |
-| **Approval Required** | No | Optional (GitHub Environments) |
-| **CloudFront** | Yes (if enabled) | Yes (if enabled) |
-| **Versioning** | Enabled | Enabled |
+| Feature               | Dev                   | Prod                           |
+| --------------------- | --------------------- | ------------------------------ |
+| **Trigger**           | develop branch        | main branch                    |
+| **Bucket Name**       | `databro-dev-build-*` | `databro-prod-build-*`         |
+| **Log Retention**     | 15 days               | 90 days                        |
+| **Approval Required** | No                    | Optional (GitHub Environments) |
+| **CloudFront**        | Yes (if enabled)      | Yes (if enabled)               |
+| **Versioning**        | Enabled               | Enabled                        |
 
 ## 💡 Key Benefits
 
@@ -201,6 +212,7 @@ PROD_CLOUDFRONT_DOMAIN         # Prod CloudFront domain
 ## 🔄 Workflow Examples
 
 ### Deploy to Dev Only
+
 ```bash
 git checkout develop
 git commit -m "Update content"
@@ -209,6 +221,7 @@ git push origin develop
 ```
 
 ### Deploy to Prod
+
 ```bash
 git checkout develop
 # Make changes
@@ -225,6 +238,7 @@ git push origin main
 ## 📊 AWS Resources Summary
 
 **Per Environment**:
+
 - 1 S3 Bucket (built content)
 - 1 S3 Bucket (access logs)
 - 1 CloudFront Distribution (optional)
@@ -232,13 +246,14 @@ git push origin main
 - Lifecycle policies for logs
 
 **Total Resources**:
+
 - 4 S3 Buckets (2 per environment)
 - 2 CloudFront Distributions (1 per environment)
 - Associated policies and configurations
 
 ## 🚨 Important Notes
 
-1. **S3 Bucket Names are Global**: 
+1. **S3 Bucket Names are Global**:
    - Must be unique across all AWS accounts
    - Customize in `dev.tfvars` and `prod.tfvars` if needed
 
@@ -296,6 +311,7 @@ After setup, verify:
 ## 🎉 You're All Set!
 
 Your infrastructure now supports:
+
 - ✅ Separate dev and prod environments
 - ✅ Automated deployments based on branch
 - ✅ Independent S3 buckets and CDN

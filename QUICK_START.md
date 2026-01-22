@@ -232,14 +232,14 @@ main (Production)
 
 ## 📈 Environment Differences
 
-| Aspect | Dev | Prod |
-|--------|-----|------|
-| Branch | develop | main |
-| Deployment | Automatic | Automatic |
-| Approval | Not required | Optional |
-| S3 Bucket | `databro-dev-build-*` | `databro-prod-build-*` |
-| Log Retention | 15 days | 90 days |
-| URL | Dev CloudFront | Prod CloudFront |
+| Aspect        | Dev                   | Prod                   |
+| ------------- | --------------------- | ---------------------- |
+| Branch        | develop               | main                   |
+| Deployment    | Automatic             | Automatic              |
+| Approval      | Not required          | Optional               |
+| S3 Bucket     | `databro-dev-build-*` | `databro-prod-build-*` |
+| Log Retention | 15 days               | 90 days                |
+| URL           | Dev CloudFront        | Prod CloudFront        |
 
 ## 🆘 Troubleshooting
 
@@ -367,6 +367,7 @@ git push origin main
 ---
 
 **Need help?** See the detailed documentation in:
+
 - [MULTI_ENVIRONMENT_SETUP.md](MULTI_ENVIRONMENT_SETUP.md)
 - [terraform/README.md](terraform/README.md)
 - [.github/workflows/README.md](.github/workflows/README.md)
