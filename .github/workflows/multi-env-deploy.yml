@@ -152,6 +152,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: latest
+          terraform_wrapper: false
 
       - name: Try to get Terraform outputs (dev)
         id: tf-outputs
@@ -239,6 +240,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: latest
+          terraform_wrapper: false
 
       - name: Try to get Terraform outputs (prod)
         id: tf-outputs
