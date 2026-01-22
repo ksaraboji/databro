@@ -121,6 +121,12 @@ jobs:
             exit 1
           fi
 
+  call-deploy-dev:
+    needs: terraform-dev
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/multi-env-deploy.yml
+    secrets: inherit
+
   terraform-prod:
     name: Terraform (prod)
     runs-on: ubuntu-latest
@@ -221,3 +227,9 @@ jobs:
             echo "❌ Terraform validation or plan (prod) failed"
             exit 1
           fi
+
+  call-deploy-prod:
+    needs: terraform-prod
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/multi-env-deploy.yml
+    secrets: inherit
