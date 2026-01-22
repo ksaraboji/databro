@@ -140,6 +140,14 @@ jobs:
           echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
 
+      - name: Configure AWS credentials (for deploy)
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
       - name: Try to get Terraform outputs (dev)
         id: tf-outputs
         run: |
@@ -151,14 +159,6 @@ jobs:
           echo "DEV_S3_BUCKET=$S3" >> $GITHUB_ENV
           echo "DEV_CF_ID=$CF_ID" >> $GITHUB_ENV
         continue-on-error: true
-
-      - name: Configure AWS credentials (for deploy)
-        if: github.event_name != 'pull_request'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
 
       - name: Deploy to Dev S3
         if: github.event_name != 'pull_request'
@@ -222,6 +222,14 @@ jobs:
           echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "git_branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
 
+      - name: Configure AWS credentials (for deploy)
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
       - name: Try to get Terraform outputs (prod)
         id: tf-outputs
         run: |
@@ -235,14 +243,6 @@ jobs:
           echo "PROD_CF_ID=$CF_ID" >> $GITHUB_ENV
           echo "PROD_CF_DOMAIN=$CF_DOMAIN" >> $GITHUB_ENV
         continue-on-error: true
-
-      - name: Configure AWS credentials (for deploy)
-        if: github.event_name != 'pull_request'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
 
       - name: Deploy to Prod S3
         if: github.event_name != 'pull_request'
