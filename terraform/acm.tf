@@ -10,3 +10,9 @@ resource "aws_acm_certificate" "cert" {
 
   tags = var.tags
 }
+
+resource "aws_acm_certificate_validation" "cert" {
+  count           = var.domain_name != "" ? 1 : 0
+  provider        = aws.us_east_1
+  certificate_arn = aws_acm_certificate.cert[0].arn
+}

@@ -27,6 +27,9 @@ resource "aws_s3_bucket_policy" "nextjs_build" {
 
 resource "aws_cloudfront_distribution" "nextjs_build" {
   count               = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
+  
+  depends_on = [aws_acm_certificate_validation.cert]
+  
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "${var.project_name} NextJS Distribution (${var.environment})"
