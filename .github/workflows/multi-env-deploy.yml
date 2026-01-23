@@ -171,16 +171,12 @@ jobs:
         run: |
           DEV_BUCKET="${DEV_S3_BUCKET:-${{ secrets.DEV_S3_BUCKET_NAME }}}"
           echo "📤 Uploading to S3 bucket: $DEV_BUCKET"
-          if [ -d ".next/static" ]; then
-            aws s3 sync .next/static s3://$DEV_BUCKET/_next/static --delete --cache-control "public, max-age=31536000, immutable"
+          # Sync _next folder with long cache
+          if [ -d "out/_next" ]; then
+            aws s3 sync out/_next s3://$DEV_BUCKET/_next --delete --cache-control "public, max-age=31536000, immutable"
           fi
-          if [ -d "public" ]; then
-            aws s3 sync public s3://$DEV_BUCKET/ --delete --cache-control "public, max-age=3600"
-          fi
-          find .next -name "*.html" | while read file; do
-            s3_path="${file#.next/}"
-            aws s3 cp "$file" "s3://$DEV_BUCKET/$s3_path" --content-type "text/html" --cache-control "public, max-age=0, must-revalidate"
-          done
+          # Sync everything else with short cache
+          aws s3 sync out s3://$DEV_BUCKET --delete --exclude "_next/*" --cache-control "public, max-age=0, must-revalidate"
           echo "✅ Dev S3 deployment completed"
 
       - name: Invalidate Dev CloudFront cache
@@ -261,16 +257,12 @@ jobs:
         run: |
           PROD_BUCKET="${PROD_S3_BUCKET:-${{ secrets.PROD_S3_BUCKET_NAME }}}"
           echo "📤 Uploading to S3 bucket: $PROD_BUCKET"
-          if [ -d ".next/static" ]; then
-            aws s3 sync .next/static s3://$PROD_BUCKET/_next/static --delete --cache-control "public, max-age=31536000, immutable"
+          # Sync _next folder with long cache
+          if [ -d "out/_next" ]; then
+            aws s3 sync out/_next s3://$PROD_BUCKET/_next --delete --cache-control "public, max-age=31536000, immutable"
           fi
-          if [ -d "public" ]; then
-            aws s3 sync public s3://$PROD_BUCKET/ --delete --cache-control "public, max-age=3600"
-          fi
-          find .next -name "*.html" | while read file; do
-            s3_path="${file#.next/}"
-            aws s3 cp "$file" "s3://$PROD_BUCKET/$s3_path" --content-type "text/html" --cache-control "public, max-age=0, must-revalidate"
-          done
+          # Sync everything else with short cache
+          aws s3 sync out s3://$PROD_BUCKET --delete --exclude "_next/*" --cache-control "public, max-age=0, must-revalidate"
           echo "✅ Prod S3 deployment completed"
 
       - name: Invalidate Prod CloudFront cache
