@@ -77,3 +77,8 @@ output "all_buckets_info" {
     current_bucket = aws_s3_bucket.nextjs_build.id
   }
 }
+
+output "acm_certificate_validation_options" {
+  description = "Domain validation options for ACM certificate"
+  value       = var.domain_name != "" ? aws_acm_certificate.cert[0].domain_validation_options : []
+}
