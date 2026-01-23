@@ -28,6 +28,20 @@ provider "aws" {
   }
 }
 
+# CloudFront certificates must be in us-east-1 regardless of your default region
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
 # Data source to get current AWS account ID
 data "aws_caller_identity" "current" {}
 

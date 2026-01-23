@@ -46,6 +46,8 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
     error_caching_min_ttl = 10
   }
 
+  aliases = var.domain_name != "" ? [var.domain_name] : []
+
   origin {
     domain_name = aws_s3_bucket.nextjs_build.bucket_regional_domain_name
     origin_id   = "myS3Origin"
@@ -81,7 +83,10 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.domain_name == ""
+    acm_certificate_arn            = var.domain_name != "" ? aws_acm_certificate.cert[0].arn : null
+    ssl_support_method             = var.domain_name != "" ? "sni-only" : null
+    minimum_protocol_version       = var.domain_name != "" ? "TLSv1.2_2021" : "TLSv1"
   }
 
   tags = merge(

@@ -57,6 +57,12 @@ variable "enable_cloudfront" {
   default     = true
 }
 
+variable "domain_name" {
+  description = "Domain name for the ACM certificate and CloudFront distribution"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
