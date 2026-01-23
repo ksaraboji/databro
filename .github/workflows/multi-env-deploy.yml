@@ -25,7 +25,7 @@ on:
       - "tsconfig.json"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-app
   cancel-in-progress: false
 
 jobs:
