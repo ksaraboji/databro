@@ -15,10 +15,7 @@ on:
       - ".github/workflows/multi-env-deploy.yml"
       # We must include terraform paths here so the push trigger fires for mixed commits!
       - "terraform/**"
-  workflow_run:
-    workflows: ["Terraform Infrastructure Deployment"]
-    types:
-      - completed
+  workflow_call:
   pull_request:
     paths:
       - "app/**"
@@ -66,23 +63,23 @@ jobs:
 
           EVENT="${{ github.event_name }}"
           BRANCH="${{ github.ref_name }}"
-          # For workflow_run, get the branch from the event payload
-          if [ "$EVENT" == "workflow_run" ]; then
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
-          fi
+          # For workflow_call, context is preserved
+          if [ "$EVENT" == "workflow_call" ]; then
+             echo "✅ Workflow_call logic. Checking for app changes..."
+             if [ "$HAS_APP_CHANGES" == "true" ]; then
+                RUN_DEPLOY="true"
+             else
+                echo "ℹ️ Called by workflow but no app changes. SKIPPING."
+                RUN_DEPLOY="false"
+             fi
 
-          echo "Event: $EVENT"
-          echo "Branch: $BRANCH"
-
-          RUN_DEPLOY="false"
-
-          if [ "$EVENT" == "pull_request" ]; then
+          elif [ "$EVENT" == "pull_request" ]; then
              if [ "$HAS_APP_CHANGES" == "true" ]; then RUN_DEPLOY="true"; fi
 
           elif [ "$EVENT" == "push" ]; then
              if [ "$HAS_APP_CHANGES" == "true" ]; then
                 if [ "$HAS_TF_CHANGES" == "true" ]; then
-                   echo "🛑 Both App and Terraform changed. Push event. SKIPPING (waiting for Terraform workflow)."
+                   echo "🛑 Both App and Terraform changed. Push event. SKIPPING (Expecting 'Terraform' workflow to call this)."
                    RUN_DEPLOY="false"
                 else
                    echo "✅ Only App changed. Push event. RUNNING."
@@ -90,15 +87,6 @@ jobs:
                 fi
              else
                 echo "ℹ️ No app changes in this push (likely Terraform only). SKIPPING."
-                RUN_DEPLOY="false"
-             fi
-
-          elif [ "$EVENT" == "workflow_run" ]; then
-             if [ "$HAS_APP_CHANGES" == "true" ]; then
-                echo "✅ Workflow_run (Terraform completed). App changes detected. RUNNING app deploy now."
-                RUN_DEPLOY="true"
-             else
-                echo "ℹ️ Workflow_run triggered but NO app changes associated with that commit. SKIPPING."
                 RUN_DEPLOY="false"
              fi
           fi
