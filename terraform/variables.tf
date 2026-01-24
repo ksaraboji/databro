@@ -60,7 +60,7 @@ variable "enable_cloudfront" {
 variable "domain_name" {
   description = "Domain name for the ACM certificate and CloudFront distribution"
   type        = string
-  default     = ""
+  default     = "dev.databro.dev"
 }
 
 variable "tags" {
