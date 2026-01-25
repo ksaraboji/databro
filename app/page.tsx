@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Database, Cpu, Bot } from "lucide-react";
+import { ArrowRight, Workflow, Cpu, Bot } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +27,7 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row md:flex-row items-center justify-center gap-2 sm:gap-3 md:gap-6 mt-3 sm:mt-4 lg:mt-6">
             <div className="flex items-center gap-2 text-slate-700 font-medium text-sm sm:text-base md:text-lg lg:text-xl">
-              <Database
+              <Workflow
                 className="w-4 h-4 sm:w-5 sm:h-5"
                 style={{ color: "#2563eb" }}
               />
