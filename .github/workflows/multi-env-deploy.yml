@@ -40,13 +40,19 @@ jobs:
         with:
           # Ensure we check out the correct commit for workflow_run
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Decision Logic
         id: decision
         run: |
           # Detect changed files
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "Push event detected. Diffing between ${{ github.event.before }} and ${{ github.sha }}"
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          else
+            echo "PR or other event. Diffing HEAD~1..HEAD"
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
 
           echo "🔍 Changed files detected:"
           echo "$CHANGED_FILES"

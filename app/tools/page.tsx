@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash } from "lucide-react";
 import { motion } from "framer-motion";
 
 type Tool = {
@@ -47,7 +47,15 @@ const toolCategories: Category[] = [
   {
     id: "utilities",
     title: "Utilities & Encoding",
-    tools: [],
+    tools: [
+      {
+        name: "Checksum Calculator",
+        description: "Generate MD5/SHA256 hashes and count lines for text files locally.",
+        icon: <Hash className="w-8 h-8 text-emerald-600" />,
+        href: "/tools/checksum-calculator",
+        color: "bg-emerald-50 hover:bg-emerald-100",
+      },
+    ],
   },
   {
     id: "visualization",
