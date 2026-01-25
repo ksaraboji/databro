@@ -106,7 +106,8 @@ async function findMostRelevantChunk(query: string, contextJSON: string): Promis
             }
         }
 
-        if (bestSemScore > 0.15) {
+        // Increased threshold to prevent hallucinations on irrelevant queries (e.g. "India")
+        if (bestSemScore > 0.25) {
             return bestSemText;
         }
 
