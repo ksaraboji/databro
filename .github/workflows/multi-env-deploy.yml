@@ -60,7 +60,7 @@ jobs:
           echo "$CHANGED_FILES"
 
           # Check for matches
-          HAS_APP_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(app/|lib/|public/|package.json|package-lock.json|tsconfig.json|.github/workflows/multi-env-deploy.yml)' || echo "false")
+          HAS_APP_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(app/|components/|lib/|public/|package.json|package-lock.json|tsconfig.json|.github/workflows/multi-env-deploy.yml)' || echo "false")
           HAS_TF_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(terraform/|.github/workflows/terraform.yml)' || echo "false")
 
           if [ "$HAS_APP_CHANGES" != "false" ]; then HAS_APP_CHANGES="true"; fi
