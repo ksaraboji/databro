@@ -59,6 +59,11 @@ const TECH_STACK_CONTEXT = JSON.stringify([
     text: "The JSON Formatter tool is available at https://dev.databro.dev/tools/json-formatter" 
   },
   { 
+    id: "tools-usp",
+    keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage"], 
+    text: "The unique feature of these tools is that all data processing happens locally in your browser. No data ever leaves your machine or is sent to a server." 
+  },
+  { 
     id: "tools",
     keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
     text: "Available tools: SQL Formatter (https://dev.databro.dev/tools/sql-formatter), Checksum Calculator (https://dev.databro.dev/tools/checksum-calculator), and JSON Formatter (https://dev.databro.dev/tools/json-formatter)." 
