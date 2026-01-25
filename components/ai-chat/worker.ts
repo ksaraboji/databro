@@ -1,149 +1,179 @@
 import { pipeline, env } from '@xenova/transformers';
 
-// Skip local model checks since we are running in browser
+// Configuration
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-// Signal that the worker script has at least loaded
-self.postMessage({ status: 'worker-loaded' });
+const GENERATION_MODEL = 'Xenova/Qwen1.5-0.5B-Chat';
+const EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
-class AIWorker {
-  static instance: any = null;
-
-  static async getInstance(progress_callback: any = null) {
-    if (this.instance === null) {
-      // Robust Solution: Qwen1.5-0.5B-Chat
-      // Why: It's a true LLM (Chat), not just a T5 translator. It understands conversation.
-      // Optimization: We will use STREAMING to show the user it is working, instead of waiting 2 mins.
-      this.instance = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', { progress_callback });
-    }
-    return this.instance;
-  }
+interface ContextChunk {
+    id: string;
+    keywords: string[];
+    text: string;
 }
 
-// Simple strict keyword matching to find the relevant chunk
-// This acts as a semantic filter before the LLM sees the prompt
-function findMostRelevantChunk(query: string, contextJSON: string): string {
-    try {
-        const chunks = JSON.parse(contextJSON);
-        const q = query.toLowerCase();
-        
-        let bestChunk = null;
-        let maxScore = 0;
+class AI {
+    static textGenPipeline: any = null;
+    static embedderPipeline: any = null;
 
-        for (const chunk of chunks) {
-            let score = 0;
-            // Robust keyword scoring with boundaries
+    static async getGenerator(progress_callback: any = null) {
+        if (!this.textGenPipeline) {
+            this.textGenPipeline = await pipeline('text-generation', GENERATION_MODEL, { 
+                progress_callback 
+            });
+        }
+        return this.textGenPipeline;
+    }
+
+    static async getEmbedder() {
+        if (!this.embedderPipeline) {
+            this.embedderPipeline = await pipeline('feature-extraction', EMBEDDING_MODEL);
+        }
+        return this.embedderPipeline;
+    }
+}
+
+function cosineSimilarity(a: number[], b: number[]) {
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1); 
+}
+
+async function findMostRelevantChunk(query: string, contextJSON: string): Promise<string> {
+    let chunks: ContextChunk[] = [];
+    try {
+        chunks = JSON.parse(contextJSON);
+    } catch (e) {
+        return "NO_RELEVANT_CONTEXT_FOUND";
+    }
+
+    const q = query.toLowerCase();
+
+    // --- PHASE 1: Keyword Scoring (Fast & Strict) ---
+    let bestKeywordChunk: string | null = null;
+    let maxKeywordScore = 0;
+
+    for (const chunk of chunks) {
+        let score = 0;
+        if (Array.isArray(chunk.keywords)) {
             for (const keyword of chunk.keywords) {
-                // Escape special regex characters
-                const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // Smarter Match: Word Boundary Check
+                // Allows "c++" but prevents "ui" finding "build"
+                const esc = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const boundaryRegex = new RegExp(`(?:^|[^a-z0-9])${esc}(?:$|[^a-z0-9])`, 'i');
                 
-                // Regex checks for word boundaries (start/end or non-alphanumeric)
-                // This prevents "ui" matching "built", "ai" matching "said", etc.
-                const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i');
-                
-                if (regex.test(q)) {
-                    score += 1;
+                if (boundaryRegex.test(q)) {
+                    score += 1; 
                 }
             }
-            if (score > maxScore) {
-                maxScore = score;
-                bestChunk = chunk.text;
+        }
+        if (score > maxKeywordScore) {
+            maxKeywordScore = score;
+            bestKeywordChunk = chunk.text;
+        }
+    }
+
+    if (maxKeywordScore >= 1 && bestKeywordChunk) {
+        return bestKeywordChunk;
+    }
+
+    // --- PHASE 2: Semantic Embedding (Deep Understanding) ---
+    try {
+        const embedder = await AI.getEmbedder();
+        if (!embedder) throw new Error("Embedder failed to init");
+
+        const queryOut = await embedder(query, { pooling: 'mean', normalize: true });
+        const queryVec = queryOut.data;
+
+        let bestSemScore = -1;
+        let bestSemText = "NO_RELEVANT_CONTEXT_FOUND";
+
+        for (const chunk of chunks) {
+            const safeText = `${(chunk.keywords || []).join(" ")}. ${chunk.text}`;
+            const chunkOut = await embedder(safeText, { pooling: 'mean', normalize: true });
+            const chunkVec = chunkOut.data;
+
+            const score = cosineSimilarity(queryVec, chunkVec);
+            
+            if (score > bestSemScore) {
+                bestSemScore = score;
+                bestSemText = chunk.text;
             }
         }
 
-        // If no keywords match, return a generic help message via the LLM prompt
-        if (!bestChunk || maxScore === 0) {
-            return "NO_RELEVANT_CONTEXT_FOUND";
+        if (bestSemScore > 0.15) {
+            return bestSemText;
         }
 
-        return bestChunk;
+    } catch (err) { }
 
-    } catch (e) {
-        return "Error parsing context."; // Fallback 
-    }
+    if (bestKeywordChunk) return bestKeywordChunk;
+    return "NO_RELEVANT_CONTEXT_FOUND";
 }
 
-// Listen for messages from the main thread
 self.addEventListener('message', async (event: MessageEvent) => {
-  const { text, context } = event.data;
+    const { text, context } = event.data;
 
-  // Send status update
-  self.postMessage({ status: 'initiate' });
+    self.postMessage({ status: 'initiate' });
 
-  try {
-    const generator = await AIWorker.getInstance((data: any) => {
-      self.postMessage({ status: 'progress', data });
-    });
+    try {
+        const generator = await AI.getGenerator((data: any) => {
+            self.postMessage({ status: 'progress', data });
+        });
 
-    self.postMessage({ status: 'ready' });
+        self.postMessage({ status: 'ready' });
 
-    // Step 1: Pre-filter context to prevent hallucinations
-    const relevantFact = findMostRelevantChunk(text, context);
-    
-    // Step 2: Manually construct ChatML format to force the model to behave.
-    // We do NOT use the 'messages' array abstraction because it might be misconfiguring the template.
-    // Qwen/ChatML format: <|im_start|>system\n{msg}<|im_end|>\n<|im_start|>user\n{msg}<|im_end|>\n<|im_start|>assistant\n
-    
-    if (relevantFact === "NO_RELEVANT_CONTEXT_FOUND") {
-        // Optimization: Skip valid generation for completely checkless queries
-        // This guarantees 0% hallucination for off-topic questions
-        self.postMessage({ status: 'update', output: "I can mostly answer questions about the tech stack, hosting, architecture, and tools used in this portfolio." });
-        self.postMessage({ status: 'complete', output: "I can mostly answer questions about the tech stack, hosting, architecture, and tools used in this portfolio." });
-        return;
-    }
+        const relevantFact = await findMostRelevantChunk(text, context);
+        let fullPrompt = "";
+        
+        if (relevantFact === "NO_RELEVANT_CONTEXT_FOUND") {
+             self.postMessage({ status: 'update', output: "I can mostly answer questions about the tech stack, hosting, architecture, and tools used in this portfolio." });
+             self.postMessage({ status: 'complete', output: "I can mostly answer questions about the tech stack, hosting, architecture, and tools used in this portfolio." });
+             return;
+        }
 
-    // Strict Fact Relay
-    // Improved Prompting: Move Context to User Message to force attention
-    const fullPrompt = `<|im_start|>system
-You are a helpful assistant.
+        fullPrompt = `<|im_start|>system
+You are the Databro assistant. You are helpful and brief.
 <|im_end|>
 <|im_start|>user
 Context: "${relevantFact}"
 
 Question: ${text}
 
-Instruction: Answer using ONLY the Context. Do not explain or define the technologies. List all tools mentioned in the Context.
+Instruction: Answer the question using ONLY the provided Context. List specific tools, services, or links if mentioned.
 <|im_end|>
 <|im_start|>assistant
 `;
 
-    // GENERATE WITH STREAMING
-    const output = await generator(fullPrompt, {
-      max_new_tokens: 60,
-      
-      // Strict settings
-      do_sample: false,     // Deterministic
-      temperature: 0.01,    
-      repetition_penalty: 1.0, // Allow repeating the context facts exactly
-      return_full_text: false, // Important for raw prompt usage
-      
-      // STREAMING KEY
-      callback_function: (beams: any[]) => {
-          try {
-            const decodedText = generator.tokenizer.decode(beams[0].output_token_ids, { skip_special_tokens: true });
-            // Since we use raw prompt, we just get the new tokens
-            const cleanText = decodedText.trim();
-            if (cleanText.length > 0) {
-                 self.postMessage({ status: 'update', output: cleanText });
+        const output = await generator(fullPrompt, {
+            max_new_tokens: 80,
+            do_sample: false,     
+            temperature: 0.01,    
+            repetition_penalty: 1.0,
+            return_full_text: false,
+            callback_function: (beams: any[]) => {
+                try {
+                   const decoded = generator.tokenizer.decode(beams[0].output_token_ids, { skip_special_tokens: true });
+                   if (decoded.trim().length > 0) {
+                       self.postMessage({ status: 'update', output: decoded.trim() });
+                   }
+                } catch(e) {}
             }
-          } catch (e) {
-             // ignore
-          }
-      }
-    });
+        });
 
-    // Final cleanup pass
-    let finalResponse = "";
-    if (output && output.length > 0) {
-        // When using raw string prompt + return_full_text: false, 
-        // the output is just the generated part.
-        finalResponse = output[0].generated_text;
+        let finalResponse = "";
+        if (output && output.length > 0) {
+            finalResponse = output[0].generated_text;
+        }
+        self.postMessage({ status: 'complete', output: finalResponse.trim() });
+
+    } catch (err: any) {
+        console.error("Worker Critical Error:", err);
+        self.postMessage({ status: 'error', error: err.message || "Unknown AI Error" });
     }
-
-    self.postMessage({ status: 'complete', output: finalResponse.trim() });
-
-  } catch (error: any) {
-    self.postMessage({ status: 'error', error: error.message });
-  }
 });

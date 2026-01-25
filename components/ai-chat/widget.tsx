@@ -40,13 +40,28 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   },
   { 
     id: "ai",
-    keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "transformer", "gpt", "openai", "claude"], 
-    text: "The AI is the xenova/qwen1.5-0.5B-Chat model. It runs entirely in the browser using WebAssembly. No data is sent to any server." 
+    keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "phi", "phi-2", "tiny", "llama", "tinylama", "transformer", "gpt", "openai", "claude"], 
+    text: "The AI is the Xenova/Qwen1.5-0.5B-Chat model. It runs entirely in the browser using WebAssembly. No data is sent to any server." 
+  },
+  { 
+    id: "tool-sql",
+    keywords: ["sql", "formatter", "database", "query", "link", "url"], 
+    text: "The SQL Formatter tool is available at https://dev.databro.dev/tools/sql-formatter" 
+  },
+  { 
+    id: "tool-checksum",
+    keywords: ["checksum", "hash", "calculator", "generator", "md5", "sha", "link", "url"], 
+    text: "The Checksum Calculator tool is available at https://dev.databro.dev/tools/checksum-calculator" 
+  },
+  { 
+    id: "tool-json",
+    keywords: ["json", "formatter", "beautify", "pretty", "link", "url"], 
+    text: "The JSON Formatter tool is available at https://dev.databro.dev/tools/json-formatter" 
   },
   { 
     id: "tools",
-    keywords: ["tools", "utils", "formatter", "calculator", "checksum", "hash", "generator", "available", "list", "feature", "functionality"], 
-    text: "Available tools: SQL Formatter, Checksum Calculator, and Hash Generator." 
+    keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
+    text: "Available tools: SQL Formatter (https://dev.databro.dev/tools/sql-formatter), Checksum Calculator (https://dev.databro.dev/tools/checksum-calculator), and JSON Formatter (https://dev.databro.dev/tools/json-formatter)." 
   }
 ]);
 
@@ -174,6 +189,43 @@ export default function AiChatWidget() {
     }
   };
 
+  const renderContent = (text: string) => {
+    // Patch: Fix known model hallucination where it adds spaces in the domain
+    // e.g. "dev databro.dev" or "dev .databro.dev"
+    const patchedText = text
+        .replace(/dev\s+databro\.dev/gi, 'dev.databro.dev')
+        .replace(/dev\s+\.databro\.dev/gi, 'dev.databro.dev')
+        .replace(/devatabro\.dev/gi, 'dev.databro.dev');
+
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return patchedText.split(urlRegex).map((part, i) => {
+      if (part.match(/^https?:\/\//)) {
+        let cleanUrl = part;
+        let suffix = '';
+        // Handle trailing punctuation often captured by [^\s]+
+        // Enhanced to catch quotes, brackets, and angle brackets
+        while (/[.,;:)\]>"']$/.test(cleanUrl)) {
+           suffix = cleanUrl.slice(-1) + suffix;
+           cleanUrl = cleanUrl.slice(0, -1);
+        }
+        return (
+          <span key={i}>
+            <a 
+              href={cleanUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 underline dark:text-blue-400 break-all"
+            >
+              {cleanUrl}
+            </a>
+            {suffix}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   return (
     <>
       {/* Trigger Button */}
@@ -233,7 +285,7 @@ export default function AiChatWidget() {
                       ? 'bg-blue-600 text-white rounded-tr-sm' 
                       : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 rounded-tl-sm'
                   }`}>
-                    {msg.content}
+                    {renderContent(msg.content)}
                   </div>
                 </div>
               ))}
