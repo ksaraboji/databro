@@ -139,14 +139,14 @@ self.addEventListener('message', async (event: MessageEvent) => {
         }
 
         fullPrompt = `<|im_start|>system
-You are the Databro assistant. You are helpful and brief.
+You are a strict data retrieval assistant.
 <|im_end|>
 <|im_start|>user
 Context: "${relevantFact}"
 
 Question: ${text}
 
-Instruction: Answer the question using ONLY the provided Context. List specific tools, services, or links if mentioned.
+Instruction: Answer using ONLY the Context. If the context says 'uses ONLY', do not list anything else. Do not define terms.
 <|im_end|>
 <|im_start|>assistant
 `;

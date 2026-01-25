@@ -25,8 +25,8 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   },
   { 
     id: "infra",
-    keywords: ["infrastructure", "cloud", "aws", "hosting", "deploy", "s3", "cloudfront", "terraform", "where hosted", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes"], 
-    text: "The infrastructure is Serverless. Hosted on AWS S3 (Storage) and served via AWS CloudFront (CDN). Infrastructure is managed as code using Terraform." 
+    keywords: ["infrastructure", "cloud", "aws", "hosting", "deploy", "s3", "cloudfront", "terraform", "where hosted", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes", "lambda", "ec2"], 
+    text: "The infrastructure is purely static. It uses ONLY AWS S3 (Storage) and AWS CloudFront (CDN). No other AWS services (like Lambda, EC2, or APIGateway) are used." 
   },
   { 
     id: "arch",
@@ -40,8 +40,8 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   },
   { 
     id: "ai",
-    keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "phi", "phi-2", "tiny", "llama", "tinylama", "transformer", "gpt", "openai", "claude"], 
-    text: "The AI is the Xenova/Qwen1.5-0.5B-Chat model. It runs entirely in the browser using WebAssembly. No data is sent to any server." 
+    keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "phi", "phi-2", "tiny", "llama", "tinylama", "transformer", "gpt", "openai", "claude", "embedding", "semantic", "search", "rag"], 
+    text: "The AI system uses Xenova/Qwen1.5-0.5B-Chat for text generation and Xenova/all-MiniLM-L6-v2 for semantic vectors. It runs entirely in the browser using WebAssembly. No data is sent to any server." 
   },
   { 
     id: "tool-sql",
@@ -79,7 +79,7 @@ export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm the site assistant. Ask me about the site!" }
+    { role: 'assistant', content: "Hi! I'm the portfolio assistant. How can I help you?" }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
