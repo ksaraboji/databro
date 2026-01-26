@@ -73,7 +73,7 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
-          className="flex flex-col items-center space-y-4 sm:space-y-6 pt-4 w-full sm:w-auto px-3"
+          className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-4 w-full sm:w-auto px-3"
         >
           <Link href="/tools" className="w-full sm:w-auto">
             <button
@@ -91,11 +91,43 @@ export default function Home() {
             </button>
           </Link>
 
-          <div className="border border-slate-300 text-slate-500 px-3 sm:px-4 py-1.5 rounded-full uppercase tracking-widest text-xs font-semibold bg-white/50 flex items-center gap-2 whitespace-nowrap">
-            <Cpu className="w-3 h-3" />
-            Warning: Useful code
-          </div>
+          <Link href="/learning" className="w-full sm:w-auto">
+            <button
+              className={cn(
+                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "bg-white border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50",
+                "text-slate-700 hover:text-indigo-700",
+                "hover:scale-105 active:scale-95 transition-all",
+                "shadow-sm hover:shadow-md",
+                "flex items-center justify-center gap-2 w-full sm:w-auto",
+              )}
+            >
+              <span className="hidden sm:inline">Learning Journey</span>
+              <span className="sm:hidden">Learning</span>
+            </button>
+          </Link>
+
+          <Link href="/writing" className="w-full sm:w-auto">
+            <button
+              className={cn(
+                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "bg-white border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50",
+                "text-slate-700 hover:text-indigo-700",
+                "hover:scale-105 active:scale-95 transition-all",
+                "shadow-sm hover:shadow-md",
+                "flex items-center justify-center gap-2 w-full sm:w-auto",
+              )}
+            >
+              <span className="hidden sm:inline">Technical Writing</span>
+              <span className="sm:hidden">Writing</span>
+            </button>
+          </Link>
         </motion.div>
+
+        <div className="border border-slate-300 text-slate-500 px-3 sm:px-4 py-1.5 rounded-full uppercase tracking-widest text-xs font-semibold bg-white/50 flex items-center gap-2 whitespace-nowrap mt-4 sm:mt-0">
+          <Cpu className="w-3 h-3" />
+          Warning: Useful code
+        </div>
       </motion.main>
 
       {/* --- FOOTER --- */}
