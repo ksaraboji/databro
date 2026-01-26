@@ -26,7 +26,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   { 
     id: "infra",
     keywords: ["infrastructure", "cloud", "aws", "hosting", "deploy", "s3", "cloudfront", "terraform", "where hosted", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes", "lambda", "ec2"], 
-    text: "The infrastructure is purely static. It uses ONLY AWS S3 (Storage) and AWS CloudFront (CDN). No other AWS services (like Lambda, EC2, or APIGateway) are used." 
+    text: "The infrastructure exclusively uses AWS S3 (Storage) and AWS CloudFront (CDN). There are NO other AWS services used." 
   },
   { 
     id: "arch",
@@ -41,7 +41,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   { 
     id: "ai",
     keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "phi", "phi-2", "tiny", "llama", "tinylama", "transformer", "gpt", "openai", "claude", "embedding", "semantic", "search", "rag"], 
-    text: "The AI system uses Xenova/Qwen1.5-0.5B-Chat for text generation and Xenova/all-MiniLM-L6-v2 for semantic vectors. It runs entirely in the browser using WebAssembly. No data is sent to any server." 
+    text: "The GenAI models used are Xenova/Qwen1.5-0.5B-Chat (Text Generation) and Xenova/all-MiniLM-L6-v2 (Semantic Embeddings). They run entirely in the browser via WebAssembly." 
   },
   { 
     id: "tool-sql",
