@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AiChatWidget from "@/components/ai-chat/widget";
 import "./globals.css";
@@ -17,9 +17,15 @@ export const metadata: Metadata = {
   title: "Databro.",
   description:
     "Data Engineer crafting data pipelines and infrastructure. Portfolio showcasing projects in data engineering, analytics, and cloud technologies.",
+  manifest: "/manifest.json",
   icons: {
     icon: "/favicon.svg",
+    apple: "/favicon.svg",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
