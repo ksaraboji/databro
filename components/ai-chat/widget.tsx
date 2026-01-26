@@ -60,7 +60,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   },
   { 
     id: "tools-usp",
-    keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage"], 
+    keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage", "tools"], 
     text: "The unique feature of these tools is that all data processing happens locally in your browser. No data ever leaves your machine or is sent to a server." 
   },
   { 
