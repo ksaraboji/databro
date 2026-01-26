@@ -139,14 +139,14 @@ self.addEventListener('message', async (event: MessageEvent) => {
         }
 
         fullPrompt = `<|im_start|>system
-You are a strict data retrieval assistant.
+You are a context-aware assistant.
 <|im_end|>
 <|im_start|>user
 Context: "${relevantFact}"
 
 Question: ${text}
 
-Instruction: Answer using ONLY the Context. If the context says 'uses ONLY', do not list anything else. Do not define terms.
+Instruction: Answer using ONLY the Context. Do not add outside knowledge. If the context does not list an item, say "None".
 <|im_end|>
 <|im_start|>assistant
 `;

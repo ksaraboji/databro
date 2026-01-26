@@ -25,6 +25,30 @@ resource "aws_s3_bucket_policy" "nextjs_build" {
   })
 }
 
+resource "aws_cloudfront_function" "dir_index" {
+  name    = "${var.project_name}-dir-index-${var.environment}"
+  runtime = "cloudfront-js-1.0"
+  comment = "Append index.html to directory requests"
+  publish = true
+  code    = <<EOF
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+    
+    // Check if the URI is missing a file name.
+    if (uri.endsWith('/')) {
+        request.uri += 'index.html';
+    } 
+    // Check if the URI is missing a file extension.
+    else if (!uri.includes('.')) {
+        request.uri += '/index.html';
+    }
+
+    return request;
+}
+EOF
+}
+
 resource "aws_cloudfront_distribution" "nextjs_build" {
   count               = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
   
@@ -77,6 +101,11 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.dir_index.arn
+    }
   }
 
   restrictions {
