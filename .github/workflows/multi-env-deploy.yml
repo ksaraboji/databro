@@ -48,11 +48,14 @@ jobs:
         id: decision
         run: |
           # Detect changed files
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            echo "Push event detected. Diffing between ${{ github.event.before }} and ${{ github.sha }}"
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          # Universal logic: Use 'before' SHA if available (push/workflow_call), else default to HEAD~1
+          BEFORE_SHA="${{ github.event.before }}"
+          
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            echo "Event with history detected (Push/Call). Diffing between $BEFORE_SHA and ${{ github.sha }}"
+            CHANGED_FILES=$(git diff --name-only $BEFORE_SHA ${{ github.sha }})
           else
-            echo "PR or other event. Diffing HEAD~1..HEAD"
+            echo "PR or single-depth event. Diffing HEAD~1..HEAD"
             CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
           fi
 
