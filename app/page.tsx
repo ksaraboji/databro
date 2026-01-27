@@ -124,6 +124,42 @@ export default function Home() {
           </Link>
         </motion.div>
 
+        <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.2 } }}
+           className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-2 w-full sm:w-auto px-3"
+        >
+          <Link href="/backend" className="w-full sm:w-auto">
+            <button
+              className={cn(
+                "rounded-full h-10 sm:h-12 px-6 text-sm font-semibold",
+                "bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                "text-slate-600 hover:text-slate-900",
+                "hover:scale-105 active:scale-95 transition-all",
+                "shadow-sm hover:shadow-md",
+                "flex items-center justify-center gap-2 w-full sm:w-auto",
+              )}
+            >
+              <span>Backend Projects</span>
+            </button>
+          </Link>
+
+          <Link href="/visualizations" className="w-full sm:w-auto">
+             <button
+              className={cn(
+                "rounded-full h-10 sm:h-12 px-6 text-sm font-semibold",
+                "bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                "text-slate-600 hover:text-slate-900",
+                "hover:scale-105 active:scale-95 transition-all",
+                "shadow-sm hover:shadow-md",
+                "flex items-center justify-center gap-2 w-full sm:w-auto",
+              )}
+            >
+              <span>Visualizations</span>
+            </button>
+          </Link>
+        </motion.div>
+
         <div className="border border-slate-300 text-slate-500 px-3 sm:px-4 py-1.5 rounded-full uppercase tracking-widest text-xs font-semibold bg-white/50 flex items-center gap-2 whitespace-nowrap mt-4 sm:mt-0">
           <Cpu className="w-3 h-3" />
           Warning: Useful code

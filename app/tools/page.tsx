@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, FileJson, Construction, Database, Hash } from "lucide-react";
 import { motion } from "framer-motion";
+import FloatingHomeButton from "@/components/floating-home-button";
 
 type Tool = {
   name: string;
@@ -156,6 +157,8 @@ export default function ToolsPage() {
             </section>
           ))}
         </div>
+        
+        <FloatingHomeButton />
       </div>
     </div>
   );
