@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Award, BookOpen, ChevronLeft } from "lucide-react"; // Icons
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import FloatingHomeButton from "@/components/floating-home-button";
 
 // Types for our data
 interface ProfileLink {
@@ -189,6 +190,8 @@ export default function LearningPage() {
             </p>
           </div>
         </motion.section>
+        
+        <FloatingHomeButton />
       </div>
     </div>
   );

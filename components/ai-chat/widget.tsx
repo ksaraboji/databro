@@ -11,7 +11,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   { 
     id: "about",
     keywords: ["databro", "site", "about", "portfolio", "what is this", "purpose", "goal", "website", "author", "creator", "developer", "engineer", "who built", "who made", "created by", "kumar", "saraboji", "owner"], 
-    text: "This site is a professional Data Engineering portfolio built by Kumar Saraboji. It demonstrates skills in Cloud Automation (AWS), AI Integration (Browser-based), and Data Tools." 
+    text: "The developer and owner of this portfolio site is Kumar Saraboji. It demonstrates skills in Data Engineering, Cloud Automation (AWS), and AI Integration." 
   },
   { 
     id: "repo",
@@ -41,7 +41,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   { 
     id: "ai",
     keywords: ["ai", "model", "chatbot", "genai", "llm", "qwen", "phi", "phi-2", "tiny", "llama", "tinylama", "transformer", "gpt", "openai", "claude", "embedding", "semantic", "search", "rag"], 
-    text: "The GenAI models used are Xenova/Qwen1.5-0.5B-Chat (Text Generation) and Xenova/all-MiniLM-L6-v2 (Semantic Embeddings). They run entirely in the browser via WebAssembly." 
+    text: "The GenAI models used are Llama-3.2-1B-Instruct (Text Generation) via WebLLM and Xenova/all-MiniLM-L6-v2 (Semantic Embeddings). They run entirely in the browser." 
   },
   { 
     id: "tool-sql",
@@ -79,7 +79,7 @@ export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm the portfolio assistant. How can I help you?" }
+    { role: 'assistant', content: "Hi! I'm the portfolio assistant. How can I help you? Please wait a moment while the models are downloaded." }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);

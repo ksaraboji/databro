@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Hash, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import FloatingHomeButton from "@/components/floating-home-button";
 
 export type Platform = "Medium" | "Dev.to" | "Hashnode" | "Personal";
 
@@ -128,6 +129,8 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
                 Read more on Medium <ExternalLink className="w-4 h-4 ml-1" />
             </a>
         </div>
+        
+        <FloatingHomeButton />
       </div>
     </div>
   );
