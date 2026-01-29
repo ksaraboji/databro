@@ -16,6 +16,9 @@ const appConfig = {
             "model": "https://huggingface.co/mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC/resolve/main/",
             "vram_required_MB": 800,
             "low_resource_required": true,
+            "overrides": {
+                "context_window_size": 1024,
+            }
         }
     ]
 };
