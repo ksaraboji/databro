@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -23,7 +23,15 @@ const toolCategories: Category[] = [
   {
     id: "conversion",
     title: "Data Conversion",
-    tools: [],
+    tools: [
+      {
+        name: "Parquet / CSV Converter",
+        description: "Convert between Parquet, CSV, and Excel formats bi-directionally in your browser.",
+        icon: <FileSpreadsheet className="w-8 h-8 text-orange-600" />,
+        href: "/tools/parquet-converter",
+        color: "bg-orange-50 hover:bg-orange-100",
+      },
+    ],
   },
   {
     id: "inspection",
