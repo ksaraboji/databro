@@ -5,19 +5,19 @@ import { CreateMLCEngine, MLCEngine } from "@mlc-ai/web-llm";
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-const GENERATION_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+const GENERATION_MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 const EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 const appConfig = {
     model_list: [
         {
             "model_id": GENERATION_MODEL_ID,
-            "model_lib": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_80/Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-            "model": "https://huggingface.co/mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC/resolve/main/",
-            "vram_required_MB": 800,
-            "low_resource_required": true,
+            "model_lib": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_80/Llama-3.2-1B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+            "model": "https://huggingface.co/mlc-ai/Llama-3.2-1B-Instruct-q4f32_1-MLC/resolve/main/",
+            "vram_required_MB": 1024,
+            "low_resource_required": false,
             "overrides": {
-                "context_window_size": 1024,
+                "context_window_size": 2048,
             }
         }
     ]
@@ -55,7 +55,7 @@ class AI {
                 // Specific handling for QuotaExceededError
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 if ((error as any).name === 'QuotaExceededError' || (error as any).message?.includes('Quota exceeded')) {
-                    throw new Error("Browser storage full. This model requires ~700MB of local storage. Please clear your browser cache/site data for this page and try again.");
+                    throw new Error("Browser storage full. This model requires ~400MB of local storage. Please clear your browser cache/site data for this page and try again.");
                 }
 
                 if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
