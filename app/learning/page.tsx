@@ -155,6 +155,7 @@ export default function LearningPage() {
               >
                 {/* Badge Image Area */}
                 <div className="w-32 h-32 mb-4 relative flex items-center justify-center bg-slate-50 rounded-full overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={cert.badgeImageUrl}
                     alt={cert.title}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Copy, Trash2, AlertCircle, Check, FileJson, ArrowLeft, Home } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,34 +8,24 @@ import { cn } from "@/lib/utils";
 
 export default function JsonFormatter() {
   const [input, setInput] = useState("");
-  const [output, setOutput] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
+  
+  const { output, error } = React.useMemo(() => {
     if (!input.trim()) {
-      setOutput("");
-      setError(null);
-      return;
+      return { output: "", error: null };
     }
-
     try {
       const parsed = JSON.parse(input);
-      setOutput(JSON.stringify(parsed, null, 2));
-      setError(null);
+      return { output: JSON.stringify(parsed, null, 2), error: null };
     } catch (err) {
       if (err instanceof Error) {
-        setError(err.message);
+        return { output: "", error: err.message };
       } else {
-        setError("Invalid JSON");
+        return { output: "", error: "Invalid JSON" };
       }
-      // Keep the previous output or clear it? 
-      // Usually better to leave it or clear it. Let's clear it to indicate invalid state clearly 
-      // or maybe just keep it empty.
-      setOutput(""); 
     }
   }, [input]);
 
+  const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     if (!output) return;
     try {
@@ -49,8 +39,6 @@ export default function JsonFormatter() {
 
   const handleClear = () => {
     setInput("");
-    setOutput("");
-    setError(null);
   };
 
   return (

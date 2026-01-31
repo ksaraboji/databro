@@ -19,6 +19,7 @@ export default function WritingPage() {
         const data = await res.json();
 
         if (data.status === "ok") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const formattedPosts: BlogPost[] = data.items.map((item: any) => {
              // Clean up the excerpt (strip HTML tags)
              // rss2json returns 'description' which is usually the snippet

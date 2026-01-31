@@ -54,7 +54,7 @@ export default function Home() {
         >
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-slate-600 leading-relaxed font-light">
             <span className="font-bold text-slate-900 block mb-2 text-xl sm:text-2xl md:text-3xl lg:text-4xl">
-              Hi, I'm the guy who breaks pipelines... then fixes them.
+              Hi, I&apos;m the guy who breaks pipelines... then fixes them.
             </span>
             Professionally, I engineer robust data infrastructure that powers
             decisions. Unofficially? I’m obsessed with teaching AI to do cool
@@ -63,9 +63,9 @@ export default function Home() {
 
           <div className="bg-white/60 border border-indigo-100 p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-lg shadow-indigo-100/50 backdrop-blur-md group hover:shadow-xl transition-shadow duration-300">
             <p className="text-xs sm:text-sm md:text-base text-slate-600 italic leading-relaxed">
-              "This portfolio is my sandbox—a mix of polished engineering and
-              chaotic weekend experiments. While I build the main exhibit, I've
-              left some power tools out for you to play with."
+              &quot;This portfolio is my sandbox—a mix of polished engineering and
+              chaotic weekend experiments. While I build the main exhibit, I&apos;ve
+              left some power tools out for you to play with.&quot;
             </p>
           </div>
         </motion.div>

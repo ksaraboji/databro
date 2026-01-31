@@ -1,5 +1,5 @@
 
-const { format } = require('sql-formatter');
+import { format } from 'sql-formatter';
 
 const testDialects = ['plsql', 'transactsql', 'tsql']; // tsql might be an alias or the actual name
 

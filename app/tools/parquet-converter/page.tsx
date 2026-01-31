@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings } from "lucide-react";
 import { motion } from "framer-motion";
@@ -23,7 +23,7 @@ export default function ParquetConverterPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("SELECT * FROM 'data.parquet' LIMIT 10;");
-  const [queryResult, setQueryResult] = useState<any[] | null>(null);
+  const [queryResult, setQueryResult] = useState<unknown[] | null>(null);
   const [queryColumns, setQueryColumns] = useState<string[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
 
@@ -86,6 +86,7 @@ export default function ParquetConverterPage() {
           // Or just auto-replace? No, explicit is better.
           
           const result = await conn.query(query);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rows = result.toArray().map((row: any) => row.toJSON());
           
           if (rows.length > 0) {
@@ -93,14 +94,15 @@ export default function ParquetConverterPage() {
           }
           setQueryResult(rows);
           
-      } catch (err: any) {
+      } catch (err: unknown) {
           console.error(err);
-          setError(err.message || "Query execution failed");
+          setError(err instanceof Error ? err.message : "Query execution failed");
       } finally {
           setIsExecuting(false);
       }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const writeParquetFile = async (data: any[], fileName: string) => {
        // Infer schema
        // Data is array of objects. hyparquet-writer expects array of ColumnSourc (basically arrays of values per column)
@@ -174,6 +176,7 @@ export default function ParquetConverterPage() {
           setSuccessMessage(`Successfully converted ${data.length} rows to ${outputFormat.toUpperCase()}!`);
       } else {
           // CSV to Parquet
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let data: any[] = [];
           
           // Use XLSX to parse CSV (robust enough)
@@ -192,9 +195,9 @@ export default function ParquetConverterPage() {
           setSuccessMessage(`Successfully converted ${data.length} rows to Parquet!`);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Failed to convert file.");
+      setError(err instanceof Error ? err.message : "Failed to convert file.");
     } finally {
       setIsConverting(false);
     }
@@ -305,7 +308,7 @@ export default function ParquetConverterPage() {
                              <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="block text-sm font-bold text-slate-900 uppercase tracking-wide">
-                                        SQL Query (File is named 'data.parquet')
+                                        SQL Query (File is named &apos;data.parquet&apos;)
                                     </label>
                                     <div className="relative">
                                     <textarea 

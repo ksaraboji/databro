@@ -35,7 +35,7 @@ export default function Visualizations() {
             </div>
 
             <p className="text-slate-600 text-lg leading-relaxed">
-                We're still collecting the data points for this exhibit. Expect some beautiful, interactive d3.js charts here soon.
+                We&apos;re still collecting the data points for this exhibit. Expect some beautiful, interactive d3.js charts here soon.
             </p>
             
             <div className="pt-4">
