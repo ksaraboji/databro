@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -72,6 +72,20 @@ const toolCategories: Category[] = [
     title: "Utilities & Encoding",
     tools: [
       {
+        name: "Base64 Encoder / Decoder",
+        description: "Convert text to Base64 and back instantly with UTF-8 support.",
+        icon: <Binary className="w-8 h-8 text-cyan-600" />,
+        href: "/tools/base64-converter",
+        color: "bg-cyan-50 hover:bg-cyan-100",
+      },
+      {
+        name: "Secure Zip Creator",
+        description: "Compress files into password-protected ZIP archives safely in your browser.",
+        icon: <FileArchive className="w-8 h-8 text-amber-600" />,
+        href: "/tools/secure-zip",
+        color: "bg-amber-50 hover:bg-amber-100",
+      },
+      {
         name: "Checksum Calculator",
         description: "Generate MD5/SHA256 hashes and count lines for text files locally.",
         icon: <Hash className="w-8 h-8 text-emerald-600" />,
@@ -89,7 +103,7 @@ const toolCategories: Category[] = [
 
 export default function ToolsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-12 py-12">
         <header className="space-y-4">
           <Link
@@ -125,7 +139,7 @@ export default function ToolsPage() {
               >
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
                   {category.title}
-                  <div className="h-px bg-slate-200 flex-grow ml-4"></div>
+                  <div className="h-px bg-slate-200 grow ml-4"></div>
                 </h2>
               </motion.div>
               
