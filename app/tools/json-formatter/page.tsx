@@ -100,7 +100,7 @@ export default function JsonFormatter() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Paste your raw JSON here..."
-                className="flex-grow w-full h-full p-4 resize-none bg-transparent border-none outline-none font-mono text-sm text-slate-800 placeholder:text-slate-400"
+                className="flex-grow w-full h-full p-4 resize-none bg-transparent border-none outline-none font-mono text-base md:text-sm text-slate-800 placeholder:text-slate-400"
                 spellCheck={false}
               />
               <AnimatePresence>
@@ -160,7 +160,7 @@ export default function JsonFormatter() {
               <textarea
                 readOnly
                 value={output}
-                className="w-full h-full p-4 resize-none bg-transparent border-none outline-none font-mono text-sm text-slate-700"
+                className="w-full h-full p-4 resize-none bg-transparent border-none outline-none font-mono text-base md:text-sm text-slate-700"
                 spellCheck={false}
               />
             </div>

@@ -589,7 +589,7 @@ export default function GenericConverterPage() {
                                     <textarea 
                                         value={query} 
                                         onChange={(e) => setQuery(e.target.value)}
-                                        className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 font-mono text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-y"
+                                        className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 font-mono text-base md:text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-y"
                                     />
                                     </div>
                                     <div className="flex justify-end">
