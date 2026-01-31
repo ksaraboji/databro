@@ -77,7 +77,9 @@ export default function GenericConverterPage() {
       setSuccessMessage(null);
       setMetadataResult(null);
       setCopied(false);
-      setQuery(`SELECT * FROM '${selected.name}' LIMIT 10;`);
+      // Sanitize for default query
+      const safeName = "file_" + selected.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      setQuery(`SELECT * FROM '${safeName}' LIMIT 10;`);
     }
   };
 
@@ -130,7 +132,9 @@ export default function GenericConverterPage() {
           if (!conn) throw new Error("Could not connect to DuckDB");
 
           const buffer = await file.arrayBuffer();
-          const fileName = file.name;
+          // Sanitize filename to prevent "illegal path" errors in DuckDB-Wasm
+          // Prefix with "file_" to avoid starting with special chars or reserved words
+          const fileName = "file_" + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           
           // Use a copy for registration to prevent buffer detachment issues if used locally later
           await DuckDBClient.registerFile(fileName, new Uint8Array(buffer.slice(0)));
