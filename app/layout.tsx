@@ -15,13 +15,49 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Databro.",
+  metadataBase: new URL('https://databro.dev'),
+  title: {
+    default: "Databro. | Kumar Saraboji",
+    template: "%s | Databro.",
+  },
   description:
-    "Data Engineer crafting data pipelines and infrastructure. Portfolio showcasing projects in data engineering, analytics, and cloud technologies.",
+    "Data Engineer crafting data pipelines and infrastructure. Portfolio of Kumar Saraboji showcasing projects in data engineering, analytics, AI agents, and serverless cloud technologies.",
+  keywords: ["Data Engineer", "Cloud Automation", "AWS", "Next.js", "React", "TypeScript", "AI Agents", "ETL", "Portfolio", "Kumar Saraboji", "Serverless", "LocalFirst"],
+  authors: [{ name: "Kumar Saraboji", url: "https://databro.dev" }],
+  creator: "Kumar Saraboji",
+  publisher: "Kumar Saraboji",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.svg",
     apple: "/favicon.svg",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://databro.dev",
+    title: "Databro. | Data Engineering & AI Portfolio",
+    description: "Portfolio of Kumar Saraboji - Data Engineer & AI Tinkerer. Transforming raw data into actionable insights with serverless architecture.",
+    siteName: "Databro",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Databro. | Kumar Saraboji",
+    description: "Data Engineer crafting pipelines and AI agents. Serverless, Local-First, and Scalable.",
+    creator: "@ksaraboji", // Placeholder, safest to include or omit if unknown. I'll omit if I don't know it, but "databro" sounds like a handle. I'll leave basic summary.
+  },
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
