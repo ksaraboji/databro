@@ -2,13 +2,31 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Loader2, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle, Mic } from 'lucide-react';
 import { KNOWLEDGE_BASE } from './knowledge-base';
 
 
 // The context is a prioritized Knowledge Base.
 // The Worker will mathematically select the best chunk before sending to the AI.
 const TECH_STACK_CONTEXT = JSON.stringify(KNOWLEDGE_BASE);
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -23,8 +41,10 @@ export default function AiChatWidget() {
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const worker = useRef<Worker | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     // Only initialize worker if chat is opened at least once to save resources
@@ -97,6 +117,64 @@ export default function AiChatWidget() {
         // worker.current?.terminate(); // Cleaner might trigger on page nav, let's keep it alive unless component unmounts
     };
   }, [isOpen]);
+const startListening = useCallback(() => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert("Speech recognition is not supported in this browser.");
+        return;
+    }
+
+    if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        // The onend handler will clear the ref and state
+        return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+            setInput(prev => prev + (prev ? ' ' : '') + transcript);
+        }
+    };
+
+    recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+        recognitionRef.current = null;
+        if (event.error === 'not-allowed') {
+             alert("Microphone permission denied. Please allow access to use voice input.");
+        } else if (event.error === 'network') {
+             alert("Network error: Voice input requires an internet connection.");
+        } else if (event.error === 'no-speech') {
+             // No speech detected, just stop listening silently
+        } else {
+             console.log("Detailed speech error:", event);
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error("Failed to start recognition:", e);
+        setIsListening(false);
+        recognitionRef.current = null;
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -243,20 +321,12 @@ export default function AiChatWidget() {
                     </div>
                     {progress !== null ? (
                       <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                          <div className="h-full bg-purple-500 transition-all duration-200" style={{ width: `${progress}%` }} />
+                        <div 
+                          className="h-full bg-blue-600 transition-all duration-300" 
+                          style={{ width: `${progress}%` }} 
+                        />
                       </div>
-                    ) : (
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                          <div className="h-full w-1/3 animate-loading-bar bg-slate-400 dark:bg-slate-600" />
-                      </div>
-                    )}
-                 </div>
-              )}
-
-              {status === 'generating' && (
-                 <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>Thinking...</span>
+                    ) : null}
                  </div>
               )}
 
@@ -282,9 +352,19 @@ export default function AiChatWidget() {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Ask a question..."
-                    className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-10 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-20 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     disabled={status === 'loading' || status === 'generating'}
                   />
+                  <button
+                    onClick={startListening}
+                    disabled={status === 'loading' || status === 'generating'}
+                    className={`absolute right-10 top-1.5 flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
+                        isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-purple-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    title="Voice Input"
+                  >
+                    <Mic size={16} />
+                  </button>
                   <button
                     onClick={handleSend}
                     disabled={!input.trim() || status === 'loading' || status === 'generating'}
