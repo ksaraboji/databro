@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -30,6 +30,20 @@ const toolCategories: Category[] = [
         icon: <FileSpreadsheet className="w-8 h-8 text-orange-600" />,
         href: "/tools/universal-converter",
         color: "bg-orange-50 hover:bg-orange-100",
+      },
+      {
+        name: "PDF Merger",
+        description: "Combine multiple PDF files into a single document comfortably in your browser.",
+        icon: <FileText className="w-8 h-8 text-red-600" />,
+        href: "/tools/pdf-merger",
+        color: "bg-red-50 hover:bg-red-100",
+      },
+      {
+        name: "PDF Splitter & Extractor",
+        description: "Extract, reorder, and save specific pages from your PDF documents.",
+        icon: <FileMinus className="w-8 h-8 text-pink-600" />,
+        href: "/tools/pdf-splitter",
+        color: "bg-pink-50 hover:bg-pink-100",
       },
     ],
   },

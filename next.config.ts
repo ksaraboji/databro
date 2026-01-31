@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       sharp$: false,
       "onnxruntime-node$": false,
+      "@duckdb/duckdb-wasm/dist/duckdb-node.cjs": false, // Ignore node-specific duckdb
+      canvas: false, // Ignore canvas for pdfjs-dist
     };
     return config;
   },

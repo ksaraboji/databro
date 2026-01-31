@@ -25,6 +25,8 @@
     "jspdf": "^4.0.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sql-formatter": "^15.7.0",
