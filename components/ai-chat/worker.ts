@@ -17,7 +17,7 @@ const appConfig = {
             "vram_required_MB": 1024,
             "low_resource_required": false,
             "overrides": {
-                "context_window_size": 2048,
+                "context_window_size": 1024,
             }
         }
     ]
