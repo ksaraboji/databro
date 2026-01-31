@@ -2,17 +2,17 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings, Copy, Check } from "lucide-react";
 import { motion } from "framer-motion";
 
-import { parquetReadObjects } from "hyparquet";
+import { parquetReadObjects, parquetMetadata } from "hyparquet";
 import { parquetWriteBuffer } from "hyparquet-writer";
 import * as XLSX from "xlsx";
 import { DuckDBClient } from "@/lib/duckdb";
 import { tableToIPC, tableFromIPC, Table, vectorFromArray } from "apache-arrow";
 import avro from 'avsc';
 
-type ConversionMode = "universal" | "view_query";
+type ConversionMode = "universal" | "view_query" | "view_metadata";
 type Format = "csv" | "xlsx" | "parquet" | "arrow" | "avro";
 
 export default function GenericConverterPage() {
@@ -29,7 +29,10 @@ export default function GenericConverterPage() {
   const [query, setQuery] = useState("SELECT * FROM 'data.parquet' LIMIT 10;");
   const [queryResult, setQueryResult] = useState<unknown[] | null>(null);
   const [queryColumns, setQueryColumns] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [metadataResult, setMetadataResult] = useState<any | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleModeChange = (newMode: ConversionMode) => {
     setMode(newMode);
@@ -39,6 +42,8 @@ export default function GenericConverterPage() {
     setSuccessMessage(null);
     setQueryResult(null);
     setQueryColumns([]);
+    setMetadataResult(null);
+    setCopied(false);
     setQuery("SELECT * FROM 'data.parquet' LIMIT 10;");
   };
  
@@ -70,8 +75,49 @@ export default function GenericConverterPage() {
       setFileSize(sizeStr);
       setError(null);
       setSuccessMessage(null);
+      setMetadataResult(null);
+      setCopied(false);
       setQuery(`SELECT * FROM '${selected.name}' LIMIT 10;`);
     }
+  };
+
+  const extractMetadata = async () => {
+      if (!file) return;
+      setIsExecuting(true);
+      setError(null);
+      setMetadataResult(null);
+      setCopied(false);
+
+      try {
+          const buffer = await file.arrayBuffer();
+          
+          if (inputFormat === 'parquet') {
+              const meta = parquetMetadata(buffer);
+              setMetadataResult(meta);
+          } else if (inputFormat === 'arrow') {
+              const table = tableFromIPC(new Uint8Array(buffer));
+              const schema = table.schema;
+              const meta = {
+                  numRows: table.numRows,
+                  numCols: table.numCols,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  schema: schema.fields.map((f: any) => ({
+                      name: f.name,
+                      type: f.type.toString(),
+                      nullable: f.nullable
+                  })),
+                  metadata: schema.metadata
+              };
+              setMetadataResult(meta);
+          } else {
+              throw new Error("Metadata viewing is only supported for Parquet and Arrow files.");
+          }
+      } catch (err: unknown) {
+          console.error(err);
+          setError(err instanceof Error ? err.message : "Failed to extract metadata");
+      } finally {
+          setIsExecuting(false);
+      }
   };
 
   const handleQuery = async () => {
@@ -373,6 +419,14 @@ export default function GenericConverterPage() {
       document.body.removeChild(link);
   };
 
+  const handleCopyMetadata = () => {
+    if (!metadataResult) return;
+    const jsonStr = JSON.stringify(metadataResult, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2);
+    navigator.clipboard.writeText(jsonStr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8 font-sans">
@@ -414,10 +468,11 @@ export default function GenericConverterPage() {
                         <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                              <button onClick={() => handleModeChange('universal')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${mode === 'universal' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Converter</button>
                              <button onClick={() => handleModeChange('view_query')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${mode === 'view_query' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>SQL Viewer</button>
+                             <button onClick={() => handleModeChange('view_metadata')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${mode === 'view_metadata' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Metadata</button>
                         </div>
 
                         {/* Input Format Display */}
-                        {file && mode === 'universal' && (
+                        {file && (mode === 'universal' || mode === 'view_metadata') && (
                             <div className="flex items-center gap-2 mb-4 text-sm text-slate-600 bg-blue-50 p-2 rounded-lg border border-blue-100">
                                 <span className="font-bold">Detected Input Format:</span>
                                 <span className="uppercase bg-white px-2 py-0.5 rounded border border-blue-200 text-xs font-mono">{inputFormat}</span>
@@ -472,8 +527,8 @@ export default function GenericConverterPage() {
                                         <span className="font-medium text-slate-700">Click to upload</span> or drag and drop
                                     </div>
                                     <span className="text-xs opacity-70">
-                                        {mode === 'universal'
-                                          ? "Supports Parquet, CSV, Excel, Arrow, Avro"
+                                        {mode === 'view_metadata'
+                                          ? "Supports Parquet, Arrow"
                                           : "Supports Parquet, CSV, Excel, Arrow, Avro"}
                                     </span>
                                 </div>
@@ -545,7 +600,43 @@ export default function GenericConverterPage() {
                                     </div>
                                 )}
                              </div>
-                         ) : (
+                         ) : mode === "view_metadata" ? (
+                            <div className="space-y-4">
+                               <div className="space-y-2">
+                                   <div className="flex items-center justify-between">
+                                       <label className="block text-sm font-bold text-slate-900 uppercase tracking-wide">
+                                           File Metadata
+                                       </label>
+                                       <div className="flex gap-2">
+                                            {metadataResult && (
+                                                <button
+                                                    onClick={handleCopyMetadata}
+                                                    className="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2"
+                                                    title="Copy JSON to Clipboard"
+                                                >
+                                                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                                    {copied ? 'Copied' : 'Copy JSON'}
+                                                </button>
+                                            )}
+                                           <button
+                                               onClick={extractMetadata}
+                                               disabled={isExecuting}
+                                               className="px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                                           >
+                                               {isExecuting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
+                                               Extract Metadata
+                                           </button>
+                                       </div>
+                                   </div>
+                                   
+                                   {metadataResult && (
+                                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs overflow-auto max-h-[500px]">
+                                           <pre>{JSON.stringify(metadataResult, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2)}</pre>
+                                       </div>
+                                   )}
+                               </div>
+                            </div>
+                        ) : (
                              // Conversion Options
                                 (outputFormat === 'csv') && (
                                     <div className="space-y-3 mb-6">
@@ -566,7 +657,7 @@ export default function GenericConverterPage() {
                          )}
 
                         {/* 3. Action (Only for conversion modes) */}
-                         {mode !== "view_query" && (
+                         {mode === "universal" && (
                             <div className="pt-4">
                                 <button
                                     onClick={convertAndDownload}
