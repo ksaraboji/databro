@@ -135,12 +135,14 @@ export default function GenericConverterPage() {
              }
           } else if (inputFormat === 'avro') {
              // Decode Avro to JSON
-             const decoder = avro.createFileDecoder(Buffer.from(buffer));
              const jsonData: any[] = [];
              await new Promise<void>((resolve, reject) => {
+                const decoder = new avro.streams.BlockDecoder();
                 decoder.on('data', (record: any) => { jsonData.push(record); });
                 decoder.on('end', () => resolve());
                 decoder.on('error', (err: any) => reject(err));
+                decoder.write(Buffer.from(buffer));
+                decoder.end();
              });
 
              const jsonFileName = fileName.replace(/\.[^/.]+$/, "") + ".json";
@@ -244,12 +246,14 @@ export default function GenericConverterPage() {
            // Basic Avro reading - need to know schema or infer?
            // avsc.FileDecoder?
            // avsc usually works with buffers.
-           const decoder = avro.createFileDecoder(Buffer.from(buffer));
            data = [];
            await new Promise<void>((resolve, reject) => {
+                const decoder = new avro.streams.BlockDecoder();
                 decoder.on('data', (record: any) => { data.push(record); });
                 decoder.on('end', () => resolve());
                 decoder.on('error', (err: any) => reject(err));
+                decoder.write(Buffer.from(buffer));
+                decoder.end();
            });
       }
 
@@ -306,7 +310,7 @@ export default function GenericConverterPage() {
                );
 
                const outputBuffer = tableToIPC(table, 'file');
-               downloadBlob(new Blob([outputBuffer]), originalName, 'arrow');
+               downloadBlob(new Blob([outputBuffer as any]), originalName, 'arrow');
                setSuccessMessage(`Converted ${data.length} rows to .arrow`);
            }
       } else if (outputFormat === 'avro') {
@@ -328,7 +332,7 @@ export default function GenericConverterPage() {
            
            // Let's defer Avro writing or warn it is experimental/single-record based?
            // Or just infer schema and use the block encoder manually.
-           const encoder = avro.createFileEncoder(undefined, { schema: type }); // undefined path = stream?
+           // const encoder = avro.createFileEncoder(undefined, { schema: type }); // undefined path = stream?
            // In browser, this relies on node streams.
            throw new Error("Writing Avro is not fully supported in browser mode yet.");
       }
