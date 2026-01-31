@@ -67,14 +67,29 @@ export default function SecureZip() {
 
       // Close the zip writer and get the blob
       const blob = await zipWriter.close();
+      const downloadName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      const filename = `${downloadName}-protected.zip`;
+
+      // Handle Share if available (Mobile)
+      const shareFile = new File([blob], filename, { type: "application/zip" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+          try {
+              await navigator.share({
+                  files: [shareFile],
+                  title: filename,
+              });
+              setSuccess(true);
+              return;
+          } catch (err) {
+              console.log('Share skipped', err);
+          }
+      }
 
       // Trigger download
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      // Get filename without extension and add .zip
-      const downloadName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      link.download = `${downloadName}-protected.zip`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

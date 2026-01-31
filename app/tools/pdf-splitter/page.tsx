@@ -135,18 +135,34 @@ export default function PDFSplitterPage() {
 
         const pdfBytes = await newDoc.save();
 
-         // Download
+         const now = new Date();
+         const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+         const baseName = file.name.replace(/\.[^/.]+$/, "");
+         const filename = `${baseName}_split_${timestamp}.pdf`;
+
+         // Handle Download / Share
          // eslint-disable-next-line @typescript-eslint/no-explicit-any
          const blob = new Blob([pdfBytes as any], { type: "application/pdf" });
+         const shareFile = new File([blob], filename, { type: "application/pdf" });
+
+         // Try native sharing on supported mobile devices
+         if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+             try {
+                 await navigator.share({
+                     files: [shareFile],
+                     title: filename,
+                 });
+                 return; 
+             } catch (err) {
+                 console.log('Share cancelled or failed', err);
+             }
+         }
+
+         // Fallback to Download
          const url = URL.createObjectURL(blob);
          const link = document.createElement("a");
          link.href = url;
-
-         const now = new Date();
-         const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-         
-         const baseName = file.name.replace(/\.[^/.]+$/, "");
-         link.setAttribute("download", `${baseName}_split_${timestamp}.pdf`);
+         link.setAttribute("download", filename);
 
          document.body.appendChild(link);
          link.click();
