@@ -228,7 +228,7 @@ export default function ChecksumCalculator() {
                             readOnly 
                             value={loading ? "Calculating..." : hash || "Upload a file to generate hash"}
                             className={cn(
-                                "w-full p-4 rounded-xl border bg-slate-50 font-mono text-sm outline-none transition-all truncate selection:bg-indigo-100",
+                                "w-full p-4 rounded-xl border bg-slate-50 font-mono text-base md:text-sm outline-none transition-all truncate selection:bg-indigo-100",
                                 hash ? "text-slate-800 border-slate-200" : "text-slate-400 border-slate-200 italic"
                             )}
                         />

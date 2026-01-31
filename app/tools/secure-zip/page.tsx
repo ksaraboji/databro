@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileArchive, Lock, Upload, Download, File, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileArchive, Lock, Upload, Download, File as FileIcon, AlertCircle, CheckCircle2 } from "lucide-react";
 import { BlobWriter, ZipWriter, BlobReader } from "@zip.js/zip.js";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -67,14 +67,29 @@ export default function SecureZip() {
 
       // Close the zip writer and get the blob
       const blob = await zipWriter.close();
+      const downloadName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      const filename = `${downloadName}-protected.zip`;
+
+      // Handle Share if available (Mobile)
+      const shareFile = new File([blob], filename, { type: "application/zip" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+          try {
+              await navigator.share({
+                  files: [shareFile],
+                  title: filename,
+              });
+              setSuccess(true);
+              return;
+          } catch (err) {
+              console.log('Share skipped', err);
+          }
+      }
 
       // Trigger download
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      // Get filename without extension and add .zip
-      const downloadName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      link.download = `${downloadName}-protected.zip`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -138,7 +153,7 @@ export default function SecureZip() {
               {file ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
-                    <File className="w-8 h-8 text-amber-600" />
+                    <FileIcon className="w-8 h-8 text-amber-600" />
                   </div>
                   <div className="space-y-1">
                     <p className="font-medium text-slate-900">{file.name}</p>

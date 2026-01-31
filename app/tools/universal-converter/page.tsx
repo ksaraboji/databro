@@ -264,10 +264,26 @@ export default function GenericConverterPage() {
        
        // Download
         const blob = new Blob([buffer], { type: "application/octet-stream" });
+        const fullFileName = `${fileName}.parquet`;
+
+        // Attempt Share (Mobile)
+        const shareFile = new File([blob], fullFileName, { type: "application/octet-stream" });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+            try {
+                await navigator.share({
+                    files: [shareFile],
+                    title: fullFileName,
+                });
+                return;
+            } catch (err) {
+                console.log('Share skipped', err);
+            }
+        }
+
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `${fileName}.parquet`);
+        link.setAttribute("download", fullFileName);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -331,7 +347,10 @@ export default function GenericConverterPage() {
            const worksheet = XLSX.utils.json_to_sheet(data);
            const workbook = XLSX.utils.book_new();
            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-           XLSX.writeFile(workbook, `${originalName}.xlsx`);
+           // Write to buffer to enable sharing/download
+           const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+           await downloadBlob(new Blob([wbout], {type: 'application/octet-stream'}), originalName, 'xlsx');
+           
            setSuccessMessage(`Converted ${data.length} rows to .xlsx`);
       } else if (outputFormat === 'arrow') {
            // JSON -> Arrow
@@ -409,11 +428,27 @@ export default function GenericConverterPage() {
       downloadBlob(new Blob([content], { type: mime }), fileName, ext);
   };
 
-  const downloadBlob = (blob: Blob, fileName: string, ext: string) => {
+  const downloadBlob = async (blob: Blob, fileName: string, ext: string) => {
+      const fullFileName = `${fileName}.${ext}`;
+      
+      // Attempt Share (Mobile)
+      const shareFile = new File([blob], fullFileName, { type: blob.type });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+          try {
+              await navigator.share({
+                  files: [shareFile],
+                  title: fullFileName,
+              });
+              return;
+          } catch (err) {
+              console.log('Share skipped', err);
+          }
+      }
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `${fileName}.${ext}`);
+      link.setAttribute("download", fullFileName);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -554,7 +589,7 @@ export default function GenericConverterPage() {
                                     <textarea 
                                         value={query} 
                                         onChange={(e) => setQuery(e.target.value)}
-                                        className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 font-mono text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-y"
+                                        className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 font-mono text-base md:text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-y"
                                     />
                                     </div>
                                     <div className="flex justify-end">

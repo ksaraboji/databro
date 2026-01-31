@@ -65,19 +65,34 @@ export default function PDFMergerPage() {
 
         const mergedPdfBytes = await mergedPdf.save();
         
-        // Download
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+        const baseName = files[0].name.replace(/\.[^/.]+$/, "");
+        const filename = `${baseName}_merged_${timestamp}.pdf`;
+
+        // Handle Download / Share
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const blob = new Blob([mergedPdfBytes as any], { type: "application/pdf" });
+        const file = new File([blob], filename, { type: "application/pdf" });
+
+        // Try native sharing on supported mobile devices
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: filename,
+                });
+                return; // Share successful, skip fallback download
+            } catch (err) {
+                console.log('Share cancelled or failed, falling back to download', err);
+            }
+        }
+
+        // Fallback to standard download
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-
-        const now = new Date();
-        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-        
-        const baseName = files[0].name.replace(/\.[^/.]+$/, "");
-        link.setAttribute("download", `${baseName}_merged_${timestamp}.pdf`);
-
+        link.setAttribute("download", filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
