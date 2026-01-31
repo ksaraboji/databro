@@ -25,10 +25,10 @@ const toolCategories: Category[] = [
     title: "Data Conversion",
     tools: [
       {
-        name: "Parquet / CSV Converter",
-        description: "Convert between Parquet, CSV, and Excel formats bi-directionally in your browser.",
+        name: "Universal Converter & SQL Viewer",
+        description: "Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL.",
         icon: <FileSpreadsheet className="w-8 h-8 text-orange-600" />,
-        href: "/tools/parquet-converter",
+        href: "/tools/universal-converter",
         color: "bg-orange-50 hover:bg-orange-100",
       },
     ],
