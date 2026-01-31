@@ -34,6 +34,9 @@ export class DuckDBClient {
   
   static async registerFile(name: string, buffer: Uint8Array) {
     if (!this.db) await this.init();
-    await this.db!.registerFileBuffer(name, buffer);
+    // Double-check sanitization just in case
+    // Ensure no leading/trailing slashes or dots, although duckdb-wasm might handle some
+    const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    await this.db!.registerFileBuffer(safeName, buffer);
   }
 }

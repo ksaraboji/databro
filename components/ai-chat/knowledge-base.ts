@@ -81,6 +81,11 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
         text: "The Secure Zip Creator tool is available at https://dev.databro.dev/tools/secure-zip. It creates password-protected ZIP archives entirely in the browser using AES-256 or ZipCrypto."
     },
     { 
+        id: "tool-profiler",
+        keywords: ["data", "profiler", "explorer", "stats", "statistics", "distribution", "analysis", "analyze", "column", "null", "unique", "link", "url"], 
+        text: "The Data Profiler & Explorer tool is available at https://dev.databro.dev/tools/data-profiler. It allows uploading CSV/Parquet files to instantly view column statistics (min, max, nulls, unique count) and value distributions." 
+    },
+    { 
         id: "tools-usp",
         keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage", "tools"], 
         text: "The unique feature of these tools is that all data processing happens locally in your browser. No data ever leaves your machine or is sent to a server." 
@@ -88,6 +93,6 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "tools",
         keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
-        text: "Available tools: SQL Formatter (/tools/sql-formatter), Checksum Calculator (/tools/checksum-calculator), JSON Formatter (/tools/json-formatter), File Converter (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter (/tools/pdf-splitter), Base64 Converter (/tools/base64-converter), and Secure Zip Creator (/tools/secure-zip)." 
+        text: "Available tools: SQL Formatter (/tools/sql-formatter), Checksum Calculator (/tools/checksum-calculator), JSON Formatter (/tools/json-formatter), File Converter (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter (/tools/pdf-splitter), Base64 Converter (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), and Data Profiler (/tools/data-profiler)." 
     }
 ];

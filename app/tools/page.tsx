@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -96,8 +96,16 @@ const toolCategories: Category[] = [
   },
   {
     id: "visualization",
-    title: "Visualization",
-    tools: [],
+    title: "Visualization & Analysis",
+    tools: [
+      {
+        name: "Data Profiler & Explorer",
+        description: "Upload your dataset to instantly see stats, distributions, and missing value reports.",
+        icon: <Activity className="w-8 h-8 text-indigo-600" />,
+        href: "/tools/data-profiler",
+        color: "bg-indigo-50 hover:bg-indigo-100",
+      },
+    ],
   },
 ];
 
