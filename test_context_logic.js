@@ -13,7 +13,7 @@ function findMostRelevantChunk(query, contextJSON) {
     let chunks = [];
     try {
         chunks = JSON.parse(contextJSON);
-    } catch (e) {
+    } catch {
         return "NO_RELEVANT_CONTEXT_FOUND";
     }
 

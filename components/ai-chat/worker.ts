@@ -31,8 +31,9 @@ interface ContextChunk {
 
 class AI {
     static llmEngine: MLCEngine | null = null;
-    static embedderPipeline: any = null;
+    static embedderPipeline: unknown = null;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     static async getLLMEngine(progressCallback: (data: any) => void) {
         if (!this.llmEngine) {
             try {
@@ -48,11 +49,12 @@ class AI {
                     },
                     logLevel: "INFO", // Log level for better debugging
                 });
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error("WebLLM Engine Init Error:", error);
                 
                 // Specific handling for QuotaExceededError
-                if (error.name === 'QuotaExceededError' || error.message?.includes('Quota exceeded')) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if ((error as any).name === 'QuotaExceededError' || (error as any).message?.includes('Quota exceeded')) {
                     throw new Error("Browser storage full. This model requires ~700MB of local storage. Please clear your browser cache/site data for this page and try again.");
                 }
 
@@ -88,7 +90,7 @@ async function findMostRelevantChunk(query: string, contextJSON: string): Promis
     let chunks: ContextChunk[] = [];
     try {
         chunks = JSON.parse(contextJSON);
-    } catch (e) {
+    } catch {
         return "NO_RELEVANT_CONTEXT_FOUND";
     }
 
@@ -127,7 +129,8 @@ async function findMostRelevantChunk(query: string, contextJSON: string): Promis
         const embedder = await AI.getEmbedder();
         if (!embedder) throw new Error("Embedder failed to init");
 
-        const queryOut = await embedder(query, { pooling: 'mean', normalize: true });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const queryOut = await (embedder as any)(query, { pooling: 'mean', normalize: true });
         const queryVec = queryOut.data;
 
         let bestSemScore = -1;
@@ -135,9 +138,10 @@ async function findMostRelevantChunk(query: string, contextJSON: string): Promis
 
         for (const chunk of chunks) {
             const safeText = `${(chunk.keywords || []).join(" ")}. ${chunk.text}`;
-            const chunkOut = await embedder(safeText, { pooling: 'mean', normalize: true });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chunkOut = await (embedder as any)(safeText, { pooling: 'mean', normalize: true });
             const chunkVec = chunkOut.data;
-
+            
             const score = cosineSimilarity(queryVec, chunkVec);
             
             if (score > bestSemScore) {
@@ -151,7 +155,7 @@ async function findMostRelevantChunk(query: string, contextJSON: string): Promis
             return bestSemText;
         }
 
-    } catch (err) { }
+    } catch { }
 
     if (bestKeywordChunk) return bestKeywordChunk;
     return "NO_RELEVANT_CONTEXT_FOUND";
@@ -164,6 +168,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
 
     try {
         // Initialize WebLLM engine with progress callback
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const engine = await AI.getLLMEngine((data: any) => {
             self.postMessage({ status: 'progress', data });
         });
@@ -208,8 +213,8 @@ self.addEventListener('message', async (event: MessageEvent) => {
 
         self.postMessage({ status: 'complete', output: fullResponse.trim() });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Worker Critical Error:", err);
-        self.postMessage({ status: 'error', error: err.message || "Unknown AI Error" });
+        self.postMessage({ status: 'error', error: (err instanceof Error ? err.message : "Unknown AI Error") });
     }
 });

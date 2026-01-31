@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings } from "lucide-react";
 import { motion } from "framer-motion";
@@ -27,7 +27,7 @@ export default function GenericConverterPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("SELECT * FROM 'data.parquet' LIMIT 10;");
-  const [queryResult, setQueryResult] = useState<any[] | null>(null);
+  const [queryResult, setQueryResult] = useState<unknown[] | null>(null);
   const [queryColumns, setQueryColumns] = useState<string[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
 
@@ -112,6 +112,7 @@ export default function GenericConverterPage() {
                   setQuery(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
                   // Execute immediately with new query
                   const result = await conn.query(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const rows = result.toArray().map((row: any) => row.toJSON());
                   if (rows.length > 0) setQueryColumns(Object.keys(rows[0]));
                   setQueryResult(rows);
@@ -128,6 +129,7 @@ export default function GenericConverterPage() {
              if (query.includes('data.parquet') || query.includes(fileName)) {
                   setQuery(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
                   const result = await conn.query(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const rows = result.toArray().map((row: any) => row.toJSON());
                   if (rows.length > 0) setQueryColumns(Object.keys(rows[0]));
                   setQueryResult(rows);
@@ -135,14 +137,19 @@ export default function GenericConverterPage() {
              }
           } else if (inputFormat === 'avro') {
              // Decode Avro to JSON
-             const decoder = avro.createFileDecoder(Buffer.from(buffer));
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
              const jsonData: any[] = [];
              await new Promise<void>((resolve, reject) => {
+                const decoder = new avro.streams.BlockDecoder();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 decoder.on('data', (record: any) => { jsonData.push(record); });
-                decoder.on('end', () => resolve());
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 decoder.on('error', (err: any) => reject(err));
+                decoder.on('end', () => resolve());
+                decoder.write(Buffer.from(buffer));
+                decoder.end();
              });
-
+             
              const jsonFileName = fileName.replace(/\.[^/.]+$/, "") + ".json";
              const jsonContent = JSON.stringify(jsonData);
              await DuckDBClient.registerFile(jsonFileName, new TextEncoder().encode(jsonContent));
@@ -150,6 +157,7 @@ export default function GenericConverterPage() {
              if (query.includes('data.parquet') || query.includes(fileName)) {
                   setQuery(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
                   const result = await conn.query(`SELECT * FROM read_json_auto('${jsonFileName}') LIMIT 10;`);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const rows = result.toArray().map((row: any) => row.toJSON());
                   if (rows.length > 0) setQueryColumns(Object.keys(rows[0]));
                   setQueryResult(rows);
@@ -173,6 +181,7 @@ export default function GenericConverterPage() {
           }
 
           const result = await conn.query(finalQuery);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rows = result.toArray().map((row: any) => row.toJSON());
           
           if (rows.length > 0) {
@@ -180,14 +189,15 @@ export default function GenericConverterPage() {
           }
           setQueryResult(rows);
           
-      } catch (err: any) {
+      } catch (err: unknown) {
           console.error(err);
-          setError(err.message || "Query execution failed");
+          setError(err instanceof Error ? err.message : "Query execution failed");
       } finally {
           setIsExecuting(false);
       }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const writeParquetFile = async (data: any[], fileName: string) => {
        // Infer schema
        // Data is array of objects. hyparquet-writer expects array of ColumnSourc (basically arrays of values per column)
@@ -227,6 +237,7 @@ export default function GenericConverterPage() {
     try {
       const buffer = await file.arrayBuffer();
       const originalName = file.name.replace(/\.[^/.]+$/, "");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any[] = [];
       
       // ===== READ INPUT =====
@@ -244,12 +255,16 @@ export default function GenericConverterPage() {
            // Basic Avro reading - need to know schema or infer?
            // avsc.FileDecoder?
            // avsc usually works with buffers.
-           const decoder = avro.createFileDecoder(Buffer.from(buffer));
            data = [];
            await new Promise<void>((resolve, reject) => {
+                const decoder = new avro.streams.BlockDecoder();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 decoder.on('data', (record: any) => { data.push(record); });
                 decoder.on('end', () => resolve());
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 decoder.on('error', (err: any) => reject(err));
+                decoder.write(Buffer.from(buffer));
+                decoder.end();
            });
       }
 
@@ -284,6 +299,7 @@ export default function GenericConverterPage() {
               // We'll use a hack: DuckDB is actually better for this if we had it loaded.
               // But pure JS:
               const keys = Object.keys(data[0]);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const columns: {[key: string]: any[]} = {};
               keys.forEach(k => columns[k] = []);
               data.forEach(row => {
@@ -306,13 +322,15 @@ export default function GenericConverterPage() {
                );
 
                const outputBuffer = tableToIPC(table, 'file');
-               downloadBlob(new Blob([outputBuffer]), originalName, 'arrow');
+               // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               downloadBlob(new Blob([outputBuffer as any]), originalName, 'arrow');
                setSuccessMessage(`Converted ${data.length} rows to .arrow`);
            }
       } else if (outputFormat === 'avro') {
            // JSON -> Avro
            // Need schema. Infer from data[0]?
            const type = avro.Type.forValue(data[0]); 
+           console.log("Inferred Avro schema:", type);
            // BUT forValue(data[0]) infers schema for one record.
            // We need a schema that wraps these records?
            // No, usually we write an Object Container File (OCF).
@@ -328,14 +346,14 @@ export default function GenericConverterPage() {
            
            // Let's defer Avro writing or warn it is experimental/single-record based?
            // Or just infer schema and use the block encoder manually.
-           const encoder = avro.createFileEncoder(undefined, { schema: type }); // undefined path = stream?
+           // const encoder = avro.createFileEncoder(undefined, { schema: type }); // undefined path = stream?
            // In browser, this relies on node streams.
            throw new Error("Writing Avro is not fully supported in browser mode yet.");
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Failed to convert file.");
+      setError(err instanceof Error ? err.message : "Failed to convert file.");
     } finally {
       setIsConverting(false);
     }
@@ -375,7 +393,7 @@ export default function GenericConverterPage() {
           >
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
               <FileSpreadsheet className="w-10 h-10 text-orange-600" />
-              Universal Converter & SQL Viewer
+              File Converter & SQL Query Tool
             </h1>
             <p className="text-lg text-slate-600">
               Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL entirely in your browser.
@@ -475,7 +493,7 @@ export default function GenericConverterPage() {
                              <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="block text-sm font-bold text-slate-900 uppercase tracking-wide">
-                                        SQL Query (File is named '{file.name}')
+                                        SQL Query (File is named &apos;{file.name}&apos;)
                                     </label>
                                     <div className="relative">
                                     <textarea 
@@ -513,7 +531,8 @@ export default function GenericConverterPage() {
                                                     <tr key={i} className="bg-white border-b hover:bg-slate-50">
                                                         {queryColumns.map(col => (
                                                             <td key={`${i}-${col}`} className="px-6 py-4 whitespace-nowrap text-slate-600">
-                                                                {row[col]?.toString() || ''}
+                                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                                {(row as any)[col]?.toString() || ''}
                                                             </td>
                                                         ))}
                                                     </tr>

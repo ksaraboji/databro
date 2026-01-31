@@ -97,6 +97,7 @@ export default function ChecksumCalculator() {
     if (file) {
         processFile(file);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [algorithm]);
 
   const handleCopy = async () => {

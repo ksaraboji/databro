@@ -25,7 +25,7 @@ const toolCategories: Category[] = [
     title: "Data Conversion",
     tools: [
       {
-        name: "Universal Converter & SQL Viewer",
+        name: "File Converter & Query Tool",
         description: "Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL.",
         icon: <FileSpreadsheet className="w-8 h-8 text-orange-600" />,
         href: "/tools/universal-converter",

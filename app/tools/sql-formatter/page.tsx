@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Copy, Trash2, AlertCircle, Check, Database, ArrowLeft, Home, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,38 +19,30 @@ const DIALECTS: { label: string; value: SqlLanguage }[] = [
 
 export default function SqlFormatter() {
   const [input, setInput] = useState("");
-  const [output, setOutput] = useState("");
   const [dialect, setDialect] = useState<SqlLanguage>("snowflake");
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!input.trim()) {
-      setOutput("");
-      setError(null);
-      return;
-    }
-
-    try {
-      const formatted = format(input, {
+  
+  const { output, error } = React.useMemo(() => {
+     if (!input.trim()) return { output: "", error: null };
+     try {
+       const formatted = format(input, {
         language: dialect,
         tabWidth: 2,
         keywordCase: "upper",
         linesBetweenQueries: 2,
         paramTypes: dialect === 'snowflake' ? { named: ["@"] } : undefined,
       });
-      setOutput(formatted);
-      setError(null);
-    } catch (err) {
-      // SQL formatter is usually very forgiving, but just in case
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Failed to format SQL");
-      }
-    }
+      return { output: formatted, error: null };
+     } catch (err) {
+       // SQL formatter is usually very forgiving, but just in case
+       if (err instanceof Error) {
+         return { output: "", error: err.message };
+       } else {
+         return { output: "", error: "Failed to format SQL" };
+       }
+     }
   }, [input, dialect]);
 
+  const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     if (!output) return;
     try {
@@ -64,8 +56,6 @@ export default function SqlFormatter() {
 
   const handleClear = () => {
     setInput("");
-    setOutput("");
-    setError(null);
   };
 
   return (

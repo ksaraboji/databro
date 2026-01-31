@@ -35,7 +35,7 @@ export default function BackendProjects() {
             </div>
 
             <p className="text-slate-600 text-lg leading-relaxed">
-                I'm currently architecting this section. It's going to be packed with serverless patterns, distributed systems, and maybe a few over-engineered API endpoints.
+                I&apos;m currently architecting this section. It&apos;s going to be packed with serverless patterns, distributed systems, and maybe a few over-engineered API endpoints.
             </p>
             
             <div className="pt-4">

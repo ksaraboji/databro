@@ -1,5 +1,5 @@
 
-const { format } = require('sql-formatter');
+import { format } from 'sql-formatter';
 
 const query = `SELECT TOP 10 * FROM users CROSS APPLY GetUserData(users.id)`;
 

@@ -58,6 +58,11 @@ const TECH_STACK_CONTEXT = JSON.stringify([
     keywords: ["json", "formatter", "beautify", "pretty", "link", "url"], 
     text: "The JSON Formatter tool is available at https://dev.databro.dev/tools/json-formatter" 
   },
+  {
+    id: "tool-universal",
+    keywords: ["universal", "converter", "file", "format", "transform", "arrow", "avro", "csv", "parquet", "excel", "link", "url"],
+    text: "The File Converter & Query Tool is available at https://dev.databro.dev/tools/universal-converter. It supports conversion between CSV, Excel, Parquet, Arrow, and Avro formats, and allows SQL querying via DuckDB."
+  },
   { 
     id: "tools-usp",
     keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage", "tools"], 
@@ -66,7 +71,7 @@ const TECH_STACK_CONTEXT = JSON.stringify([
   { 
     id: "tools",
     keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
-    text: "Available tools: SQL Formatter (https://dev.databro.dev/tools/sql-formatter), Checksum Calculator (https://dev.databro.dev/tools/checksum-calculator), and JSON Formatter (https://dev.databro.dev/tools/json-formatter)." 
+    text: "Available tools: SQL Formatter (https://dev.databro.dev/tools/sql-formatter), Checksum Calculator (https://dev.databro.dev/tools/checksum-calculator), JSON Formatter (https://dev.databro.dev/tools/json-formatter), and File Converter & Query Tool (https://dev.databro.dev/tools/universal-converter)." 
   }
 ]);
 
