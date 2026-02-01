@@ -233,7 +233,7 @@ export default function FoodLensPage() {
                     )}
 
                     <div className="text-center text-xs text-slate-400 px-4">
-                        Powered by <span className="font-mono">vit-base-food101</span> via WebAssembly. <br/>
+                        Powered by <span className="font-mono">Swin-Food101</span> via WebAssembly. <br/>
                         Running completely offline in your browser.
                     </div>
 
