@@ -125,6 +125,8 @@ jobs:
     needs: terraform-dev
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/multi-env-deploy.yml
+    with:
+      from_terraform: true
     secrets: inherit
 
   terraform-prod:
@@ -232,4 +234,6 @@ jobs:
     needs: terraform-prod
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/multi-env-deploy.yml
+    with:
+      from_terraform: true
     secrets: inherit
