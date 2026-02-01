@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, Target, Info, ChevronDown, ChevronUp, PieChart, Plus, Trash2, TrendingUp, Download, Share2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Calculator, Target, PieChart, TrendingUp, Download, Share2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -78,12 +78,11 @@ export default function FutureIncomeCalculator() {
       { id: 'living', name: 'Living (Groceries, Gas, Fun)', amount: 1500, inflates: true, endsAtAge: null },
       { id: 'health', name: 'Healthcare / Insurance', amount: 500, inflates: true, endsAtAge: null },
       { id: 'vacation', name: 'Vacation / Travel', amount: 300, inflates: true, endsAtAge: null },
-      { id: 'overseas_transfer', name: 'Transfer to Overseas', amount: 500, inflates: true, endsAtAge: null },
+      { id: 'overseas_transfer', name: 'Transfer to Friends & Family', amount: 500, inflates: true, endsAtAge: null },
       { id: 'subscriptions', name: 'Subscriptions & Misc', amount: 200, inflates: true, endsAtAge: null },
   ]);
 
   const [results, setResults] = useState<FinancialResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'inputs' | 'breakdown'>('inputs');
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -251,7 +250,7 @@ export default function FutureIncomeCalculator() {
   const StatCard = ({ label, value, subtext, highlight = false, isNegative = false }: any) => (
       <div className={`p-4 rounded-xl border ${highlight ? (isNegative ? 'bg-red-50 border-red-100 text-red-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900') : 'bg-white border-slate-200'}`}>
           <div className="text-xs font-semibold uppercase opacity-60 mb-1">{label}</div>
-          <div className="text-2xl font-bold">{formatCurrency(value)}</div>
+          <div className="text-2xl font-bold">{typeof value === 'number' ? formatCurrency(value) : value}</div>
           {subtext && <div className="text-xs mt-1 opacity-80">{subtext}</div>}
       </div>
   );
@@ -498,42 +497,44 @@ export default function FutureIncomeCalculator() {
                 </div>
            </div>
            
-           <div className="flex items-center gap-4">
-               <div className="flex items-center gap-2">
+           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+               <div className="flex items-center gap-2 w-full sm:w-auto">
                    <button 
                       onClick={shareReport}
                       disabled={!results}
-                      className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                    >
                        <Share2 className="w-4 h-4" />
-                       <span className="hidden sm:inline">Share</span>
+                       <span className="inline sm:hidden lg:inline">Share</span>
                    </button>
                    <button 
                       onClick={downloadReport}
                       disabled={!results}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                    >
                        <Download className="w-4 h-4" />
-                       <span className="hidden sm:inline">Download</span>
+                       <span className="inline sm:hidden lg:inline">Download</span>
                    </button>
                </div>
-               <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
-                    <div className="text-sm font-medium text-slate-600 pl-2">Currency:</div>
-                    <div className="flex bg-slate-100 rounded-lg p-1">
-                        <button onClick={() => setBaseCurrency("INR")} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${baseCurrency === "INR" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>INR</button>
-                        <button onClick={() => setBaseCurrency("USD")} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${baseCurrency === "USD" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>USD</button>
-                    </div>
-                    {baseCurrency === "USD" && (
-                        <div className="flex items-center gap-2 border-l border-slate-200 pl-3 pr-2">
-                            <span className="text-xs text-slate-400">Rate:</span>
-                            <input 
-                                type="number" 
-                                className="w-12 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-sm text-center" 
-                                value={exchangeRate}
-                                onChange={(e) => setExchangeRate(Number(e.target.value))}
-                            />
+               <div className="flex items-center gap-2 bg-white p-1.5 sm:p-2 rounded-xl shadow-sm border border-slate-200 w-full sm:w-auto justify-between sm:justify-start">
+                    <div className="text-xs sm:text-sm font-medium text-slate-600 pl-1 sm:pl-2">Currency:</div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-100 rounded-lg p-1">
+                            <button onClick={() => setBaseCurrency("INR")} className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${baseCurrency === "INR" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>INR</button>
+                            <button onClick={() => setBaseCurrency("USD")} className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${baseCurrency === "USD" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>USD</button>
                         </div>
-                    )}
+                        {baseCurrency === "USD" && (
+                            <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-3 pr-1 sm:pr-2">
+                                <span className="text-[10px] sm:text-xs text-slate-400">Rate:</span>
+                                <input 
+                                    type="number" 
+                                    className="w-10 sm:w-12 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs sm:text-sm text-center" 
+                                    value={exchangeRate}
+                                    onChange={(e) => setExchangeRate(Number(e.target.value))}
+                                />
+                            </div>
+                        )}
+                    </div>
                </div>
            </div>
         </header>
@@ -801,7 +802,7 @@ export default function FutureIncomeCalculator() {
                         />
                         <StatCard 
                             label="Inflation Multiplier" 
-                            value={results.futureMonthlyExpense / results.totalMonthlyExpenseCurrent} // Cheap hack to show float
+                            value={`${(results.futureMonthlyExpense / results.totalMonthlyExpenseCurrent).toFixed(2)}x`}
                             subtext={`Value erosion over ${results.yearsToTarget}y`}
                         />
                     </div>
