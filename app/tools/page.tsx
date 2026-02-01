@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, Utensils } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -111,6 +111,13 @@ const toolCategories: Category[] = [
         icon: <TrendingUp className="w-8 h-8 text-emerald-600" />,
         href: "/tools/future-income-calculator",
         color: "bg-emerald-50 hover:bg-emerald-100",
+      },
+      {
+        name: "Food Lens (AI)",
+        description: "Identify food and meals instantly using on-device computer vision.",
+        icon: <Utensils className="w-8 h-8 text-orange-600" />,
+        href: "/tools/food-lens",
+        color: "bg-orange-50 hover:bg-orange-100",
       },
     ],
   },
