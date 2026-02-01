@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -104,6 +104,13 @@ const toolCategories: Category[] = [
         icon: <Activity className="w-8 h-8 text-indigo-600" />,
         href: "/tools/data-profiler",
         color: "bg-indigo-50 hover:bg-indigo-100",
+      },
+      {
+        name: "Future Income Calculator",
+        description: "Project your financial freedom timeline, inflation impact, and investment gaps in USD & INR.",
+        icon: <TrendingUp className="w-8 h-8 text-emerald-600" />,
+        href: "/tools/future-income-calculator",
+        color: "bg-emerald-50 hover:bg-emerald-100",
       },
     ],
   },
