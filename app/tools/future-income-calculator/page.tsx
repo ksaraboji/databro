@@ -60,20 +60,25 @@ export default function FutureIncomeCalculator() {
   // --- Detailed Asset State ---
   const [assets, setAssets] = useState<Asset[]>([
       { id: 'stocks', name: 'Stocks (ETFs/Mutual Funds)', currentValue: 50000, monthlyContribution: 1500, expectedRoi: 10, stepUpPercent: 5 },
+      { id: 'espp', name: 'ESPP (Company Stock)', currentValue: 10000, monthlyContribution: 500, expectedRoi: 12, stepUpPercent: 3 },
       { id: 'retirement', name: 'Retirement (401k/EPF)', currentValue: 100000, monthlyContribution: 1000, expectedRoi: 8, stepUpPercent: 3 },
       { id: 'bonds', name: 'Bonds / Fixed Income', currentValue: 20000, monthlyContribution: 500, expectedRoi: 5, stepUpPercent: 0 },
       { id: 'hsa_inv', name: 'HSA Investments', currentValue: 5000, monthlyContribution: 200, expectedRoi: 7, stepUpPercent: 3 },
       { id: 'savings', name: 'Savings / Emergency Fund', currentValue: 10000, monthlyContribution: 500, expectedRoi: 3, stepUpPercent: 0 },
       { id: 'hsa_cash', name: 'HSA Cash', currentValue: 1000, monthlyContribution: 0, expectedRoi: 1, stepUpPercent: 0 },
-      { id: 'rental', name: 'Rental / Income Capital', currentValue: 0, monthlyContribution: 0, expectedRoi: 5, stepUpPercent: 0 },
+      { id: 'rental', name: 'Income Generating Assets (Real Estate, Yields)', currentValue: 0, monthlyContribution: 0, expectedRoi: 5, stepUpPercent: 0 },
   ]);
 
   // --- Detailed Expense State ---
   const [expenses, setExpenses] = useState<Expense[]>([
-      { id: 'housing', name: 'Housing & Utilities', amount: 2500, inflates: true, endsAtAge: null },
-      { id: 'loans', name: 'Loans (Car, Edu, Home)', amount: 1000, inflates: false, endsAtAge: 45 },
+      { id: 'housing', name: 'Rent & Utilities', amount: 2500, inflates: true, endsAtAge: null },
+      { id: 'home_loan', name: 'Home Loan / Mortgage', amount: 1500, inflates: false, endsAtAge: 55 },
+      { id: 'auto_loan', name: 'Auto Loan', amount: 500, inflates: false, endsAtAge: 40 },
+      { id: 'edu_loan', name: 'Student Loan', amount: 300, inflates: false, endsAtAge: 38 },
       { id: 'living', name: 'Living (Groceries, Gas, Fun)', amount: 1500, inflates: true, endsAtAge: null },
       { id: 'health', name: 'Healthcare / Insurance', amount: 500, inflates: true, endsAtAge: null },
+      { id: 'vacation', name: 'Vacation / Travel', amount: 300, inflates: true, endsAtAge: null },
+      { id: 'overseas_transfer', name: 'Transfer to Overseas', amount: 500, inflates: true, endsAtAge: null },
       { id: 'subscriptions', name: 'Subscriptions & Misc', amount: 200, inflates: true, endsAtAge: null },
   ]);
 
@@ -303,12 +308,74 @@ export default function FutureIncomeCalculator() {
     doc.setFont("helvetica", "normal");
     doc.text(`Params: Current Age ${age} | Target Age ${targetAge} | Inflation ${inflation}% | Base Currency ${baseCurrency}`, 20, 70);
 
+    let yPos = 80;
+
+    // --- User Inputs (Expenses & Assets) ---
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.text("User Inputs Overview", 14, yPos);
+    yPos += 5;
+
+    // Expenses Table
+    autoTable(doc, {
+        startY: yPos,
+        head: [['Expense Category', 'Monthly Amount', 'Inflates?', 'Ends at Age']],
+        body: expenses.map(e => [
+            e.name,
+            formatCurrency(e.amount),
+            e.inflates ? "Yes" : "No",
+            e.endsAtAge ? e.endsAtAge : "Life-long"
+        ]),
+        theme: 'plain',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fontStyle: 'bold', textColor: 100 },
+        columnStyles: { 
+            0: { cellWidth: 80 },
+            1: { halign: 'right' },
+            2: { halign: 'center' },
+            3: { halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+    });
+    // @ts-expect-error autoTable finalY
+    yPos = doc.lastAutoTable.finalY + 10;
+
+    // Assets Table
+    autoTable(doc, {
+        startY: yPos,
+        head: [['Asset Class', 'Current Value', 'Monthly (+)', 'ROI %', 'Step Up %']],
+        body: assets.map(a => [
+            a.name,
+            formatCurrency(a.currentValue),
+            formatCurrency(a.monthlyContribution),
+            a.expectedRoi + "%",
+            a.stepUpPercent + "%"
+        ]),
+        theme: 'plain',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fontStyle: 'bold', textColor: 100 },
+        columnStyles: { 
+            0: { cellWidth: 80 },
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'center' },
+            4: { halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+    });
+    // @ts-expect-error autoTable finalY
+    yPos = doc.lastAutoTable.finalY + 15;
+
+
     // --- Methodology ---
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
-    doc.text("Methodology & Assumptions", 14, 90);
+    doc.text("Methodology & Assumptions", 14, yPos);
     
+    yPos += 8;
+
     doc.setFontSize(9);
     doc.setTextColor(51, 65, 85);
     doc.setFont("helvetica", "normal");
@@ -320,18 +387,24 @@ export default function FutureIncomeCalculator() {
         `5. Projections are mathematical estimates based on constant rates of return and do not account for market volatility or tax implications.`,
         `6. Trademark: Databro™ is a registered trademark of Databro Inc. Report generated on ${new Date().toLocaleDateString()}.`
     ];
-    let yPos = 100;
+    
     const maxLineWidth = pageWidth - 28;
     const lineHeight = 5;
 
     assumptions.forEach(line => {
         const splitText = doc.splitTextToSize(line, maxLineWidth);
+        
+        // Check for page break
+        if(yPos + (splitText.length * lineHeight) > doc.internal.pageSize.height - 20) {
+            doc.addPage();
+            yPos = 20;
+        }
+
         doc.text(splitText, 14, yPos);
         yPos += splitText.length * lineHeight + 2; // Adjust vertical spacing based on lines
     });
 
     // --- Table ---
-    // @ts-expect-error autoTable types
     autoTable(doc, {
         startY: yPos + 10,
         head: [['Year', 'Age', 'M. Expense', 'Projected Corpus', 'Required Corpus', 'Status']],
@@ -511,44 +584,56 @@ export default function FutureIncomeCalculator() {
                         <h3 className="font-bold text-slate-800 text-sm">Monthly Expenses</h3>
                         <span className="text-xs font-mono font-bold text-red-600">{formatCurrency(results?.totalMonthlyExpenseCurrent || 0)}</span>
                     </div>
-                    <div className="p-2">
-                        {expenses.map((exp, idx) => (
-                            <div key={exp.id} className="flex gap-2 items-center p-2 hover:bg-slate-50 rounded-lg group">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="text" 
-                                            value={exp.name} 
-                                            onChange={(e) => updateExpense(idx, 'name', e.target.value)}
-                                            className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-300"
-                                            placeholder="Category name"
-                                        />
-                                        <button 
-                                            onClick={() => updateExpense(idx, 'inflates', !exp.inflates)}
-                                            className={`mx-1 p-1 rounded text-[10px] uppercase font-bold tracking-wider ${exp.inflates ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}
-                                            title="Does this expense inflate?"
-                                        >
-                                            {exp.inflates ? 'Inflates' : 'Fixed'}
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[10px] text-slate-400">Ends at Age:</span>
-                                        <input 
-                                            type="number" 
-                                            placeholder="Never"
-                                            value={exp.endsAtAge || ''}
-                                            onChange={(e) => updateExpense(idx, 'endsAtAge', e.target.value ? Number(e.target.value) : null)}
-                                            className="w-12 bg-transparent border-b border-slate-200 text-xs text-slate-600 focus:border-red-300 outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="w-24">
-                                    <input 
-                                        type="number" 
-                                        value={exp.amount} 
-                                        onChange={(e) => updateExpense(idx, 'amount', Number(e.target.value))}
-                                        className="w-full text-right bg-slate-50 border border-slate-100 rounded px-2 py-1 text-sm font-mono focus:border-red-300 outline-none"
-                                    />
+                    <div className="p-2 space-y-4">
+                        {[
+                            { title: 'Debts & Loans', filter: (e: Expense) => e.id.includes('loan') },
+                            { title: 'Living & Lifestyle', filter: (e: Expense) => !e.id.includes('loan') }
+                        ].map((group) => (
+                            <div key={group.title}>
+                                <div className="px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{group.title}</div>
+                                <div className="space-y-1">
+                                    {expenses.map((exp, idx) => ({ ...exp, idx }))
+                                        .filter(exp => group.filter(expenses[exp.idx]))
+                                        .map((exp) => (
+                                        <div key={exp.id} className="flex gap-2 items-center p-2 hover:bg-slate-50 rounded-lg group text-sm">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        value={exp.name} 
+                                                        onChange={(e) => updateExpense(exp.idx, 'name', e.target.value)}
+                                                        className="w-full bg-transparent font-medium text-slate-700 outline-none placeholder:text-slate-300"
+                                                        placeholder="Category name"
+                                                    />
+                                                    <button 
+                                                        onClick={() => updateExpense(exp.idx, 'inflates', !exp.inflates)}
+                                                        className={`mx-1 p-1 rounded text-[10px] uppercase font-bold tracking-wider ${exp.inflates ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}
+                                                        title="Does this expense inflate?"
+                                                    >
+                                                        {exp.inflates ? 'Inflates' : 'Fixed'}
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] text-slate-400">Ends at Age:</span>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="Never"
+                                                        value={exp.endsAtAge || ''}
+                                                        onChange={(e) => updateExpense(exp.idx, 'endsAtAge', e.target.value ? Number(e.target.value) : null)}
+                                                        className="w-12 bg-transparent border-b border-slate-200 text-xs text-slate-600 focus:border-red-300 outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="w-24">
+                                                <input 
+                                                    type="number" 
+                                                    value={exp.amount} 
+                                                    onChange={(e) => updateExpense(exp.idx, 'amount', Number(e.target.value))}
+                                                    className="w-full text-right bg-slate-50 border border-slate-100 rounded px-2 py-1 font-mono focus:border-red-300 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))}
@@ -567,54 +652,66 @@ export default function FutureIncomeCalculator() {
                         </h3>
                     </div>
                     <div className="divide-y divide-slate-50">
-                        {assets.map((asset, idx) => (
-                            <div key={asset.id} className="p-3 hover:bg-slate-50 transition-colors">
-                                <div className="flex justify-between items-center mb-2">
-                                    <input 
-                                        value={asset.name} 
-                                        onChange={e => updateAsset(idx, 'name', e.target.value)}
-                                        className="font-semibold text-sm text-slate-700 bg-transparent outline-none w-full"
-                                    />
-                                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100" title="Expected Annual ROI">
-                                        <input 
-                                            type="number" 
-                                            value={asset.expectedRoi} 
-                                            onChange={e => updateAsset(idx, 'expectedRoi', Number(e.target.value))}
-                                            className="w-8 text-right bg-transparent text-xs font-bold text-emerald-700 outline-none"
-                                        />
-                                        <span className="text-[10px] text-emerald-600">%</span>
-                                    </div>
-                                    {/* Step Up */}
-                                    <div className="flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100" title="Annual Contribution Step Up %">
-                                        <div className="text-[10px] text-blue-600 font-bold">↑</div>
-                                        <input 
-                                            type="number" 
-                                            value={asset.stepUpPercent} 
-                                            onChange={e => updateAsset(idx, 'stepUpPercent', Number(e.target.value))}
-                                            className="w-8 text-right bg-transparent text-xs font-bold text-blue-700 outline-none"
-                                        />
-                                        <span className="text-[10px] text-blue-600">%</span>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[10px] uppercase text-slate-400 font-bold">Corpus</label>
-                                        <input 
-                                            type="number" 
-                                            value={asset.currentValue}
-                                            onChange={e => updateAsset(idx, 'currentValue', Number(e.target.value))}
-                                            className="w-full text-sm font-mono bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] uppercase text-slate-400 font-bold">Monthly (+)</label>
-                                        <input 
-                                            type="number" 
-                                            value={asset.monthlyContribution}
-                                            onChange={e => updateAsset(idx, 'monthlyContribution', Number(e.target.value))}
-                                            className="w-full text-sm font-mono bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
-                                        />
-                                    </div>
+                        {[
+                            { title: 'Growth Assets (Equity & Real Estate)', filter: (a: Asset) => ['stocks', 'espp', 'retirement', 'hsa_inv', 'rental'].includes(a.id) },
+                            { title: 'Fixed Income & Cash', filter: (a: Asset) => ['bonds', 'savings', 'hsa_cash'].includes(a.id) }
+                        ].map((group) => (
+                            <div key={group.title}>
+                                <div className="px-3 py-2 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-y border-slate-100">{group.title}</div>
+                                <div>
+                                    {assets.map((asset, idx) => ({ ...asset, idx }))
+                                        .filter(asset => group.filter(assets[asset.idx]))
+                                        .map((asset) => (
+                                        <div key={asset.id} className="p-3 hover:bg-slate-50 transition-colors">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <input 
+                                                    value={asset.name} 
+                                                    onChange={e => updateAsset(asset.idx, 'name', e.target.value)}
+                                                    className="font-semibold text-sm text-slate-700 bg-transparent outline-none w-full"
+                                                />
+                                                <div className="flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100" title="Expected Annual ROI">
+                                                    <input 
+                                                        type="number" 
+                                                        value={asset.expectedRoi} 
+                                                        onChange={e => updateAsset(asset.idx, 'expectedRoi', Number(e.target.value))}
+                                                        className="w-8 text-right bg-transparent text-xs font-bold text-emerald-700 outline-none"
+                                                    />
+                                                    <span className="text-[10px] text-emerald-600">%</span>
+                                                </div>
+                                                {/* Step Up */}
+                                                <div className="flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100" title="Annual Contribution Step Up %">
+                                                    <div className="text-[10px] text-blue-600 font-bold">↑</div>
+                                                    <input 
+                                                        type="number" 
+                                                        value={asset.stepUpPercent} 
+                                                        onChange={e => updateAsset(asset.idx, 'stepUpPercent', Number(e.target.value))}
+                                                        className="w-8 text-right bg-transparent text-xs font-bold text-blue-700 outline-none"
+                                                    />
+                                                    <span className="text-[10px] text-blue-600">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] uppercase text-slate-400 font-bold">Corpus</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={asset.currentValue}
+                                                        onChange={e => updateAsset(asset.idx, 'currentValue', Number(e.target.value))}
+                                                        className="w-full text-sm font-mono bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] uppercase text-slate-400 font-bold">Monthly (+)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={asset.monthlyContribution}
+                                                        onChange={e => updateAsset(asset.idx, 'monthlyContribution', Number(e.target.value))}
+                                                        className="w-full text-sm font-mono bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))}
