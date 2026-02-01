@@ -7,7 +7,7 @@ env.useBrowserCache = true;
 // Singleton pattern for the classifier
 class ImageClassifier {
     static task = 'image-classification' as const;
-    static model = 'Xenova/vit-base-patch16-224-in21k-finetuned-food101';
+    static model = 'onnx-community/swin-finetuned-food101-ONNX';
     static instance: any = null;
 
     static async getInstance(progressCallback: any = null) {
