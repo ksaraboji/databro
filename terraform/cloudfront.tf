@@ -68,8 +68,8 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
 
   custom_error_response {
     error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
+    response_code         = 404
+    response_page_path    = "/404.html"
     error_caching_min_ttl = 10
   }
 
@@ -98,6 +98,9 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
 
     target_origin_id       = "myS3Origin"
     viewer_protocol_policy = "redirect-to-https"
+
+    # Use AWS Managed SecurityHeadersPolicy
+    response_headers_policy_id = "67f7725c-aaf3-4c29-b1e1-0b360a8e357e"
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400

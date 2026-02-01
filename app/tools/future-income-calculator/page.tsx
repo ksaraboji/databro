@@ -78,7 +78,7 @@ export default function FutureIncomeCalculator() {
       { id: 'living', name: 'Living (Groceries, Gas, Fun)', amount: 1500, inflates: true, endsAtAge: null },
       { id: 'health', name: 'Healthcare / Insurance', amount: 500, inflates: true, endsAtAge: null },
       { id: 'vacation', name: 'Vacation / Travel', amount: 300, inflates: true, endsAtAge: null },
-      { id: 'overseas_transfer', name: 'Transfer to Friends & Family', amount: 500, inflates: true, endsAtAge: null },
+      { id: 'overseas_transfer', name: 'Money Transfer (Family & Friends)', amount: 500, inflates: true, endsAtAge: null },
       { id: 'subscriptions', name: 'Subscriptions & Misc', amount: 200, inflates: true, endsAtAge: null },
   ]);
 
@@ -520,8 +520,8 @@ export default function FutureIncomeCalculator() {
                     <div className="text-xs sm:text-sm font-medium text-slate-600 pl-1 sm:pl-2">Currency:</div>
                     <div className="flex items-center gap-2">
                         <div className="flex bg-slate-100 rounded-lg p-1">
-                            <button onClick={() => setBaseCurrency("INR")} className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${baseCurrency === "INR" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>INR</button>
                             <button onClick={() => setBaseCurrency("USD")} className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${baseCurrency === "USD" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>USD</button>
+                            <button onClick={() => setBaseCurrency("INR")} className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${baseCurrency === "INR" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>INR</button>
                         </div>
                         {baseCurrency === "USD" && (
                             <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-3 pr-1 sm:pr-2">
@@ -847,6 +847,7 @@ export default function FutureIncomeCalculator() {
                                         contentStyle={{ backgroundColor: '#FFF', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         formatter={(val: any) => formatCurrency(val)}
                                         labelFormatter={(label) => `Age ${label}`}
+                                        allowEscapeViewBox={{ x: false, y: false }}
                                     />
                                     <Legend />
                                     <Line 

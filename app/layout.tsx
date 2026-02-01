@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ClientOnlyPostit from "@/components/client-only-postit";
 import AiChatWidget from "@/components/ai-chat/widget";
+import Footer from "@/components/footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -81,6 +82,7 @@ export default function RootLayout({
       >
         <ClientOnlyPostit />
         {children}
+        <Footer />
         <AiChatWidget />
       </body>
     </html>
