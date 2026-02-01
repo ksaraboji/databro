@@ -6,7 +6,7 @@ env.useBrowserCache = true;
 
 // Singleton pattern for the classifier
 class ImageClassifier {
-    static task = 'image-classification';
+    static task = 'image-classification' as const;
     static model = 'Xenova/vit-base-patch16-224';
     static instance: any = null;
 
