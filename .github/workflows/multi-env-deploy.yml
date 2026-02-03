@@ -17,6 +17,12 @@ on:
       # We must include terraform paths here so the push trigger fires for mixed commits!
       - "terraform/**"
   workflow_call:
+    inputs:
+      from_terraform:
+        description: "Indicates if this workflow is called by the Terraform workflow"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "app/**"
@@ -74,8 +80,15 @@ jobs:
 
           EVENT="${{ github.event_name }}"
           BRANCH="${{ github.ref_name }}"
-          # For workflow_call, context is preserved
-          if [ "$EVENT" == "workflow_call" ]; then
+          IS_CALLED_BY_TF="${{ inputs.from_terraform }}"
+
+          # 1. Called explicitly by Terraform workflow
+          if [ "$IS_CALLED_BY_TF" == "true" ]; then
+             echo "✅ Called explicitly by Terraform workflow. RUNNING."
+             RUN_DEPLOY="true"
+
+          # 2. Standard workflow_call logic
+          elif [ "$EVENT" == "workflow_call" ]; then
              echo "✅ Workflow_call logic. Checking for app changes..."
              if [ "$HAS_APP_CHANGES" == "true" ]; then
                 RUN_DEPLOY="true"
