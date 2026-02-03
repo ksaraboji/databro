@@ -49,6 +49,39 @@ function handler(event) {
 EOF
 }
 
+resource "aws_cloudfront_response_headers_policy" "security_headers" {
+  name = "${var.project_name}-security-headers-${var.environment}"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "same-origin"
+      override        = true
+    }
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+    strict_transport_security {
+      access_control_max_age_sec = 63072000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+    content_security_policy {
+      content_security_policy = "frame-ancestors 'none'; default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;"
+      override                = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "nextjs_build" {
   count               = var.enable_cloudfront && contains(["dev", "prod"], var.environment) ? 1 : 0
   
@@ -99,8 +132,8 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
     target_origin_id       = "myS3Origin"
     viewer_protocol_policy = "redirect-to-https"
 
-    # Use AWS Managed SecurityHeadersPolicy
-    response_headers_policy_id = "67f7725c-aaf3-4c29-b1e1-0b360a8e357e"
+    # Use Created SecurityHeadersPolicy
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
