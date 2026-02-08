@@ -15,7 +15,7 @@ on:
       - "tsconfig.json"
       - ".github/workflows/multi-env-deploy.yml"
       # We must include terraform paths here so the push trigger fires for mixed commits!
-      - "terraform/**"
+      - "terraform/aws/**"
   workflow_call:
     inputs:
       from_terraform:
@@ -70,7 +70,7 @@ jobs:
 
           # Check for matches
           HAS_APP_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(app/|components/|lib/|public/|package.json|package-lock.json|tsconfig.json|.github/workflows/multi-env-deploy.yml)' || echo "false")
-          HAS_TF_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(terraform/|.github/workflows/terraform.yml)' || echo "false")
+          HAS_TF_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^(terraform/aws/|.github/workflows/deploy-aws-infra.yml)' || echo "false")
 
           if [ "$HAS_APP_CHANGES" != "false" ]; then HAS_APP_CHANGES="true"; fi
           if [ "$HAS_TF_CHANGES" != "false" ]; then HAS_TF_CHANGES="true"; fi
