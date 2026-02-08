@@ -182,7 +182,7 @@ jobs:
         id: tf-outputs
         run: |
           set -e
-          cd terraform || exit 0
+          cd terraform/aws || exit 0
           terraform init -backend-config=backend-dev.hcl -input=false
           S3=$(terraform output -raw s3_bucket_name)
           CF_ID=$(terraform output -raw cloudfront_distribution_id)
@@ -266,7 +266,7 @@ jobs:
         id: tf-outputs
         run: |
           set -e
-          cd terraform || exit 0
+          cd terraform/aws || exit 0
           terraform init -backend-config=backend-prod.hcl -input=false
           S3=$(terraform output -raw s3_bucket_name)
           CF_ID=$(terraform output -raw cloudfront_distribution_id)
