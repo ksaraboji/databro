@@ -40,13 +40,24 @@ resource "azurerm_container_app" "llm_service" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
+  
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
 
   template {
     container {
       name   = "ollama"
-      image  = "ollama/ollama:latest"
+      image  = "ollama/ollama:latest" # TEMPORARY: Use public image until ACR is ready and populated
       cpu    = 2.0     # Ollama needs more CPU
-      memory = "4.0Gi" # And RAM
+      memory = "8.0Gi" # Increased to 8Gi to fit Llama 3 models comfortable
 
       # If you need to map a volume for models later, add volume_mounts here
     }
