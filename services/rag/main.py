@@ -1,22 +1,49 @@
 import os
 import faiss
 import numpy as np
+import duckdb
+import json
 from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
 
-app = FastAPI(title="RAG Service", version="1.0")
+app = FastAPI(title="RAG Service", version="1.1")
 
 # --- Configuration ---
 MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
 CHUNK_SIZE = 512     # Characters per chunk (approx 100-150 words)
 CHUNK_OVERLAP = 50   # Overlap to maintain context between chunks
+DB_PATH = "rag_data.duckdb" # Local persistence file
 
 print(f"Loading embedding model: {MODEL_NAME}...")
 model = SentenceTransformer(MODEL_NAME)
 print("Model loaded.")
+
+# --- DuckDB Setup ---
+# We use DuckDB for Persistence and FTS
+con = duckdb.connect(DB_PATH)
+
+# Initialize schema
+con.execute("""
+    CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
+    CREATE TABLE IF NOT EXISTS documents (
+        id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
+        text VARCHAR,
+        metadata JSON
+    );
+""")
+# Create FTS index (Simplified for this environment. 
+# Note: DuckDB FTS might require rebuilding on inserts, 
+# so for high-throughput we might just do standard LIKE queries or rebuild periodically.
+# Here we try to enable it.)
+try:
+    con.execute("INSTALL fts; LOAD fts;")
+    con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+    print("DuckDB FTS initialized.")
+except Exception as e:
+    print(f"Warning: FTS init failed (might be already existing): {e}")
 
 # --- Helper Functions ---
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
@@ -41,9 +68,8 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
 # --- FAISS Initialization ---
 # Simple Flat L2 index for exact search
 index = faiss.IndexFlatL2(EMBEDDING_DIM)
-# Store actual text chunks corresponding to the index IDs
-# In production, this would be a proper database (SQL/NoSQL)
-document_store = {} 
+# Rebuild FAISS from DuckDB on startup if needed
+# (Skipped for MVP speed, assuming empty start or persistence handled elsewhere)
 print("FAISS index initialized.")
 
 class DocumentIngest(BaseModel):
@@ -53,21 +79,23 @@ class DocumentIngest(BaseModel):
 class SearchQuery(BaseModel):
     query: str
     k: Optional[int] = 3
+    strategy: Optional[str] = "hybrid" # hybrid, semantic, keyword
 
 class SearchResult(BaseModel):
     text: str
     score: float
     metadata: dict
+    source: str = "semantic"
 
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "docs_count": index.ntotal}
+    db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+    return {"status": "healthy", "docs_in_db": db_count, "vectors_in_faiss": index.ntotal}
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
     """
-    Embeds text and adds it to the FAISS index.
-    Automatically chunks long text into smaller pieces.
+    Embeds text and adds it to the FAISS index + DuckDB.
     """
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
@@ -84,52 +112,75 @@ async def ingest_document(doc: DocumentIngest):
     faiss.normalize_L2(embeddings)
     index.add(embeddings.astype('float32'))
     
-    # 4. Store text for each chunk
-    # We need to know where the new IDs start. 
-    # If index has 100 items, and we add 5, new IDs are 100, 101, 102, 103, 104.
+    # 4. Store text in DuckDB
+    # Align IDs: We assume sequential ingestion.
     start_id = index.ntotal - len(chunks)
     
     for i, chunk_text_val in enumerate(chunks):
         doc_id = start_id + i
-        document_store[doc_id] = {
-            "text": chunk_text_val,
-            "metadata": doc.metadata,
-            "chunk_index": i,
-            "total_chunks_in_doc": len(chunks)
-        }
+        meta_json = json.dumps(doc.metadata)
+        con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                   (doc_id, chunk_text_val, meta_json))
 
     return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
 
 @app.post("/search", response_model=List[SearchResult])
 async def search(query: SearchQuery):
     """
-    Semantic search for the query text.
+    Hybrid Search: Semantic (FAISS) + Keyword (DuckDB FTS)
     """
     if index.ntotal == 0:
         return []
+    
+    final_results = {} # Map id -> result
 
-    # Embed query
-    query_embedding = model.encode([query.query])
-    faiss.normalize_L2(query_embedding)
-    
-    # Search
-    D, I = index.search(query_embedding.astype('float32'), query.k)
-    
-    results = []
-    # I[0] contains the IDs of the neighbors
-    # D[0] contains the distances
-    for j, doc_id in enumerate(I[0]):
-        if doc_id == -1: continue # No more results found
+    # 1. Semantic Search (FAISS)
+    if query.strategy in ["hybrid", "semantic"]:
+        q_emb = model.encode([query.query])
+        faiss.normalize_L2(q_emb)
+        D, I = index.search(q_emb.astype('float32'), query.k)
         
-        if doc_id in document_store:
-            doc_data = document_store[doc_id]
-            results.append(SearchResult(
-                text=doc_data["text"],
-                score=float(D[0][j]), # Convert numpy float to native float
-                metadata=doc_data["metadata"]
-            ))
+        for j, doc_id in enumerate(I[0]):
+            if doc_id == -1: continue
             
-    return results
+            # Fetch from DuckDB
+            row = con.execute("SELECT text, metadata FROM documents WHERE id = ?", (int(doc_id),)).fetchone()
+            if row:
+                final_results[int(doc_id)] = SearchResult(
+                    text=row[0],
+                    score=float(1 / (1 + D[0][j])), # Convert L2 dist to similarity-ish score
+                    metadata=json.loads(row[1]) if row[1] else {},
+                    source="semantic"
+                )
+
+    # 2. Keyword Search (DuckDB FTS)
+    if query.strategy in ["hybrid", "keyword"]:
+        try:
+             # Use DuckDB FTS BM25
+            res = con.execute(f"""
+                SELECT id, text, metadata, score 
+                FROM (
+                    SELECT *, fts_main_documents.match_bm25(id, ?) as score 
+                    FROM documents
+                ) 
+                WHERE score IS NOT NULL 
+                ORDER BY score DESC 
+                LIMIT ?
+            """, (query.query, query.k)).fetchall()
+            
+            for row in res:
+                doc_id = row[0]
+                if doc_id not in final_results:
+                     final_results[doc_id] = SearchResult(
+                        text=row[1],
+                        score=row[3], # BM25 score
+                        metadata=json.loads(row[2]) if row[2] else {},
+                        source="keyword"
+                    )
+        except Exception as e:
+            print(f"Keyword search warning: {e}")
+
+    return list(final_results.values())
 
 if __name__ == "__main__":
     import uvicorn
