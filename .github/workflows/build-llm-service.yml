@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - "feature/**"
     paths:
       - "services/llm/**"
       - ".github/workflows/build-llm-service.yml"
