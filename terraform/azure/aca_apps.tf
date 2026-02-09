@@ -55,7 +55,7 @@ resource "azurerm_container_app" "llm_service" {
   template {
     container {
       name   = "ollama"
-      image  = "${azurerm_container_registry.main.login_server}/llm-service:latest"
+      image  = "ollama/ollama:latest" # TEMPORARY: Use public image until ACR is ready and populated
       cpu    = 2.0     # Ollama needs more CPU
       memory = "4.0Gi" # Max allowed for Consumption plan (Standard Serverless)
 
