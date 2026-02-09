@@ -57,7 +57,7 @@ resource "azurerm_container_app" "llm_service" {
       name   = "ollama"
       image  = "ollama/ollama:latest" # TEMPORARY: Use public image until ACR is ready and populated
       cpu    = 2.0     # Ollama needs more CPU
-      memory = "8.0Gi" # Increased to 8Gi to fit Llama 3 models comfortable
+      memory = "4.0Gi" # Max allowed for Consumption plan (Standard Serverless)
 
       # If you need to map a volume for models later, add volume_mounts here
     }
