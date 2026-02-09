@@ -1,0 +1,118 @@
+# 1. API Gateway (FastAPI) - The entry point
+resource "azurerm_container_app" "api_gateway" {
+  name                         = "api-gateway"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Single"
+
+  template {
+    container {
+      name   = "api-gateway"
+      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder: Replace with your FastAPI image
+      cpu    = 0.5
+      memory = "1.0Gi"
+
+      env {
+        name  = "LLM_SERVICE_URL"
+        value = "http://llm-service"
+      }
+      env {
+        name  = "RAG_SERVICE_URL"
+        value = "http://rag-service"
+      }
+    }
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = true
+    target_port                = 80
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
+
+# 2. LLM Service (Ollama)
+resource "azurerm_container_app" "llm_service" {
+  name                         = "llm-service"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Single"
+
+  template {
+    container {
+      name   = "ollama"
+      image  = "ollama/ollama:latest"
+      cpu    = 2.0     # Ollama needs more CPU
+      memory = "4.0Gi" # And RAM
+
+      # If you need to map a volume for models later, add volume_mounts here
+    }
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = false # Internal usage only (called by Gateway)
+    target_port                = 11434
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
+
+# 3. RAG Service (FAISS)
+resource "azurerm_container_app" "rag_service" {
+  name                         = "rag-service"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Single"
+
+  template {
+    container {
+      name   = "rag-service"
+      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
+      cpu    = 1.0
+      memory = "2.0Gi"
+    }
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = false # Internal usage only
+    target_port                = 80
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
+
+# 4. Speech Service (TTS/STT)
+resource "azurerm_container_app" "speech_service" {
+  name                         = "speech-service"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Single"
+
+  template {
+    container {
+      name   = "speech-service"
+      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
+      cpu    = 1.0
+      memory = "2.0Gi"
+    }
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = false # Internal usage only
+    target_port                = 80
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
