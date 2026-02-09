@@ -8,7 +8,7 @@ on:
     paths:
       - "services/llm/**"
       - ".github/workflows/build-llm-service.yml"
-  workflow_dispatch: 
+  workflow_dispatch: {}
 
 jobs:
   build-and-push:
