@@ -7,19 +7,88 @@ from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
+from azure.storage.blob import BlobServiceClient
 
-app = FastAPI(title="RAG Service", version="1.1")
+app = FastAPI(title="RAG Service", version="1.2")
 
 # --- Configuration ---
 MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
-CHUNK_SIZE = 512     # Characters per chunk (approx 100-150 words)
-CHUNK_OVERLAP = 50   # Overlap to maintain context between chunks
-DB_PATH = "rag_data.duckdb" # Local persistence file
+EMBEDDING_DIM = 384
+CHUNK_SIZE = 512
+CHUNK_OVERLAP = 50
+DB_PATH = "rag_data.duckdb"
+FAISS_INDEX_PATH = "rag_index.faiss"
+
+# Persistence Config
+AZURE_CONN_STR = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+BLOB_CONTAINER = os.getenv("BLOB_CONTAINER_NAME", "rag-state")
 
 print(f"Loading embedding model: {MODEL_NAME}...")
 model = SentenceTransformer(MODEL_NAME)
 print("Model loaded.")
+
+# --- Persistence Helpers ---
+def download_state():
+    """Download DuckDB and FAISS index from Blob Storage on startup."""
+    if not AZURE_CONN_STR:
+        print("Warning: No Azure Storage Connection String found. Running in ephemeral mode.")
+        return
+
+    try:
+        blob_service = BlobServiceClient.from_connection_string(AZURE_CONN_STR)
+        container = blob_service.get_container_client(BLOB_CONTAINER)
+        
+        if not container.exists():
+            print(f"Container {BLOB_CONTAINER} does not exist. Creating...")
+            container.create_container()
+            return # Context is empty
+
+        # Download DuckDB
+        blob_db = container.get_blob_client(DB_PATH)
+        if blob_db.exists():
+            print("Downloading DuckDB state...")
+            with open(DB_PATH, "wb") as f:
+                f.write(blob_db.download_blob().readall())
+
+        # Download FAISS
+        blob_faiss = container.get_blob_client(FAISS_INDEX_PATH)
+        if blob_faiss.exists():
+            print("Downloading FAISS index...")
+            with open(FAISS_INDEX_PATH, "wb") as f:
+                f.write(blob_faiss.download_blob().readall())
+                
+    except Exception as e:
+        print(f"Error downloading state: {e}")
+
+def upload_state():
+    """Upload DuckDB and FAISS index to Blob Storage."""
+    if not AZURE_CONN_STR:
+        return
+
+    try:
+        blob_service = BlobServiceClient.from_connection_string(AZURE_CONN_STR)
+        container = blob_service.get_container_client(BLOB_CONTAINER)
+
+        # Upload DuckDB
+        if os.path.exists(DB_PATH):
+            # Checkpoint to ensure data is flushed to disk
+            con.checkpoint() 
+            with open(DB_PATH, "rb") as f:
+                container.upload_blob(DB_PATH, f, overwrite=True)
+        
+        # Upload FAISS
+        faiss.write_index(index, FAISS_INDEX_PATH)
+        with open(FAISS_INDEX_PATH, "rb") as f:
+            container.upload_blob(FAISS_INDEX_PATH, f, overwrite=True)
+            
+        print("State saved to Azure Blob Storage.")
+            
+    except Exception as e:
+        print(f"Error uploading state: {e}")
+
+# --- Initialize State ---
+print("Initializing state...")
+download_state()
 
 # --- DuckDB Setup ---
 # We use DuckDB for Persistence and FTS
@@ -34,43 +103,22 @@ con.execute("""
         metadata JSON
     );
 """)
-# Create FTS index (Simplified for this environment. 
-# Note: DuckDB FTS might require rebuilding on inserts, 
-# so for high-throughput we might just do standard LIKE queries or rebuild periodically.
-# Here we try to enable it.)
 try:
     con.execute("INSTALL fts; LOAD fts;")
     con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
     print("DuckDB FTS initialized.")
 except Exception as e:
-    print(f"Warning: FTS init failed (might be already existing): {e}")
-
-# --- Helper Functions ---
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """
-    Splits text into smaller overlapping chunks.
-    Simple character-based splitter. Ideally use recursive token splitter for prod.
-    """
-    if not text:
-        return []
-        
-    chunks = []
-    start = 0
-    text_len = len(text)
-    
-    while start < text_len:
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        start += chunk_size - overlap # Move forward, but back up by overlap amount
-        
-    return chunks
+    print(f"Warning: FTS init failed: {e}")
 
 # --- FAISS Initialization ---
-# Simple Flat L2 index for exact search
-index = faiss.IndexFlatL2(EMBEDDING_DIM)
-# Rebuild FAISS from DuckDB on startup if needed
-# (Skipped for MVP speed, assuming empty start or persistence handled elsewhere)
-print("FAISS index initialized.")
+if os.path.exists(FAISS_INDEX_PATH):
+    print("Loading FAISS index from disk...")
+    index = faiss.read_index(FAISS_INDEX_PATH)
+else:
+    print("Creating new FAISS index...")
+    index = faiss.IndexFlatL2(EMBEDDING_DIM)
+
+# --- Helper Functions ---
 
 class DocumentIngest(BaseModel):
     text: str
@@ -121,6 +169,9 @@ async def ingest_document(doc: DocumentIngest):
         meta_json = json.dumps(doc.metadata)
         con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
                    (doc_id, chunk_text_val, meta_json))
+    
+    # Trigger upload to blob storage
+    upload_state()
 
     return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
 
