@@ -11,10 +11,32 @@ app = FastAPI(title="RAG Service", version="1.0")
 # --- Configuration ---
 MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
+CHUNK_SIZE = 512     # Characters per chunk (approx 100-150 words)
+CHUNK_OVERLAP = 50   # Overlap to maintain context between chunks
 
 print(f"Loading embedding model: {MODEL_NAME}...")
 model = SentenceTransformer(MODEL_NAME)
 print("Model loaded.")
+
+# --- Helper Functions ---
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
+    """
+    Splits text into smaller overlapping chunks.
+    Simple character-based splitter. Ideally use recursive token splitter for prod.
+    """
+    if not text:
+        return []
+        
+    chunks = []
+    start = 0
+    text_len = len(text)
+    
+    while start < text_len:
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += chunk_size - overlap # Move forward, but back up by overlap amount
+        
+    return chunks
 
 # --- FAISS Initialization ---
 # Simple Flat L2 index for exact search
@@ -45,26 +67,38 @@ def health_check():
 async def ingest_document(doc: DocumentIngest):
     """
     Embeds text and adds it to the FAISS index.
+    Automatically chunks long text into smaller pieces.
     """
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    # Generate embedding
-    embedding = model.encode([doc.text])
-    
-    # Add to FAISS
-    # faiss expects float32
-    faiss.normalize_L2(embedding) # Optional: normalize for cosine similarity approximation with L2
-    index.add(embedding.astype('float32'))
-    
-    # Store the text using the index ID (0-based incremental)
-    doc_id = index.ntotal - 1
-    document_store[doc_id] = {
-        "text": doc.text,
-        "metadata": doc.metadata
-    }
+    # 1. Split text into chunks
+    chunks = chunk_text(doc.text)
+    if not chunks:
+         return {"message": "No valid text chunks found", "chunks_count": 0}
 
-    return {"message": "Document ingested", "id": doc_id, "total_docs": index.ntotal}
+    # 2. Generate embeddings for all chunks in batch
+    embeddings = model.encode(chunks)
+    
+    # 3. Optimize and Add to FAISS
+    faiss.normalize_L2(embeddings)
+    index.add(embeddings.astype('float32'))
+    
+    # 4. Store text for each chunk
+    # We need to know where the new IDs start. 
+    # If index has 100 items, and we add 5, new IDs are 100, 101, 102, 103, 104.
+    start_id = index.ntotal - len(chunks)
+    
+    for i, chunk_text_val in enumerate(chunks):
+        doc_id = start_id + i
+        document_store[doc_id] = {
+            "text": chunk_text_val,
+            "metadata": doc.metadata,
+            "chunk_index": i,
+            "total_chunks_in_doc": len(chunks)
+        }
+
+    return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
 
 @app.post("/search", response_model=List[SearchResult])
 async def search(query: SearchQuery):
