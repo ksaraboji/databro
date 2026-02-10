@@ -148,8 +148,7 @@ resource "azurerm_container_app" "speech_service" {
   template {
     container {
       name   = "speech-service"
-      # image  = "${azurerm_container_registry.main.login_server}/speech-service:latest"
-      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
+      image  = "${azurerm_container_registry.main.login_server}/speech-service:latest"
       cpu    = 1.0
       memory = "2.0Gi"
 
