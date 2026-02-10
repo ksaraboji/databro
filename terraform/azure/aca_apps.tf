@@ -133,14 +133,41 @@ resource "azurerm_container_app" "speech_service" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
+  
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
 
   template {
     container {
       name   = "speech-service"
+      # image  = "${azurerm_container_registry.main.login_server}/speech-service:latest"
       image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
       cpu    = 1.0
       memory = "2.0Gi"
+
+      env {
+        name  = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
+      }
+      
+      env {
+        name  = "AUDIO_CONTAINER_NAME"
+        value = "public-audio"
+      }
     }
+  }
+  
+  secret {
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.app_data.primary_connection_string
   }
 
   ingress {
