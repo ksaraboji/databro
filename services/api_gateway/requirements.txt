@@ -1,0 +1,8 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+langgraph
+langchain-core
+langchain-community
+httpx
+pydantic
+python-multipart
