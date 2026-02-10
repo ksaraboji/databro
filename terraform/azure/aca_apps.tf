@@ -5,10 +5,21 @@ resource "azurerm_container_app" "api_gateway" {
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
 
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
+
   template {
     container {
       name   = "api-gateway"
-      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder: Replace with your FastAPI image
+      image  = "${azurerm_container_registry.main.login_server}/api-gateway:latest"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -19,6 +30,10 @@ resource "azurerm_container_app" "api_gateway" {
       env {
         name  = "RAG_SERVICE_URL"
         value = "http://rag-service"
+      }
+      env {
+        name  = "SPEECH_SERVICE_URL"
+        value = "http://speech-service"
       }
     }
   }
