@@ -12,9 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng \
     libsndfile1 \
     libsndfile1-dev \
+    swig \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+
+# Upgrade build tools to avoid "getting requirements to build wheel" errors
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install dependencies
 # We split this to cache the heavy ML libraries
