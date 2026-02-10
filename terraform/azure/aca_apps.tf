@@ -84,7 +84,9 @@ resource "azurerm_container_app" "rag_service" {
   template {
     container {
       name   = "rag-service"
-      image  = "${azurerm_container_registry.main.login_server}/rag-service:latest"
+      # Placeholder image until the real one is built and pushed to ACR
+      image  = "mcr.microsoft.com/k8se/quickstart:latest"
+      # image  = "${azurerm_container_registry.main.login_server}/rag-service:latest"
       cpu    = 1.0
       memory = "2.0Gi"
 
