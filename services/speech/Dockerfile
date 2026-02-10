@@ -22,6 +22,9 @@ COPY requirements.txt .
 # Upgrade build tools to avoid "getting requirements to build wheel" errors
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
+# Install PyTorch CPU-only first to keep image size small (avoids ~4GB CUDA libs)
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
 # Install dependencies
 # We split this to cache the heavy ML libraries
 RUN pip install --no-cache-dir -r requirements.txt
