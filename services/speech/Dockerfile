@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     pkg-config \
     ffmpeg \
+    libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libavfilter-dev libswscale-dev libswresample-dev \
     espeak-ng \
     libsndfile1 \
     libsndfile1-dev \
