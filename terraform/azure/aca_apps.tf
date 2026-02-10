@@ -84,10 +84,27 @@ resource "azurerm_container_app" "rag_service" {
   template {
     container {
       name   = "rag-service"
-      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
+      # Placeholder image until the real one is built and pushed to ACR
+      image  = "mcr.microsoft.com/k8se/quickstart:latest"
+      # image  = "${azurerm_container_registry.main.login_server}/rag-service:latest"
       cpu    = 1.0
       memory = "2.0Gi"
+
+      env {
+        name  = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
+      }
+      
+      env {
+        name  = "BLOB_CONTAINER_NAME"
+        value = "rag-state"
+      }
     }
+  }
+  
+  secret {
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.app_data.primary_connection_string
   }
 
   ingress {
