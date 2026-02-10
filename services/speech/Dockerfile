@@ -7,9 +7,11 @@ WORKDIR /app
 # build-essential and espeak-ng usually needed for TTS
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    python3-dev \
     ffmpeg \
     espeak-ng \
     libsndfile1 \
+    libsndfile1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

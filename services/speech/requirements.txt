@@ -4,9 +4,8 @@ python-multipart==0.0.9
 requests==2.31.0
 azure-storage-blob==12.19.0
 faster-whisper==0.10.0
-# TTS 0.22 has loose potential conflicts, removing strict pin for easier resolution
-# or handling dependencies like numpy/scipy more gracefully
-TTS
+# Numba (used by TTS) is incompatible with Numpy 2.0+, so we must restrict it.
+numpy<2.0.0
 scipy
-numpy
+TTS
 
