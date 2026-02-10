@@ -81,6 +81,17 @@ resource "azurerm_container_app" "rag_service" {
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
 
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
+
   template {
     container {
       name   = "rag-service"
