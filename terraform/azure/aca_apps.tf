@@ -5,10 +5,21 @@ resource "azurerm_container_app" "api_gateway" {
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
 
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
+
   template {
     container {
       name   = "api-gateway"
-      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder: Replace with your FastAPI image
+      image  = "${azurerm_container_registry.main.login_server}/api-gateway:latest"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -19,6 +30,10 @@ resource "azurerm_container_app" "api_gateway" {
       env {
         name  = "RAG_SERVICE_URL"
         value = "http://rag-service"
+      }
+      env {
+        name  = "SPEECH_SERVICE_URL"
+        value = "http://speech-service"
       }
     }
   }
@@ -133,14 +148,40 @@ resource "azurerm_container_app" "speech_service" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
+  
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.main.admin_password
+  }
 
   template {
     container {
       name   = "speech-service"
-      image  = "mcr.microsoft.com/k8se/quickstart:latest" # Placeholder
+      image  = "${azurerm_container_registry.main.login_server}/speech-service:latest"
       cpu    = 1.0
       memory = "2.0Gi"
+
+      env {
+        name  = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
+      }
+      
+      env {
+        name  = "AUDIO_CONTAINER_NAME"
+        value = "public-audio"
+      }
     }
+  }
+  
+  secret {
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.app_data.primary_connection_string
   }
 
   ingress {

@@ -11,3 +11,9 @@ resource "azurerm_storage_container" "rag_state" {
   storage_account_name  = azurerm_storage_account.app_data.name
   container_access_type = "private"
 }
+
+resource "azurerm_storage_container" "public_audio" {
+  name                  = "public-audio"
+  storage_account_name  = azurerm_storage_account.app_data.name
+  container_access_type = "blob" # Public read access for blobs only
+}

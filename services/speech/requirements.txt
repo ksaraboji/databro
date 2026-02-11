@@ -1,0 +1,13 @@
+fastapi==0.110.0
+uvicorn==0.27.1
+python-multipart==0.0.9
+requests==2.31.0
+azure-storage-blob==12.19.0
+faster-whisper>=1.0.0
+# Numba (used by TTS) is incompatible with Numpy 2.0+, so we must restrict it.
+numpy<2.0.0
+scipy
+TTS
+# Force PyAV to match system libraries or use wheels
+av
+
