@@ -15,3 +15,4 @@ class LessonResponse(BaseModel):
     audio_url: Optional[str] = None
     is_finished: bool
     current_section: Optional[str] = None
+    plan: Optional[List[str]] = None

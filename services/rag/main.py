@@ -68,8 +68,11 @@ def upload_state():
     try:
         blob_service = BlobServiceClient.from_connection_string(AZURE_CONN_STR)
         container = blob_service.get_container_client(BLOB_CONTAINER)
+        
+        if not container.exists():
+            container.create_container()
 
-        # Upload DuckDB
+        # Upload DuckDB (Includes FTS index)
         if os.path.exists(DB_PATH):
             # Checkpoint to ensure data is flushed to disk
             con.checkpoint() 
@@ -120,6 +123,22 @@ else:
 
 # --- Helper Functions ---
 
+def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
+    """Simple chunking by character count with overlap."""
+    if not text:
+        return []
+    chunks = []
+    start = 0
+    text_len = len(text)
+    
+    while start < text_len:
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += (chunk_size - overlap)
+        
+    return chunks
+
 class DocumentIngest(BaseModel):
     text: str
     metadata: Optional[dict] = {}
@@ -139,6 +158,50 @@ class SearchResult(BaseModel):
 def health_check():
     db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
     return {"status": "healthy", "docs_in_db": db_count, "vectors_in_faiss": index.ntotal}
+
+@app.post("/seed")
+async def seed_document(doc: DocumentIngest):
+    """
+    Resets the DB and Index, then ingests the document.
+    """
+    global index
+    
+    if not doc.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    # 1. Reset State
+    print("Resetting state for seed...")
+    index = faiss.IndexFlatL2(EMBEDDING_DIM)
+    con.execute("DELETE FROM documents") 
+    
+    # 2. Split text into chunks
+    chunks = chunk_text(doc.text)
+    if not chunks:
+         return {"message": "No valid text chunks found", "chunks_count": 0}
+
+    # 3. Generate embeddings
+    print("Generating embeddings...")
+    embeddings = model.encode(chunks)
+    
+    # 4. Optimize and Add to FAISS
+    faiss.normalize_L2(embeddings)
+    index.add(embeddings.astype('float32'))
+    
+    # 5. Store text in DuckDB
+    print("Storing in DuckDB...")
+    start_id = 0
+    
+    for i, chunk_text_val in enumerate(chunks):
+        doc_id = start_id + i
+        meta_json = json.dumps(doc.metadata) if doc.metadata else json.dumps({"source": "seed", "chunk_index": i})
+        con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                   (doc_id, chunk_text_val, meta_json))
+    
+    # 6. Trigger upload
+    print("Uploading state...")
+    upload_state()
+
+    return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
@@ -232,6 +295,22 @@ async def search(query: SearchQuery):
             print(f"Keyword search warning: {e}")
 
     return list(final_results.values())
+
+@app.get("/topics")
+def get_topics():
+    """Returns list of unique topics found in document metadata."""
+    try:
+        # Extract 'topic' from metadata JSON. Assumes metadata is like {"topic": "X", ...}
+        # DuckDB JSON extraction: json_extract_string(json_col, '$.key')
+        query = "SELECT DISTINCT json_extract_string(metadata, '$.topic') FROM documents"
+        results = con.execute(query).fetchall()
+        
+        # Filter out None values
+        topics = [r[0] for r in results if r[0]]
+        return {"topics": sorted(topics)}
+    except Exception as e:
+        print(f"Error fetching topics: {e}")
+        return {"topics": []}
 
 if __name__ == "__main__":
     import uvicorn

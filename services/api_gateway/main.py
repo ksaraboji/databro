@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
 from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
 from graph import app_graph
+from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics
 from langchain_core.messages import HumanMessage
 import uuid
 
@@ -9,6 +10,11 @@ app = FastAPI(title="Professor API Gateway")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/topics")
+async def get_topics():
+    topics = await fetch_rag_topics()
+    return {"topics": topics}
 
 @app.post("/start_lesson", response_model=LessonResponse)
 async def start_lesson(req: LessonStartRequest):
@@ -39,7 +45,8 @@ async def start_lesson(req: LessonStartRequest):
     return LessonResponse(
         content_text=events["output_text"],
         is_finished=events.get("mode") == "finished",
-        current_section=section_name
+        current_section=section_name,
+        plan=current_plan
     )
 
 @app.post("/interact", response_model=LessonResponse)
@@ -68,5 +75,50 @@ async def interact(req: InterruptionRequest):
     return LessonResponse(
         content_text=events["output_text"],
         is_finished=events.get("mode") == "finished",
-        current_section=section_name
+        current_section=section_name,
+        plan=current_plan
     )
+
+@app.post("/rag/seed")
+async def seed_rag_endpoint(file: UploadFile = File(...), topic: str = Form(None)):
+    """
+    Upload a text file (e.g., Markdown) to seed the RAG service.
+    This replaces existing RAG data.
+    """
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+             text_content = content.decode("latin-1")
+        except:
+             raise HTTPException(status_code=400, detail="Could not decode file content. Please upload UTF-8 text.")
+
+    result = await seed_rag_data(text_content, file.filename, topic)
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    return result
+
+@app.post("/rag/ingest")
+async def ingest_rag_endpoint(file: UploadFile = File(...), topic: str = Form(None)):
+    """
+    Upload a text file (e.g., Markdown) to ingest into the RAG service.
+    This appends to existing RAG data.
+    """
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+             text_content = content.decode("latin-1")
+        except:
+             raise HTTPException(status_code=400, detail="Could not decode file content. Please upload UTF-8 text.")
+
+    result = await ingest_rag_data(text_content, file.filename, topic)
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    return result

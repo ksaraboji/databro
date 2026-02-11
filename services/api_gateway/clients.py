@@ -44,3 +44,54 @@ async def synthesize_speech(text: str) -> Optional[str]:
     # TODO: This endpoint might return audio bytes or a URL to a blob
     # For now, we'll assume it returns a URL or we handle the logic later
     return None 
+
+async def seed_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:
+    """Calls the RAG service to seed data."""
+    try:
+        metadata = {"source": filename}
+        if topic:
+            metadata["topic"] = topic
+            
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{RAG_SERVICE_URL}/seed",
+                json={"text": text, "metadata": metadata},
+                timeout=300.0
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        print(f"Error seeding RAG: {e}")
+        return {"error": str(e)}
+
+async def ingest_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:
+    """Calls the RAG service to ingest data (append)."""
+    try:
+        metadata = {"source": filename}
+        if topic:
+            metadata["topic"] = topic
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{RAG_SERVICE_URL}/ingest",
+                json={"text": text, "metadata": metadata},
+                timeout=300.0
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        print(f"Error ingesting RAG: {e}")
+        return {"error": str(e)}
+
+async def fetch_rag_topics() -> list:
+    """Fetches available topics from RAG service."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{RAG_SERVICE_URL}/topics", timeout=5.0)
+            if response.status_code == 200:
+                return response.json().get("topics", [])
+    except Exception as e:
+        print(f"Error fetching topics from RAG: {e}")
+    
+    # Fallback to default topics if service is down or empty
+    return ["Data Engineering 101", "DuckDB Internals", "RAG Architectures"]
