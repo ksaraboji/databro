@@ -77,7 +77,15 @@ async def ingest_rag_data(text: str, filename: str, topic: Optional[str] = None)
                 json={"text": text, "metadata": metadata},
                 timeout=300.0
             )
-            response.raise_for_status()
+            
+            # Check for error status and try to parse detail
+            if response.is_error:
+                try:
+                    error_detail = response.json().get("detail", response.text)
+                    return {"error": f"RAG Service Error ({response.status_code}): {error_detail}"}
+                except:
+                    return {"error": f"RAG Service Error ({response.status_code}): {response.text}"}
+
             return response.json()
     except Exception as e:
         print(f"Error ingesting RAG: {e}")
