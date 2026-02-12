@@ -44,3 +44,10 @@ jobs:
           context: ./services/speech
           push: true
           tags: databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:latest
+
+      - name: Restart Container App
+        run: |
+           az containerapp revision copy \
+            --name speech-service \
+            --resource-group databro-${{ env.ENV_NAME }}-rg \
+            --image databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:latest

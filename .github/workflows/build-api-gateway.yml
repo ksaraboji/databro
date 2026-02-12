@@ -44,3 +44,10 @@ jobs:
           context: ./services/api_gateway
           push: true
           tags: databro${{ env.ENV_NAME }}acr.azurecr.io/api-gateway:latest
+
+      - name: Restart Container App
+        run: |
+           az containerapp revision copy \
+            --name api-gateway \
+            --resource-group databro-${{ env.ENV_NAME }}-rg \
+            --image databro${{ env.ENV_NAME }}acr.azurecr.io/api-gateway:latest
