@@ -43,11 +43,16 @@ jobs:
         with:
           context: ./services/speech
           push: true
-          tags: databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:latest
+          tags: |
+            databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:latest
+            databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:${{ github.sha }}
 
-      - name: Restart Container App
-        run: |
-           az containerapp revision copy \
-            --name speech-service \
-            --resource-group databro-${{ env.ENV_NAME }}-rg \
-            --image databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:latest
+      - name: Deploy to Azure Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          registryUrl: databro${{ env.ENV_NAME }}acr.azurecr.io
+          imageToDeploy: databro${{ env.ENV_NAME }}acr.azurecr.io/speech-service:${{ github.sha }}
+          targetPort: 80
+          ingress: external
+          containerAppName: speech-service
+          resourceGroup: databro-${{ env.ENV_NAME }}-rg
