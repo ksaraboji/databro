@@ -90,6 +90,14 @@ model = None
 con = None
 index = None
 
+def check_initialization():
+    if model is None:
+        raise HTTPException(status_code=503, detail="Embedding model not initialized")
+    if con is None:
+        raise HTTPException(status_code=503, detail="Database connection not initialized")
+    if index is None:
+        raise HTTPException(status_code=503, detail="Vector index not initialized")
+
 # --- Startup Event ---
 @app.on_event("startup")
 async def startup_event():
@@ -193,149 +201,169 @@ class SearchResult(BaseModel):
 
 @app.get("/")
 def health_check():
-    db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
-    return {"status": "healthy", "docs_in_db": db_count, "vectors_in_faiss": index.ntotal}
+    check_initialization()
+    try:
+        db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        return {"status": "healthy", "docs_in_db": db_count, "vectors_in_faiss": index.ntotal}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 @app.post("/seed")
 async def seed_document(doc: DocumentIngest):
     """
     Resets the DB and Index, then ingests the document.
     """
+    check_initialization()
     global index
     
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    # 1. Reset State
-    print("Resetting state for seed...")
-    index = faiss.IndexFlatL2(EMBEDDING_DIM)
-    con.execute("DELETE FROM documents") 
-    
-    # 2. Split text into chunks
-    chunks = chunk_text(doc.text)
-    if not chunks:
-         return {"message": "No valid text chunks found", "chunks_count": 0}
+    try:
+        # 1. Reset State
+        print("Resetting state for seed...")
+        index = faiss.IndexFlatL2(EMBEDDING_DIM)
+        con.execute("DELETE FROM documents") 
+        
+        # 2. Split text into chunks
+        chunks = chunk_text(doc.text)
+        if not chunks:
+            return {"message": "No valid text chunks found", "chunks_count": 0}
 
-    # 3. Generate embeddings
-    print("Generating embeddings...")
-    embeddings = model.encode(chunks)
-    
-    # 4. Optimize and Add to FAISS
-    faiss.normalize_L2(embeddings)
-    index.add(embeddings.astype('float32'))
-    
-    # 5. Store text in DuckDB
-    print("Storing in DuckDB...")
-    start_id = 0
-    
-    for i, chunk_text_val in enumerate(chunks):
-        doc_id = start_id + i
-        meta_json = json.dumps(doc.metadata) if doc.metadata else json.dumps({"source": "seed", "chunk_index": i})
-        con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                   (doc_id, chunk_text_val, meta_json))
-    
-    # 6. Trigger upload
-    print("Uploading state...")
-    upload_state()
+        # 3. Generate embeddings
+        print("Generating embeddings...")
+        embeddings = model.encode(chunks)
+        
+        # 4. Optimize and Add to FAISS
+        faiss.normalize_L2(embeddings)
+        index.add(embeddings.astype('float32'))
+        
+        # 5. Store text in DuckDB
+        print("Storing in DuckDB...")
+        start_id = 0
+        
+        for i, chunk_text_val in enumerate(chunks):
+            doc_id = start_id + i
+            meta_json = json.dumps(doc.metadata) if doc.metadata else json.dumps({"source": "seed", "chunk_index": i})
+            con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                    (doc_id, chunk_text_val, meta_json))
+        
+        # 6. Trigger upload
+        print("Uploading state...")
+        upload_state()
 
-    return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+        return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+    except Exception as e:
+        print(f"Seed failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
     """
     Embeds text and adds it to the FAISS index + DuckDB.
     """
+    check_initialization()
+    
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    # 1. Split text into chunks
-    chunks = chunk_text(doc.text)
-    if not chunks:
-         return {"message": "No valid text chunks found", "chunks_count": 0}
+    try:
+        # 1. Split text into chunks
+        chunks = chunk_text(doc.text)
+        if not chunks:
+            return {"message": "No valid text chunks found", "chunks_count": 0}
 
-    # 2. Generate embeddings for all chunks in batch
-    embeddings = model.encode(chunks)
-    
-    # 3. Optimize and Add to FAISS
-    faiss.normalize_L2(embeddings)
-    index.add(embeddings.astype('float32'))
-    
-    # 4. Store text in DuckDB
-    # Align IDs: We assume sequential ingestion.
-    start_id = index.ntotal - len(chunks)
-    
-    for i, chunk_text_val in enumerate(chunks):
-        doc_id = start_id + i
-        meta_json = json.dumps(doc.metadata)
-        con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                   (doc_id, chunk_text_val, meta_json))
-    
-    # Trigger upload to blob storage
-    upload_state()
+        # 2. Generate embeddings for all chunks in batch
+        embeddings = model.encode(chunks)
+        
+        # 3. Optimize and Add to FAISS
+        faiss.normalize_L2(embeddings)
+        index.add(embeddings.astype('float32'))
+        
+        # 4. Store text in DuckDB
+        # Align IDs: We assume sequential ingestion.
+        start_id = index.ntotal - len(chunks)
+        
+        for i, chunk_text_val in enumerate(chunks):
+            doc_id = start_id + i
+            meta_json = json.dumps(doc.metadata)
+            con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                    (doc_id, chunk_text_val, meta_json))
+        
+        # Trigger upload to blob storage
+        upload_state()
 
-    return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+        return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+    except Exception as e:
+         print(f"Ingest failed: {e}")
+         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 @app.post("/search", response_model=List[SearchResult])
 async def search(query: SearchQuery):
     """
     Hybrid Search: Semantic (FAISS) + Keyword (DuckDB FTS)
     """
+    check_initialization()
     if index.ntotal == 0:
         return []
     
-    final_results = {} # Map id -> result
+    try:
+        final_results = {} # Map id -> result
 
-    # 1. Semantic Search (FAISS)
-    if query.strategy in ["hybrid", "semantic"]:
-        q_emb = model.encode([query.query])
-        faiss.normalize_L2(q_emb)
-        D, I = index.search(q_emb.astype('float32'), query.k)
-        
-        for j, doc_id in enumerate(I[0]):
-            if doc_id == -1: continue
+        # 1. Semantic Search (FAISS)
+        if query.strategy in ["hybrid", "semantic"]:
+            q_emb = model.encode([query.query])
+            faiss.normalize_L2(q_emb)
+            D, I = index.search(q_emb.astype('float32'), query.k)
             
-            # Fetch from DuckDB
-            row = con.execute("SELECT text, metadata FROM documents WHERE id = ?", (int(doc_id),)).fetchone()
-            if row:
-                final_results[int(doc_id)] = SearchResult(
-                    text=row[0],
-                    score=float(1 / (1 + D[0][j])), # Convert L2 dist to similarity-ish score
-                    metadata=json.loads(row[1]) if row[1] else {},
-                    source="semantic"
-                )
-
-    # 2. Keyword Search (DuckDB FTS)
-    if query.strategy in ["hybrid", "keyword"]:
-        try:
-             # Use DuckDB FTS BM25
-            res = con.execute(f"""
-                SELECT id, text, metadata, score 
-                FROM (
-                    SELECT *, fts_main_documents.match_bm25(id, ?) as score 
-                    FROM documents
-                ) 
-                WHERE score IS NOT NULL 
-                ORDER BY score DESC 
-                LIMIT ?
-            """, (query.query, query.k)).fetchall()
-            
-            for row in res:
-                doc_id = row[0]
-                if doc_id not in final_results:
-                     final_results[doc_id] = SearchResult(
-                        text=row[1],
-                        score=row[3], # BM25 score
-                        metadata=json.loads(row[2]) if row[2] else {},
-                        source="keyword"
+            for j, doc_id in enumerate(I[0]):
+                if doc_id == -1: continue
+                
+                # Fetch from DuckDB
+                row = con.execute("SELECT text, metadata FROM documents WHERE id = ?", (int(doc_id),)).fetchone()
+                if row:
+                    final_results[int(doc_id)] = SearchResult(
+                        text=row[0],
+                        score=float(1 / (1 + D[0][j])), # Convert L2 dist to similarity-ish score
+                        metadata=json.loads(row[1]) if row[1] else {},
+                        source="semantic"
                     )
-        except Exception as e:
-            print(f"Keyword search warning: {e}")
 
-    return list(final_results.values())
+        # 2. Keyword Search (DuckDB FTS)
+        if query.strategy in ["hybrid", "keyword"]:
+            try:
+                # Use DuckDB FTS BM25
+                res = con.execute(f"""
+                    SELECT id, text, metadata, score 
+                    FROM (
+                        SELECT *, fts_main_documents.match_bm25(id, ?) as score 
+                        FROM documents
+                    ) 
+                    WHERE score IS NOT NULL 
+                    ORDER BY score DESC 
+                    LIMIT ?
+                """, (query.query, query.k)).fetchall()
+                
+                for row in res:
+                    doc_id = row[0]
+                    if doc_id not in final_results:
+                        final_results[doc_id] = SearchResult(
+                            text=row[1],
+                            score=row[3], # BM25 score
+                            metadata=json.loads(row[2]) if row[2] else {},
+                            source="keyword"
+                        )
+            except Exception as e:
+                print(f"Keyword search warning: {e}")
+
+        return list(final_results.values())
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.get("/topics")
 def get_topics():
     """Returns list of unique topics found in document metadata."""
+    check_initialization()
     try:
         # Extract 'topic' from metadata JSON. Assumes metadata is like {"topic": "X", ...}
         # DuckDB JSON extraction: json_extract_string(json_col, '$.key')
