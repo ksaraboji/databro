@@ -177,7 +177,8 @@ async def startup_event():
             try:
                 # Ensure clean slate if check failed
                 con.execute("DROP SEQUENCE IF EXISTS seq_doc_id")
-                con.execute("CREATE SEQUENCE seq_doc_id START 0;")
+                # DuckDB sequences default MINVALUE is 1. If we want 0, we must specify it.
+                con.execute("CREATE SEQUENCE seq_doc_id START 0 MINVALUE 0;")
                 con.execute("""
                     CREATE TABLE documents (
                         id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
