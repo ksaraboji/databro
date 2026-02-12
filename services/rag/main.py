@@ -322,31 +322,15 @@ async def seed_document(doc: DocumentIngest):
                 con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
                         (doc_id, chunk_text_val, meta_json))
             
-            # CRITICAL: Get start_id from current index size BEFORE adding
-            start_id = index.ntotal
-            
-            # Add to index
-            index.add(embeddings.astype('float32'))
-            
-            # 4. Store text in DuckDB
-            # We use the explicit start_id derived from FAISS state
-            
-            for i, chunk_text_val in enumerate(chunks):
-                doc_id = start_id + i
-                meta_json = json.dumps(doc.metadata) if doc.metadata else "{}"
-                
-                # Check consistency before insert
-                try:
-                     con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                        (doc_id, chunk_text_val, meta_json))
-                except duckdb.ConstraintException:
-                     # ID collision! This means DB has rows that FAISS didn't know about (or we calculated wrong)
-                     print(f"Ingest Warning: ID collision for {doc_id}. Skipping insert/Overwrite?")
-                     # If we skip, we have a vector in FAISS with no DB row (bad).
-                     # If we overwrite, we lose old data.
-                     # Let's try to update instead?
-                     con.execute("UPDATE documents SET text=?, metadata=? WHERE id=?", 
-                        (chunk_text_val, meta_json, doc_id))
+            # 6. Trigger upload
+            print("Uploading state...")
+            # Uploading can take time, do it under lock to prevent inconsistent state
+            await asyncio.to_thread(upload_state)
+
+            return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+        except Exception as e:
+            print(f"Seed failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
@@ -387,17 +371,32 @@ async def ingest_document(doc: DocumentIngest):
             await asyncio.to_thread(upload_state)
 
             return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
-        except Exception as e:
-            print(f"Ingest failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
-
-@app.post("/search", response_model=List[SearchResult])
-async def search(query: SearchQuery):
-    """
-    Hybrid Search: Semantic (FAISS) + Keyword (DuckDB FTS)
-    """
-    check_initialization()
-    if index.ntotal == 0:
+        exce
+            # CRITICAL: Get start_id from current index size BEFORE adding
+            start_id = index.ntotal
+            
+            # Add to index
+            index.add(embeddings.astype('float32'))
+            
+            # 4. Store text in DuckDB
+            # We use the explicit start_id derived from FAISS state
+            
+            for i, chunk_text_val in enumerate(chunks):
+                doc_id = start_id + i
+                meta_json = json.dumps(doc.metadata) if doc.metadata else "{}"
+                
+                # Check consistency before insert
+                try:
+                     con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                        (doc_id, chunk_text_val, meta_json))
+                except duckdb.ConstraintException:
+                     # ID collision! This means DB has rows that FAISS didn't know about (or we calculated wrong)
+                     print(f"Ingest Warning: ID collision for {doc_id}. Skipping insert/Overwrite?")
+                     # If we skip, we have a vector in FAISS with no DB row (bad).
+                     # If we overwrite, we lose old data.
+                     # Let's try to update instead?
+                     con.execute("UPDATE documents SET text=?, metadata=? WHERE id=?", 
+                        (chunk_text_val, meta_json, doc_id
         return []
     
     try:
