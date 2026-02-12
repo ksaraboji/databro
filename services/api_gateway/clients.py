@@ -27,13 +27,13 @@ async def query_rag(query: str) -> str:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{RAG_SERVICE_URL}/search",
-                json={"query": query, "top_k": 3},
+                json={"query": query, "k": 3},
                 timeout=30.0
             )
             response.raise_for_status()
-            results = response.json().get("results", [])
+            results = response.json()
             # Simplify context for the LLM
-            context = "\n".join([f"- {r['content']}" for r in results])
+            context = "\n".join([f"- {r['text']}" for r in results])
             return context
     except Exception as e:
         print(f"Error calling RAG: {e}")

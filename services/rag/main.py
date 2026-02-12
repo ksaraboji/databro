@@ -99,7 +99,13 @@ import asyncio
 model = None
 con = None
 index = None
-state_lock = asyncio.Lock()  # Prevent concurrent modifications
+state_lock = None  # Will be initialized on startup
+
+def get_lock():
+    global state_lock
+    if state_lock is None:
+        state_lock = asyncio.Lock()
+    return state_lock
 
 def check_initialization():
     if model is None:
@@ -112,7 +118,11 @@ def check_initialization():
 # --- Startup Event ---
 @app.on_event("startup")
 async def startup_event():
-    global model, con, index
+    global model, con, index, state_lock
+    
+    # Ensure lock is created in the event loop context
+    if state_lock is None:
+        state_lock = asyncio.Lock()
     
     print("Starting RAG Service...")
     
@@ -290,7 +300,7 @@ async def seed_document(doc: DocumentIngest):
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    async with state_lock:
+    async with get_lock():
         try:
             # 1. Reset State
             print("Resetting state for seed...")
@@ -342,7 +352,7 @@ async def ingest_document(doc: DocumentIngest):
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    async with state_lock:
+    async with get_lock():
         try:
             # 1. Split text into chunks
             chunks = chunk_text(doc.text)
@@ -371,32 +381,18 @@ async def ingest_document(doc: DocumentIngest):
             await asyncio.to_thread(upload_state)
 
             return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
-        exce
-            # CRITICAL: Get start_id from current index size BEFORE adding
-            start_id = index.ntotal
-            
-            # Add to index
-            index.add(embeddings.astype('float32'))
-            
-            # 4. Store text in DuckDB
-            # We use the explicit start_id derived from FAISS state
-            
-            for i, chunk_text_val in enumerate(chunks):
-                doc_id = start_id + i
-                meta_json = json.dumps(doc.metadata) if doc.metadata else "{}"
-                
-                # Check consistency before insert
-                try:
-                     con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                        (doc_id, chunk_text_val, meta_json))
-                except duckdb.ConstraintException:
-                     # ID collision! This means DB has rows that FAISS didn't know about (or we calculated wrong)
-                     print(f"Ingest Warning: ID collision for {doc_id}. Skipping insert/Overwrite?")
-                     # If we skip, we have a vector in FAISS with no DB row (bad).
-                     # If we overwrite, we lose old data.
-                     # Let's try to update instead?
-                     con.execute("UPDATE documents SET text=?, metadata=? WHERE id=?", 
-                        (chunk_text_val, meta_json, doc_id
+        except Exception as e:
+            print(f"Ingest failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Ingest failed: {str(e)}")
+
+@app.post("/search", response_model=List[SearchResult])
+async def search_documents(query: SearchQuery):
+    """
+    Semantic + Keyword search.
+    """
+    check_initialization()
+    
+    if not query.query.strip():
         return []
     
     try:
