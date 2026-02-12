@@ -121,6 +121,8 @@ async def startup_event():
     # 3. DuckDB Setup
     try:
         print(f"Connecting to DuckDB at {DB_PATH}...")
+        # Check if file exists. If it doesn't, we need to create schema.
+        db_exists = os.path.exists(DB_PATH)
         con = duckdb.connect(DB_PATH)
         con.execute("SELECT 1")
     except Exception as e:
@@ -132,21 +134,36 @@ async def startup_event():
                 pass
         con = duckdb.connect(DB_PATH)
 
-    # Initialize schema
+    # Initialize schema with more robust checks
     try:
-        con.execute("""
-            CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
-            CREATE TABLE IF NOT EXISTS documents (
-                id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
-                text VARCHAR,
-                metadata JSON
-            );
-        """)
+        # Check if table exists
+        cursor = con.cursor()
+        try:
+             cursor.execute("SELECT COUNT(*) FROM documents")
+        except:
+             print("Table 'documents' not found. Creating...")
+             con.execute("""
+                CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
+                CREATE TABLE IF NOT EXISTS documents (
+                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
+                    text VARCHAR,
+                    metadata JSON
+                );
+             """)
+             print("Table 'documents' created.")
+        
+        # Initialize FTS
         con.execute("INSTALL fts; LOAD fts;")
-        con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
-        print("DuckDB FTS initialized.")
+        # Check if FTS index exists (this is hard to check directly, so we try-catch creation)
+        try:
+            con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+            print("DuckDB FTS initialized.")
+        except Exception as fts_error:
+             print(f"FTS Index creation notice (might already exist): {fts_error}")
+
     except Exception as e:
         print(f"Warning: FTS init/Schema failed: {e}")
+
 
     # 4. FAISS Initialization
     try:
