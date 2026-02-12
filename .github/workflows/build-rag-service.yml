@@ -43,11 +43,16 @@ jobs:
         with:
           context: ./services/rag
           push: true
-          tags: databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:latest
+          tags: |
+            databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:latest
+            databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:${{ github.sha }}
 
-      - name: Restart Container App
-        run: |
-           az containerapp revision copy \
-            --name rag-service \
-            --resource-group databro-${{ env.ENV_NAME }}-rg \
-            --image databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:latest
+      - name: Deploy to Azure Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          registryUrl: databro${{ env.ENV_NAME }}acr.azurecr.io
+          imageToDeploy: databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:${{ github.sha }}
+          targetPort: 80
+          ingress: external
+          containerAppName: rag-service
+          resourceGroup: databro-${{ env.ENV_NAME }}-rg

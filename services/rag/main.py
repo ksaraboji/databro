@@ -95,7 +95,16 @@ download_state()
 
 # --- DuckDB Setup ---
 # We use DuckDB for Persistence and FTS
-con = duckdb.connect(DB_PATH)
+try:
+    print(f"Connecting to DuckDB at {DB_PATH}...")
+    con = duckdb.connect(DB_PATH)
+    # Test connection
+    con.execute("SELECT 1")
+except Exception as e:
+    print(f"Error connecting to DuckDB: {e}. Starting with fresh DB.")
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+    con = duckdb.connect(DB_PATH)
 
 # Initialize schema
 con.execute("""
@@ -111,14 +120,22 @@ try:
     con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
     print("DuckDB FTS initialized.")
 except Exception as e:
+    # FTS might already exist or fail for other reasons. 
+    # If the table exists but index doesn't, this blocks.
+    # If index exists, it might error.
     print(f"Warning: FTS init failed: {e}")
 
 # --- FAISS Initialization ---
-if os.path.exists(FAISS_INDEX_PATH):
-    print("Loading FAISS index from disk...")
-    index = faiss.read_index(FAISS_INDEX_PATH)
-else:
-    print("Creating new FAISS index...")
+try:
+    if os.path.exists(FAISS_INDEX_PATH):
+        print("Loading FAISS index from disk...")
+        index = faiss.read_index(FAISS_INDEX_PATH)
+    else:
+        raise FileNotFoundError("No index found")
+except Exception as e:
+    print(f"Error loading FAISS index: {e}. Creating new index...")
+    if os.path.exists(FAISS_INDEX_PATH):
+        os.remove(FAISS_INDEX_PATH)
     index = faiss.IndexFlatL2(EMBEDDING_DIM)
 
 # --- Helper Functions ---

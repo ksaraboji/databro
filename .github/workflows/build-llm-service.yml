@@ -42,13 +42,18 @@ jobs:
         with:
           context: ./services/llm
           push: true
-          tags: databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:latest
+          tags: |
+            databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:latest
+            databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:${{ github.sha }}
           build-args: |
              MODEL_NAME=llama3.2
 
-      - name: Restart Container App
-        run: |
-           az containerapp revision copy \
-            --name llm-service \
-            --resource-group databro-${{ env.ENV_NAME }}-rg \
-            --image databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:latest
+      - name: Deploy to Azure Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          registryUrl: databro${{ env.ENV_NAME }}acr.azurecr.io
+          imageToDeploy: databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:${{ github.sha }}
+          targetPort: 11434
+          ingress: internal
+          containerAppName: llm-service
+          resourceGroup: databro-${{ env.ENV_NAME }}-rg
