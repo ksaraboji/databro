@@ -19,13 +19,9 @@ CHUNK_OVERLAP = 50
 DB_PATH = "rag_data.duckdb"
 FAISS_INDEX_PATH = "rag_index.faiss"
 
-# Persistence Config
+# Persistence Config (Global)
 AZURE_CONN_STR = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 BLOB_CONTAINER = os.getenv("BLOB_CONTAINER_NAME", "rag-state")
-
-print(f"Loading embedding model: {MODEL_NAME}...")
-model = SentenceTransformer(MODEL_NAME)
-print("Model loaded.")
 
 # --- Persistence Helpers ---
 def download_state():
@@ -89,54 +85,78 @@ def upload_state():
     except Exception as e:
         print(f"Error uploading state: {e}")
 
-# --- Initialize State ---
-print("Initializing state...")
-download_state()
+# --- Global Vars (Lazy Init) ---
+model = None
+con = None
+index = None
 
-# --- DuckDB Setup ---
-# We use DuckDB for Persistence and FTS
-try:
-    print(f"Connecting to DuckDB at {DB_PATH}...")
-    con = duckdb.connect(DB_PATH)
-    # Test connection
-    con.execute("SELECT 1")
-except Exception as e:
-    print(f"Error connecting to DuckDB: {e}. Starting with fresh DB.")
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-    con = duckdb.connect(DB_PATH)
+# --- Startup Event ---
+@app.on_event("startup")
+async def startup_event():
+    global model, con, index
+    
+    print("Starting RAG Service...")
+    
+    # 1. Load Model
+    try:
+        print(f"Loading embedding model: {MODEL_NAME}...")
+        model = SentenceTransformer(MODEL_NAME)
+        print("Model loaded.")
+    except Exception as e:
+        print(f"CRITICAL: Failed to load model: {e}")
+        # We don't exit, so logs can be read. But endpoints will fail.
+    
+    # 2. Download State
+    print("Initializing state...")
+    download_state()
 
-# Initialize schema
-con.execute("""
-    CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
-    CREATE TABLE IF NOT EXISTS documents (
-        id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
-        text VARCHAR,
-        metadata JSON
-    );
-""")
-try:
-    con.execute("INSTALL fts; LOAD fts;")
-    con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
-    print("DuckDB FTS initialized.")
-except Exception as e:
-    # FTS might already exist or fail for other reasons. 
-    # If the table exists but index doesn't, this blocks.
-    # If index exists, it might error.
-    print(f"Warning: FTS init failed: {e}")
+    # 3. DuckDB Setup
+    try:
+        print(f"Connecting to DuckDB at {DB_PATH}...")
+        con = duckdb.connect(DB_PATH)
+        con.execute("SELECT 1")
+    except Exception as e:
+        print(f"Error connecting to DuckDB: {e}. Starting with fresh DB.")
+        if os.path.exists(DB_PATH):
+            try:
+                os.remove(DB_PATH)
+            except:
+                pass
+        con = duckdb.connect(DB_PATH)
 
-# --- FAISS Initialization ---
-try:
-    if os.path.exists(FAISS_INDEX_PATH):
-        print("Loading FAISS index from disk...")
-        index = faiss.read_index(FAISS_INDEX_PATH)
-    else:
-        raise FileNotFoundError("No index found")
-except Exception as e:
-    print(f"Error loading FAISS index: {e}. Creating new index...")
-    if os.path.exists(FAISS_INDEX_PATH):
-        os.remove(FAISS_INDEX_PATH)
-    index = faiss.IndexFlatL2(EMBEDDING_DIM)
+    # Initialize schema
+    try:
+        con.execute("""
+            CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
+                text VARCHAR,
+                metadata JSON
+            );
+        """)
+        con.execute("INSTALL fts; LOAD fts;")
+        con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+        print("DuckDB FTS initialized.")
+    except Exception as e:
+        print(f"Warning: FTS init/Schema failed: {e}")
+
+    # 4. FAISS Initialization
+    try:
+        if os.path.exists(FAISS_INDEX_PATH):
+            print("Loading FAISS index from disk...")
+            index = faiss.read_index(FAISS_INDEX_PATH)
+        else:
+            raise FileNotFoundError("No index found")
+    except Exception as e:
+        print(f"Error loading FAISS index: {e}. Creating new index...")
+        if os.path.exists(FAISS_INDEX_PATH):
+            try:
+                os.remove(FAISS_INDEX_PATH)
+            except:
+                pass
+        index = faiss.IndexFlatL2(EMBEDDING_DIM)
+
+    print("Startup complete.")
 
 # --- Helper Functions ---
 

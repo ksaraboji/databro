@@ -48,12 +48,27 @@ jobs:
           build-args: |
              MODEL_NAME=llama3.2
 
+      - name: Create Container App YAML definition
+        run: |
+          cat <<EOF > llm-service.yaml
+          properties:
+            configuration:
+              ingress:
+                external: false
+                targetPort: 11434
+            template:
+              containers:
+                - name: ollama
+                  image: databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:${{ github.sha }}
+                  resources:
+                    cpu: 2.0
+                    memory: 4.0Gi
+          EOF
+
       - name: Deploy to Azure Container App
         uses: azure/container-apps-deploy-action@v1
         with:
           registryUrl: databro${{ env.ENV_NAME }}acr.azurecr.io
-          imageToDeploy: databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:${{ github.sha }}
-          targetPort: 11434
-          ingress: internal
+          yamlConfigPath: llm-service.yaml
           containerAppName: llm-service
           resourceGroup: databro-${{ env.ENV_NAME }}-rg
