@@ -44,3 +44,10 @@ jobs:
           context: ./services/rag
           push: true
           tags: databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:latest
+
+      - name: Restart Container App
+        run: |
+           az containerapp revision copy \
+            --name rag-service \
+            --resource-group databro-${{ env.ENV_NAME }}-rg \
+            --image databro${{ env.ENV_NAME }}acr.azurecr.io/rag-service:latest

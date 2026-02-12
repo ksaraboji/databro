@@ -45,3 +45,10 @@ jobs:
           tags: databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:latest
           build-args: |
              MODEL_NAME=llama3.2
+
+      - name: Restart Container App
+        run: |
+           az containerapp revision copy \
+            --name llm-service \
+            --resource-group databro-${{ env.ENV_NAME }}-rg \
+            --image databro${{ env.ENV_NAME }}acr.azurecr.io/llm-service:latest
