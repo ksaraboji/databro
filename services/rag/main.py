@@ -85,10 +85,13 @@ def upload_state():
     except Exception as e:
         print(f"Error uploading state: {e}")
 
+import asyncio
+
 # --- Global Vars (Lazy Init) ---
 model = None
 con = None
 index = None
+state_lock = asyncio.Lock()  # Prevent concurrent modifications
 
 def check_initialization():
     if model is None:
@@ -137,29 +140,40 @@ async def startup_event():
     # Initialize schema with more robust checks
     try:
         # Check if table exists
-        cursor = con.cursor()
         try:
-             cursor.execute("SELECT COUNT(*) FROM documents")
+             # Just try to query. If table doesn't exist, this throws Catalog Exception
+             con.execute("SELECT COUNT(*) FROM documents")
         except:
              print("Table 'documents' not found. Creating...")
-             con.execute("""
-                CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;
-                CREATE TABLE IF NOT EXISTS documents (
-                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
-                    text VARCHAR,
-                    metadata JSON
-                );
-             """)
-             print("Table 'documents' created.")
+             try:
+                con.execute("CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;")
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
+                        text VARCHAR,
+                        metadata JSON
+                    );
+                """)
+                print("Table 'documents' created.")
+                
+                # Checkpointing is CRITICAL in DuckDB to persist schema changes
+                con.checkpoint()
+             except Exception as create_err:
+                 print(f"Error Creating Table: {create_err}")
+                 raise create_err
         
         # Initialize FTS
-        con.execute("INSTALL fts; LOAD fts;")
-        # Check if FTS index exists (this is hard to check directly, so we try-catch creation)
         try:
+            con.execute("INSTALL fts; LOAD fts;")
+            # To be safe, we can drop the index if it exists and recreate it, or catch the error.
+            # PRAGMA create_fts_index is idempotent-ish but throws if index exists on same columns?
+            # Let's use the 'IF NOT EXISTS' equivalent logic for FTS which is tricky.
+            # Instead, we just try to create it.
             con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
             print("DuckDB FTS initialized.")
         except Exception as fts_error:
-             print(f"FTS Index creation notice (might already exist): {fts_error}")
+             # Expected if index already exists
+             print(f"FTS Index creation notice: {fts_error}")
 
     except Exception as e:
         print(f"Warning: FTS init/Schema failed: {e}")
@@ -236,43 +250,47 @@ async def seed_document(doc: DocumentIngest):
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    try:
-        # 1. Reset State
-        print("Resetting state for seed...")
-        index = faiss.IndexFlatL2(EMBEDDING_DIM)
-        con.execute("DELETE FROM documents") 
-        
-        # 2. Split text into chunks
-        chunks = chunk_text(doc.text)
-        if not chunks:
-            return {"message": "No valid text chunks found", "chunks_count": 0}
+    async with state_lock:
+        try:
+            # 1. Reset State
+            print("Resetting state for seed...")
+            index = faiss.IndexFlatL2(EMBEDDING_DIM)
+            con.execute("DELETE FROM documents") 
+            con.checkpoint() # Ensure delete is persisted
+            
+            # 2. Split text into chunks
+            chunks = chunk_text(doc.text)
+            if not chunks:
+                return {"message": "No valid text chunks found", "chunks_count": 0}
 
-        # 3. Generate embeddings
-        print("Generating embeddings...")
-        embeddings = model.encode(chunks)
-        
-        # 4. Optimize and Add to FAISS
-        faiss.normalize_L2(embeddings)
-        index.add(embeddings.astype('float32'))
-        
-        # 5. Store text in DuckDB
-        print("Storing in DuckDB...")
-        start_id = 0
-        
-        for i, chunk_text_val in enumerate(chunks):
-            doc_id = start_id + i
-            meta_json = json.dumps(doc.metadata) if doc.metadata else json.dumps({"source": "seed", "chunk_index": i})
-            con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                    (doc_id, chunk_text_val, meta_json))
-        
-        # 6. Trigger upload
-        print("Uploading state...")
-        upload_state()
+            # 3. Generate embeddings
+            print("Generating embeddings...")
+            # Run model encoding in a thread to avoid blocking the event loop
+            embeddings = await asyncio.to_thread(model.encode, chunks)
+            
+            # 4. Optimize and Add to FAISS
+            faiss.normalize_L2(embeddings)
+            index.add(embeddings.astype('float32'))
+            
+            # 5. Store text in DuckDB
+            print("Storing in DuckDB...")
+            start_id = 0
+            
+            for i, chunk_text_val in enumerate(chunks):
+                doc_id = start_id + i
+                meta_json = json.dumps(doc.metadata) if doc.metadata else json.dumps({"source": "seed", "chunk_index": i})
+                con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                        (doc_id, chunk_text_val, meta_json))
+            
+            # 6. Trigger upload
+            print("Uploading state...")
+            # Uploading can take time, do it under lock to prevent inconsistent state
+            await asyncio.to_thread(upload_state)
 
-        return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
-    except Exception as e:
-        print(f"Seed failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
+            return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+        except Exception as e:
+            print(f"Seed failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
@@ -284,36 +302,38 @@ async def ingest_document(doc: DocumentIngest):
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    try:
-        # 1. Split text into chunks
-        chunks = chunk_text(doc.text)
-        if not chunks:
-            return {"message": "No valid text chunks found", "chunks_count": 0}
+    async with state_lock:
+        try:
+            # 1. Split text into chunks
+            chunks = chunk_text(doc.text)
+            if not chunks:
+                return {"message": "No valid text chunks found", "chunks_count": 0}
 
-        # 2. Generate embeddings for all chunks in batch
-        embeddings = model.encode(chunks)
-        
-        # 3. Optimize and Add to FAISS
-        faiss.normalize_L2(embeddings)
-        index.add(embeddings.astype('float32'))
-        
-        # 4. Store text in DuckDB
-        # Align IDs: We assume sequential ingestion.
-        start_id = index.ntotal - len(chunks)
-        
-        for i, chunk_text_val in enumerate(chunks):
-            doc_id = start_id + i
-            meta_json = json.dumps(doc.metadata)
-            con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
-                    (doc_id, chunk_text_val, meta_json))
-        
-        # Trigger upload to blob storage
-        upload_state()
+            # 2. Generate embeddings for all chunks in batch
+            # Run encoding in thread
+            embeddings = await asyncio.to_thread(model.encode, chunks)
+            
+            # 3. Optimize and Add to FAISS
+            faiss.normalize_L2(embeddings)
+            index.add(embeddings.astype('float32'))
+            
+            # 4. Store text in DuckDB
+            # Align IDs: We assume sequential ingestion.
+            start_id = index.ntotal - len(chunks)
+            
+            for i, chunk_text_val in enumerate(chunks):
+                doc_id = start_id + i
+                meta_json = json.dumps(doc.metadata)
+                con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                        (doc_id, chunk_text_val, meta_json))
+            
+            # Trigger upload to blob storage
+            await asyncio.to_thread(upload_state)
 
-        return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
-    except Exception as e:
-         print(f"Ingest failed: {e}")
-         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+            return {"message": "Document ingested", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+        except Exception as e:
+            print(f"Ingest failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 @app.post("/search", response_model=List[SearchResult])
 async def search(query: SearchQuery):
