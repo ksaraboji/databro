@@ -69,16 +69,24 @@ def upload_state():
             container.create_container()
 
         # Upload DuckDB (Includes FTS index)
+        if con:
+             # Checkpoint to ensure data is flushed to disk BEFORE reading the file
+             try:
+                con.checkpoint()
+             except Exception as e:
+                print(f"Warning: Checkpoint failed during upload: {e}")
+
         if os.path.exists(DB_PATH):
-            # Checkpoint to ensure data is flushed to disk
-            con.checkpoint() 
             with open(DB_PATH, "rb") as f:
                 container.upload_blob(DB_PATH, f, overwrite=True)
         
         # Upload FAISS
-        faiss.write_index(index, FAISS_INDEX_PATH)
-        with open(FAISS_INDEX_PATH, "rb") as f:
-            container.upload_blob(FAISS_INDEX_PATH, f, overwrite=True)
+        if index:
+            faiss.write_index(index, FAISS_INDEX_PATH)
+            
+        if os.path.exists(FAISS_INDEX_PATH):
+            with open(FAISS_INDEX_PATH, "rb") as f:
+                container.upload_blob(FAISS_INDEX_PATH, f, overwrite=True)
             
         print("State saved to Azure Blob Storage.")
             
@@ -119,15 +127,14 @@ async def startup_event():
     
     # 2. Download State
     print("Initializing state...")
-    download_state()
+    down
+        # Explicitly Test Connection
+        try:
+             con.execute("SELECT 1")
+        except Exception as e:
+             print(f"DB Connection check failed: {e}")
+             raise e
 
-    # 3. DuckDB Setup
-    try:
-        print(f"Connecting to DuckDB at {DB_PATH}...")
-        # Check if file exists. If it doesn't, we need to create schema.
-        db_exists = os.path.exists(DB_PATH)
-        con = duckdb.connect(DB_PATH)
-        con.execute("SELECT 1")
     except Exception as e:
         print(f"Error connecting to DuckDB: {e}. Starting with fresh DB.")
         if os.path.exists(DB_PATH):
@@ -140,11 +147,16 @@ async def startup_event():
     # Initialize schema with more robust checks
     try:
         # Check if table exists
+        table_exists = False
         try:
              # Just try to query. If table doesn't exist, this throws Catalog Exception
              con.execute("SELECT COUNT(*) FROM documents")
+             table_exists = True
         except:
              print("Table 'documents' not found. Creating...")
+             table_exists = False
+
+        if not table_exists:
              try:
                 con.execute("CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;")
                 con.execute("""
@@ -173,6 +185,15 @@ async def startup_event():
             print("DuckDB FTS initialized.")
         except Exception as fts_error:
              # Expected if index already exists
+             # print(f"FTS Index creation notice: {fts_error}")
+             passand recreate it, or catch the error.
+            # PRAGMA create_fts_index is idempotent-ish but throws if index exists on same columns?
+            # Let's use the 'IF NOT EXISTS' equivalent logic for FTS which is tricky.
+            # Instead, we just try to create it.
+            con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+            print("DuckDB FTS initialized.")
+        except Exception as fts_error:
+             # Expected if index already exists
              print(f"FTS Index creation notice: {fts_error}")
 
     except Exception as e:
@@ -185,7 +206,8 @@ async def startup_event():
             print("Loading FAISS index from disk...")
             index = faiss.read_index(FAISS_INDEX_PATH)
         else:
-            raise FileNotFoundError("No index found")
+            print("No FAISS index found. Creating new...")
+            index = faiss.IndexFlatL2(EMBEDDING_DIM)
     except Exception as e:
         print(f"Error loading FAISS index: {e}. Creating new index...")
         if os.path.exists(FAISS_INDEX_PATH):
@@ -194,6 +216,39 @@ async def startup_event():
             except:
                 pass
         index = faiss.IndexFlatL2(EMBEDDING_DIM)
+    
+    # 5. Consistency Check (Crucial for correct ID mapping)
+    try:
+        db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        faiss_count = index.ntotal
+        print(f"Startup Consistency Check: DB={db_count}, FAISS={faiss_count}")
+        
+        if db_count != faiss_count:
+            print("WARNING: State inconsistency detected between DB and Index!")
+            # Strategies:
+            # A) Trust DB: Rebuild index from DB (expensive but safe)
+            # B) Trust Index: Harder, as we lack text.
+            # C) Truncate DB to match Index (if DB > Index)
+            # For now, we prefer to log. A full rebuild function might be needed later.
+            # If DB < Index, search results might point to non-existent rows.
+            # If DB > Index, some rows are not searchable.
+            
+            # Simple Fix: If DB > Index, we could delete extra rows to keep future IDs aligned.
+            if db_count > faiss_count:
+                print(f"Trimming DB to match FAISS count ({faiss_count})...")
+                con.execute("DELETE FROM documents WHERE id >= ?", (faiss_count,))
+                con.checkpoint()
+            
+            # If DB < Index, we have 'ghost' vectors. This is worse because search returns IDs without text.
+            # We should probably reset the index if it's vastly different, or just accept it for now.
+            if db_count < faiss_count:
+                 print("Critical: FAISS has more vectors than DB rows. Search may fail for recent items.")
+                 # Dangerous to trim FAISS without rebuild.
+                 # Optimization: Reset both if heavily out of sync? 
+                 # For now, let's just proceed.
+                 
+    except Exception as e:
+        print(f"Consistency check failed: {e}")
 
     print("Startup complete.")
 
@@ -282,15 +337,31 @@ async def seed_document(doc: DocumentIngest):
                 con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
                         (doc_id, chunk_text_val, meta_json))
             
-            # 6. Trigger upload
-            print("Uploading state...")
-            # Uploading can take time, do it under lock to prevent inconsistent state
-            await asyncio.to_thread(upload_state)
-
-            return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
-        except Exception as e:
-            print(f"Seed failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
+            # CRITICAL: Get start_id from current index size BEFORE adding
+            start_id = index.ntotal
+            
+            # Add to index
+            index.add(embeddings.astype('float32'))
+            
+            # 4. Store text in DuckDB
+            # We use the explicit start_id derived from FAISS state
+            
+            for i, chunk_text_val in enumerate(chunks):
+                doc_id = start_id + i
+                meta_json = json.dumps(doc.metadata) if doc.metadata else "{}"
+                
+                # Check consistency before insert
+                try:
+                     con.execute("INSERT INTO documents (id, text, metadata) VALUES (?, ?, ?)", 
+                        (doc_id, chunk_text_val, meta_json))
+                except duckdb.ConstraintException:
+                     # ID collision! This means DB has rows that FAISS didn't know about (or we calculated wrong)
+                     print(f"Ingest Warning: ID collision for {doc_id}. Skipping insert/Overwrite?")
+                     # If we skip, we have a vector in FAISS with no DB row (bad).
+                     # If we overwrite, we lose old data.
+                     # Let's try to update instead?
+                     con.execute("UPDATE documents SET text=?, metadata=? WHERE id=?", 
+                        (chunk_text_val, meta_json, doc_id))
 
 @app.post("/ingest")
 async def ingest_document(doc: DocumentIngest):
