@@ -165,15 +165,6 @@ export default function Home() {
           Warning: Useful code
         </div>
       </motion.main>
-
-      {/* --- FOOTER --- */}
-      <footer className="w-full py-6 sm:py-8 text-center border-t border-slate-100/50 px-3">
-        <p className="text-xs sm:text-sm text-slate-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-          <span>© {new Date().getFullYear()} Databro.</span>
-          <span className="hidden sm:inline w-1 h-1 bg-slate-300 rounded-full"></span>
-          <span className="text-center">Powered by coffee & commits.</span>
-        </p>
-      </footer>
     </div>
   );
 }
