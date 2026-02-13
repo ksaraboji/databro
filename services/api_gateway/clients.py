@@ -6,14 +6,14 @@ LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:11434")
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://rag-service:80")
 SPEECH_SERVICE_URL = os.getenv("SPEECH_SERVICE_URL", "http://speech-service:80")
 
-async def generate_completion(prompt: str, model: str = "llama3") -> str:
+async def generate_completion(prompt: str, model: str = "llama3.2") -> str:
     """Calls the LLM service to generate text."""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{LLM_SERVICE_URL}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
-                timeout=60.0
+                timeout=120.0
             )
             response.raise_for_status()
             return response.json().get("response", "")
