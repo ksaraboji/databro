@@ -127,7 +127,15 @@ async def startup_event():
     
     # 2. Download State
     print("Initializing state...")
-    down
+    download_state()
+
+    # 3. DuckDB Setup
+    try:
+        print(f"Connecting to DuckDB at {DB_PATH}...")
+        # Check if file exists. If it doesn't, we need to create schema.
+        db_exists = os.path.exists(DB_PATH)
+        con = duckdb.connect(DB_PATH)
+        
         # Explicitly Test Connection
         try:
              con.execute("SELECT 1")
@@ -178,27 +186,15 @@ async def startup_event():
         try:
             con.execute("INSTALL fts; LOAD fts;")
             # To be safe, we can drop the index if it exists and recreate it, or catch the error.
-            # PRAGMA create_fts_index is idempotent-ish but throws if index exists on same columns?
-            # Let's use the 'IF NOT EXISTS' equivalent logic for FTS which is tricky.
-            # Instead, we just try to create it.
             con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
             print("DuckDB FTS initialized.")
         except Exception as fts_error:
              # Expected if index already exists
-             # print(f"FTS Index creation notice: {fts_error}")
-             passand recreate it, or catch the error.
-            # PRAGMA create_fts_index is idempotent-ish but throws if index exists on same columns?
-            # Let's use the 'IF NOT EXISTS' equivalent logic for FTS which is tricky.
-            # Instead, we just try to create it.
-            con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
-            print("DuckDB FTS initialized.")
-        except Exception as fts_error:
-             # Expected if index already exists
-             print(f"FTS Index creation notice: {fts_error}")
+             pass
 
     except Exception as e:
+        # Don't let schema init failure crash the app entirely, but log it loudly
         print(f"Warning: FTS init/Schema failed: {e}")
-
 
     # 4. FAISS Initialization
     try:
@@ -219,34 +215,23 @@ async def startup_event():
     
     # 5. Consistency Check (Crucial for correct ID mapping)
     try:
-        db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
-        faiss_count = index.ntotal
-        print(f"Startup Consistency Check: DB={db_count}, FAISS={faiss_count}")
-        
-        if db_count != faiss_count:
-            print("WARNING: State inconsistency detected between DB and Index!")
-            # Strategies:
-            # A) Trust DB: Rebuild index from DB (expensive but safe)
-            # B) Trust Index: Harder, as we lack text.
-            # C) Truncate DB to match Index (if DB > Index)
-            # For now, we prefer to log. A full rebuild function might be needed later.
-            # If DB < Index, search results might point to non-existent rows.
-            # If DB > Index, some rows are not searchable.
+        # Ensure con is valid before using it
+        if con:
+            db_count = con.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+            faiss_count = index.ntotal
+            print(f"Startup Consistency Check: DB={db_count}, FAISS={faiss_count}")
             
-            # Simple Fix: If DB > Index, we could delete extra rows to keep future IDs aligned.
-            if db_count > faiss_count:
-                print(f"Trimming DB to match FAISS count ({faiss_count})...")
-                con.execute("DELETE FROM documents WHERE id >= ?", (faiss_count,))
-                con.checkpoint()
-            
-            # If DB < Index, we have 'ghost' vectors. This is worse because search returns IDs without text.
-            # We should probably reset the index if it's vastly different, or just accept it for now.
-            if db_count < faiss_count:
-                 print("Critical: FAISS has more vectors than DB rows. Search may fail for recent items.")
-                 # Dangerous to trim FAISS without rebuild.
-                 # Optimization: Reset both if heavily out of sync? 
-                 # For now, let's just proceed.
-                 
+            if db_count != faiss_count:
+                print("WARNING: State inconsistency detected between DB and Index!")
+                
+                # Simple Fix: If DB > Index, we could delete extra rows to keep future IDs aligned.
+                if db_count > faiss_count:
+                    print(f"Trimming DB to match FAISS count ({faiss_count})...")
+                    con.execute("DELETE FROM documents WHERE id >= ?", (faiss_count,))
+                    con.checkpoint()
+                
+                if db_count < faiss_count:
+                     print("Critical: FAISS has more vectors than DB rows. Search may fail for recent items.")
     except Exception as e:
         print(f"Consistency check failed: {e}")
 
