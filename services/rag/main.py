@@ -177,8 +177,9 @@ async def startup_event():
             try:
                 # Ensure clean slate if check failed
                 con.execute("DROP SEQUENCE IF EXISTS seq_doc_id")
-                # DuckDB sequences default MINVALUE is 1. If we want 0, we must specify it.
-                con.execute("CREATE SEQUENCE seq_doc_id START 0 MINVALUE 0;")
+                # DuckDB sequences default MINVALUE is 1. If we want 0, we must specify it clearly.
+                # Use standard SQL sequence syntax: MINVALUE first or after START doesn't matter, but values must align.
+                con.execute("CREATE SEQUENCE seq_doc_id MINVALUE 0 START 0;")
                 con.execute("""
                     CREATE TABLE documents (
                         id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
@@ -349,6 +350,7 @@ async def seed_document(doc: DocumentIngest):
             await asyncio.to_thread(upload_state)
 
             return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+
         except Exception as e:
             print(f"Seed failed: {e}")
             raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
