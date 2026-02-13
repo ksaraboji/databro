@@ -70,10 +70,20 @@ async def speak_endpoint(text: str = Body(..., embed=True)):
     Proxy endpoint for Text-to-Speech.
     Returns a URL to the generated audio file.
     """
-    url = await synthesize_speech(text)
-    if not url:
-        raise HTTPException(status_code=500, detail="Speech synthesis failed or returned no URL")
-    return {"audio_url": url}
+    if not text:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+        
+    result = await synthesize_speech(text)
+    
+    if "error" in result:
+        # Pass through the error detail from the Speech Service
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    audio_url = result.get("audio_url")
+    if not audio_url:
+        raise HTTPException(status_code=500, detail="Speech synthesis returned no URL but no error reported.")
+        
+    return {"audio_url": audio_url}
 
 @app.get("/topics")
 async def get_topics():
@@ -144,7 +154,10 @@ async def conversate_endpoint(file: UploadFile = File(...), user_id: str = Form(
         response_text = "I'm having trouble thinking right now."
 
     # 3. Synthesize (TTS)
-    audio_url = await synthesize_speech(response_text)
+    tts_result = await synthesize_speech(response_text)
+    audio_url = None
+    if isinstance(tts_result, dict) and "audio_url" in tts_result:
+        audio_url = tts_result["audio_url"]
     
     return {
         "user_text": user_text,

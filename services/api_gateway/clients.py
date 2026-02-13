@@ -56,7 +56,7 @@ async def transcribe_audio(file_content: bytes, filename: str) -> dict:
         print(f"Error calling Speech Service: {e}")
         return {"error": str(e)}
 
-async def synthesize_speech(text: str) -> Optional[str]:
+async def synthesize_speech(text: str) -> dict:
     """Calls the Speech service to convert text to speech."""
     try:
         async with httpx.AsyncClient() as client:
@@ -65,11 +65,14 @@ async def synthesize_speech(text: str) -> Optional[str]:
                 json={"text": text},
                 timeout=120.0 # TTS can take time
             )
-            response.raise_for_status()
-            return response.json().get("audio_url")
+            # Don't raise for status yet, check content
+            if response.status_code != 200:
+                return {"error": f"Speech Service Error ({response.status_code}): {response.text}"}
+                
+            return {"audio_url": response.json().get("audio_url")}
     except Exception as e:
         print(f"Error calling Speech Service (TTS): {e}")
-        return None 
+        return {"error": str(e)} 
 
 async def seed_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:
     """Calls the RAG service to seed data."""

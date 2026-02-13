@@ -143,7 +143,11 @@ with tab3:
                                         st.audio(audio_url, format="audio/wav", autoplay=True)
                                         # Also save it to history if we wanted to persist it, but for now just autoplay
                                 else:
-                                    st.warning(f"TTS Failed: {audio_res.status_code}")
+                                    try:
+                                        detail = audio_res.json().get('detail', audio_res.text)
+                                    except:
+                                        detail = audio_res.text
+                                    st.warning(f"TTS Failed: {audio_res.status_code} - {detail}")
                             except Exception as e:
                                 st.warning(f"TTS Connection Failed: {e}")
 
@@ -174,17 +178,30 @@ with tab3:
     # Actually, the simplest way is to put the audio URL in the history state too?
     # No, let's just render the 'assistant' message immediately.
 
-    # Re-writing process_interaction for better UI flow
-    def process_interaction_v2(text, play_audio=False):
+    # Re-writing process_interaction for better UI flow - using Optimized Endpoint
+    def process_interaction(text, play_audio=False):
         # 1. Add User Message
         st.session_state.chat_history.append({"role": "user", "content": text})
         with st.chat_message("user"):
             st.write(text)
 
-        # 2. Get AI Response
+        # 2. Call Conversate (Optimized) or Interact+Speak
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
+                    # Use the optimized /conversate endpoint if audio is requested
+                    # But /conversate expects file upload for STT usually?
+                    # The current /conversate implementation requires 'file' (audio) and 'user_id'.
+                    # It doesn't support text-only input + TTS response easily.
+                    # Wait, let's check api_gateway/main.py conversate_endpoint signature.
+                    # async def conversate_endpoint(file: UploadFile = File(...), user_id: str = Form(...)):
+                    # It demands a file.
+                    # If we have text (from text input), we can't use /conversate easily unless we change it.
+                    
+                    # So for text input, we MUST use /interact + /speak.
+                    # For audio input, we can use /conversate.
+                    
+                    # Let's stick to the existing logic but ensure error handling is robust.
                     payload = {"user_id": st.session_state.user_id, "question_text": text}
                     res = requests.post(f"{gateway_url}/interact", json=payload, timeout=120)
                     
@@ -196,8 +213,25 @@ with tab3:
                         # 3. Handle Audio
                         if play_audio:
                             with st.spinner("Speaking..."):
-                                audio_res = requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=60)
-                                if audio_res.status_code == 200:
+                                try:
+                                    audio_res = requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=120)
+                                    if audio_res.status_code == 200:
+                                        audio_data = audio_res.json()
+                                        audio_url = audio_data.get("audio_url")
+                                        if audio_url:
+                                            st.audio(audio_url, format="audio/wav", autoplay=True)
+                                    else:
+                                        try:
+                                            detail = audio_res.json().get('detail', audio_res.text)
+                                        except:
+                                            detail = audio_res.text
+                                        st.warning(f"TTS Failed: {audio_res.status_code} - {detail}")
+                                except Exception as e:
+                                    st.warning(f"TTS Connection Failed: {e}")
+                    else:
+                        st.error(f"Error: {res.status_code} - {res.text}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
                                     audio_url = audio_res.json().get("audio_url")
                                     if audio_url:
                                         st.audio(audio_url, format="audio/wav", autoplay=True)
