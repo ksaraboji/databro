@@ -113,14 +113,53 @@ with tab3:
     st.header("Professor Mode (End-to-End Test)")
     
     st.markdown(f"**Session ID:** `{st.session_state.user_id}`")
+
+    # Helper function to handle interactions
+    def process_interaction(text):
+        st.session_state.chat_history.append({"role": "user", "content": text})
+        with st.spinner("Professor is thinking..."):
+            try:
+                payload = {"user_id": st.session_state.user_id, "question_text": text}
+                res = requests.post(f"{gateway_url}/interact", json=payload, timeout=120)
+                
+                if res.status_code == 200:
+                    data = res.json()
+                    st.session_state.chat_history.append({"role": "assistant", "content": data["content_text"]})
+                    st.rerun()
+                else:
+                    st.error(f"Error: {res.status_code} - {res.text}")
+            except Exception as e:
+                st.error(f"Connection error: {e}")
     
     # Lesson Setup
     col_setup, col_chat = st.columns([1, 2])
     
     with col_setup:
         st.subheader("Start Lesson")
-        lesson_topic = st.text_input("What do you want to learn?", value="DuckDB Internals")
         
+        # Fetch available topics
+        topic_opts = ["Custom Topic"]
+        try:
+            # Increased timeout and added error display for debugging
+            t_res = requests.get(f"{gateway_url}/topics", timeout=30)
+            if t_res.status_code == 200:
+                topics_list = t_res.json().get("topics", [])
+                if topics_list:
+                    topic_opts += topics_list
+                else:
+                    st.warning("Connected, but no topics found in RAG.")
+            else:
+                st.error(f"Failed to fetch topics: {t_res.status_code}")
+        except Exception as e:
+            st.error(f"Error fetching topics: {e}")
+
+        selected_opt = st.selectbox("Select Topic from Knowledge Base", topic_opts)
+        
+        if selected_opt == "Custom Topic":
+            lesson_topic = st.text_input("Or enter a new topic", value="DuckDB Internals")
+        else:
+            lesson_topic = selected_opt
+
         if st.button("Start Lesson"):
             st.session_state.chat_history = [] # Reset
             with st.spinner("Generating Lesson Plan..."):
@@ -142,8 +181,10 @@ with tab3:
 
         if st.session_state.get("current_plan"):
             st.write("### Lesson Plan")
-            for item in st.session_state.current_plan:
-                st.write(f"- {item}")
+            st.caption("Click a topic to teach it:")
+            for i, item in enumerate(st.session_state.current_plan):
+                if st.button(f"👉 {item}", key=f"plan_btn_{i}", use_container_width=True):
+                    process_interaction(f"Please teach me about {item}")
         
     # Chat Interface
     with col_chat:
@@ -156,23 +197,33 @@ with tab3:
         
         # Input
         if st.session_state.lesson_started:
+            
+            # Voice Input
+            st.write("---")
+            st.caption("🎙️ Voice Interaction (Experimental)")
+            audio_value = st.audio_input("Record your question")
+            
+            if audio_value:
+                with st.spinner("Transcribing..."):
+                    try:
+                        # Streamlit audio_input returns a file-like object
+                        files = {"file": ("audio.wav", audio_value, "audio/wav")}
+                        t_res = requests.post(f"{gateway_url}/listen", files=files, timeout=60)
+                        
+                        if t_res.status_code == 200:
+                            transcribed_text = t_res.json().get("text", "")
+                            if transcribed_text:
+                                st.success(f"Heard: '{transcribed_text}'")
+                                process_interaction(transcribed_text)
+                            else:
+                                st.warning("No speech detected.")
+                        else:
+                            st.error(f"Transcription Failed: {t_res.status_code}")
+                    except Exception as e:
+                        st.error(f"Voice Error: {e}")
+
             user_input = st.chat_input("Ask a question on interject...")
             
             if user_input:
-                # Add user message immediately
-                st.session_state.chat_history.append({"role": "user", "content": user_input})
-                
-                with st.spinner("Professor is thinking..."):
-                    try:
-                        payload = {"user_id": st.session_state.user_id, "question_text": user_input}
-                        res = requests.post(f"{gateway_url}/interact", json=payload, timeout=120)
-                        
-                        if res.status_code == 200:
-                            data = res.json()
-                            st.session_state.chat_history.append({"role": "assistant", "content": data["content_text"]})
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res.status_code} - {res.text}")
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
+                process_interaction(user_input)
 

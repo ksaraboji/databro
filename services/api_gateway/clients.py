@@ -39,6 +39,23 @@ async def query_rag(query: str) -> str:
         print(f"Error calling RAG: {e}")
         return ""
 
+async def transcribe_audio(file_content: bytes, filename: str) -> dict:
+    """Calls the Speech service to transcribe audio."""
+    try:
+        # Prepare multipart upload
+        files = {"file": (filename, file_content, "audio/wav")}
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{SPEECH_SERVICE_URL}/transcribe",
+                files=files,
+                timeout=60.0
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        print(f"Error calling Speech Service: {e}")
+        return {"error": str(e)}
+
 async def synthesize_speech(text: str) -> Optional[str]:
     """Calls the Speech service to convert text to speech."""
     # TODO: This endpoint might return audio bytes or a URL to a blob

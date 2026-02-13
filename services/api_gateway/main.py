@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
 from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
 from graph import app_graph
-from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics
+from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio
 from langchain_core.messages import HumanMessage
 import uuid
 
@@ -10,6 +10,19 @@ app = FastAPI(title="Professor API Gateway")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/listen")
+async def listen_endpoint(file: UploadFile = File(...)):
+    """
+    Proxy endpoint for Speech-to-Text.
+    """
+    content = await file.read()
+    result = await transcribe_audio(content, file.filename)
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    return result
 
 @app.get("/topics")
 async def get_topics():
