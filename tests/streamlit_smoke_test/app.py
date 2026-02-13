@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import json
 import uuid
+import time
+import concurrent.futures
 
 st.set_page_config(page_title="DataBro Smoke Test", layout="wide")
 
@@ -178,7 +180,7 @@ with tab3:
     # Actually, the simplest way is to put the audio URL in the history state too?
     # No, let's just render the 'assistant' message immediately.
 
-    # Re-writing process_interaction for better UI flow - using Optimized Endpoint
+    # Re-writing process_interaction for better UI flow - using Optimized Endpoint & Streaming
     def process_interaction(text, play_audio=False):
         # 1. Add User Message
         st.session_state.chat_history.append({"role": "user", "content": text})
@@ -189,37 +191,38 @@ with tab3:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    # Use the optimized /conversate endpoint if audio is requested
-                    # But /conversate expects file upload for STT usually?
-                    # The current /conversate implementation requires 'file' (audio) and 'user_id'.
-                    # It doesn't support text-only input + TTS response easily.
-                    # Wait, let's check api_gateway/main.py conversate_endpoint signature.
-                    # async def conversate_endpoint(file: UploadFile = File(...), user_id: str = Form(...)):
-                    # It demands a file.
-                    # If we have text (from text input), we can't use /conversate easily unless we change it.
-                    
-                    # So for text input, we MUST use /interact + /speak.
-                    # For audio input, we can use /conversate.
-                    
-                    # Let's stick to the existing logic but ensure error handling is robust.
                     payload = {"user_id": st.session_state.user_id, "question_text": text}
                     res = requests.post(f"{gateway_url}/interact", json=payload, timeout=120)
                     
                     if res.status_code == 200:
                         data = res.json()
                         response_text = data["content_text"]
-                        st.write(response_text)
                         
-                        # 3. Handle Audio
+                        # Prepare Async TTS if needed
+                        audio_future = None
+                        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                         if play_audio:
-                            with st.spinner("Speaking..."):
+                            def fetch_audio():
+                                return requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=120)
+                            audio_future = executor.submit(fetch_audio)
+
+                        # Stream Text to UI while TTS runs in background
+                        def stream_text():
+                            for word in response_text.split(" "):
+                                yield word + " "
+                                time.sleep(0.02) # Typing effect
+                        
+                        st.write_stream(stream_text())
+                        
+                        # 3. Handle Audio Result
+                        final_audio_url = None
+                        if audio_future:
+                            with st.spinner("Finalizing Audio..."): 
                                 try:
-                                    audio_res = requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=120)
+                                    audio_res = audio_future.result()
                                     if audio_res.status_code == 200:
                                         audio_data = audio_res.json()
-                                        audio_url = audio_data.get("audio_url")
-                                        if audio_url:
-                                            st.audio(audio_url, format="audio/wav", autoplay=True)
+                                        final_audio_url = audio_data.get("audio_url")
                                     else:
                                         try:
                                             detail = audio_res.json().get('detail', audio_res.text)
@@ -228,16 +231,14 @@ with tab3:
                                         st.warning(f"TTS Failed: {audio_res.status_code} - {detail}")
                                 except Exception as e:
                                     st.warning(f"TTS Connection Failed: {e}")
-                    else:
-                        st.error(f"Error: {res.status_code} - {res.text}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
-                                    audio_url = audio_res.json().get("audio_url")
-                                    if audio_url:
-                                        st.audio(audio_url, format="audio/wav", autoplay=True)
                         
                         # Update History so it persists on next reload
-                        st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                        # CRITICAL: Save the audio_url so it replays (or shows player) after st.rerun()
+                        msg_data = {"role": "assistant", "content": response_text}
+                        if final_audio_url:
+                            msg_data["audio_url"] = final_audio_url
+                        
+                        st.session_state.chat_history.append(msg_data)
                     else:
                         st.error(f"Error: {res.status_code} - {res.text}")
                 except Exception as e:
@@ -320,6 +321,7 @@ with tab3:
             
             # Use a dynamic key to reset the widget after successful processing
             audio_value = st.audio_input("Record your question", key=f"audio_{st.session_state.audio_key}")
+            user_input = st.chat_input("Ask a question or interject...")
             
             if audio_value:
                 # 1. Transcribe
@@ -342,9 +344,18 @@ with tab3:
                     st.session_state.audio_key += 1
                     # Pass directly to interaction handler with audio flag
                     process_interaction(transcribed_text, play_audio=True)
+                    st.rerun() # Force rerun to reset UI state
 
-            user_input = st.chat_input("Ask a question on interject...")
-            
             if user_input:
                 process_interaction(user_input, play_audio=False)
+                st.rerun()
+
+        # Transcript / Copy
+        if st.session_state.chat_history:
+             with st.expander("Full Lesson Transcript (Markdown)"):
+                 transcript = ""
+                 for msg in st.session_state.chat_history:
+                     role = "User" if msg["role"] == "user" else "Professor"
+                     transcript += f"**{role}:** {msg['content']}\n\n"
+                 st.code(transcript, language="markdown")
 
