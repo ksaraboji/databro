@@ -7,8 +7,8 @@ export default function Footer() {
         <p>&copy; {new Date().getFullYear()} Databro.</p>
         <p className="text-xs mt-1">Powered by coffee & commits.</p>
         <div className="flex justify-center gap-4 mt-2">
-            <Link href="https://github.com/ksaraboji" className="hover:text-indigo-500 transition-colors">GitHub</Link>
-            <Link href="https://linkedin.com/in/ksaraboji" className="hover:text-indigo-500 transition-colors">LinkedIn</Link>
+            <Link href="https://github.com/ksaraboji" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition-colors">GitHub</Link>
+            <Link href="https://linkedin.com/in/ksaraboji" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition-colors">LinkedIn</Link>
         </div>
       </div>
     </footer>
