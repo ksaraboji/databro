@@ -3,33 +3,55 @@ import uuid
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from faster_whisper import WhisperModel
 from TTS.api import TTS
 
-app = FastAPI(title="Speech Service", version="1.0")
+# Global model variables
+stt_model = None
+tts = None
 
 # --- Configuration ---
 # Models
 STT_MODEL_SIZE = "base.en" # 'tiny', 'base', 'small', 'medium', 'large'
 TTS_MODEL_NAME = "tts_models/en/ljspeech/vits" # Fast and reasonable quality
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load models on startup
+    global stt_model, tts
+    
+    print(f"Loading Whisper model: {STT_MODEL_SIZE}...")
+    # device="cpu" for Container Apps Consumption plan (no GPU)
+    # compute_type="int8" for memory efficiency
+    try:
+        stt_model = WhisperModel(STT_MODEL_SIZE, device="cpu", compute_type="int8")
+        print("Whisper model loaded.")
+    except Exception as e:
+        print(f"Failed to load Whisper model: {e}")
+
+    print(f"Loading TTS model: {TTS_MODEL_NAME}...")
+    try:
+        # gpu=False
+        tts = TTS(model_name=TTS_MODEL_NAME, progress_bar=False, gpu=False)
+        print("TTS model loaded.")
+    except Exception as e:
+        print(f"Failed to load TTS model: {e}")
+        
+    yield
+    
+    # Clean up resources if needed
+    print("Shutting down models...")
+    del stt_model
+    del tts
+
+app = FastAPI(title="Speech Service", version="1.0", lifespan=lifespan)
+
 # Azure Storage
 AZURE_CONN_STR = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 AUDIO_CONTAINER = os.getenv("AUDIO_CONTAINER_NAME", "public-audio")
-
-# Initialize Models (Lazy loading advisable for larger models, but loading on startup for now)
-print(f"Loading Whisper model: {STT_MODEL_SIZE}...")
-# device="cpu" for Container Apps Consumption plan (no GPU)
-# compute_type="int8" for memory efficiency
-stt_model = WhisperModel(STT_MODEL_SIZE, device="cpu", compute_type="int8")
-print("Whisper model loaded.")
-
-print(f"Loading TTS model: {TTS_MODEL_NAME}...")
-# gpu=False
-tts = TTS(model_name=TTS_MODEL_NAME, progress_bar=False, gpu=False)
-print("TTS model loaded.")
 
 
 class SpeakRequest(BaseModel):
@@ -46,6 +68,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
     Speech-to-Text using Whisper.
     Accepts audio file upload, returns transcript.
     """
+    if stt_model is None:
+        raise HTTPException(status_code=503, detail="Speech-to-Text model not loaded")
+
     if not file:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
@@ -77,6 +102,9 @@ async def generate_speech(req: SpeakRequest):
     Text-to-Speech.
     Generates audio, uploads to Blob Storage, returns public URL.
     """
+    if tts is None:
+        raise HTTPException(status_code=503, detail="Text-to-Speech model not loaded")
+
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
@@ -89,18 +117,29 @@ async def generate_speech(req: SpeakRequest):
     
     try:
         # TTS generation
+        print(f"Generating TTS for text: {req.text[:50]}...")
         tts.tts_to_file(text=req.text, file_path=output_path)
-        
+        print(f"TTS generated at {output_path}")
+    except Exception as e:
+        print(f"TTS Generation Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"TTS Generation Failed: {str(e)}")
+
+    try:
         # Upload to Azure
+        print("Connecting to Blob Storage...")
         blob_service = BlobServiceClient.from_connection_string(AZURE_CONN_STR)
         container_client = blob_service.get_container_client(AUDIO_CONTAINER)
         
         # Create container if not exists (ideally done in Infra, but failsafe here)
         if not container_client.exists():
+            print(f"Creating container {AUDIO_CONTAINER}...")
             container_client.create_container(public_access="blob")
 
         blob_client = container_client.get_blob_client(filename)
         
+        print(f"Uploading {filename}...")
         with open(output_path, "rb") as data:
             blob_client.upload_blob(
                 data, 
@@ -114,7 +153,10 @@ async def generate_speech(req: SpeakRequest):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Storage Upload Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
     finally:
         if os.path.exists(output_path):
             os.remove(output_path)
