@@ -72,7 +72,7 @@ def upload_state():
         if con:
              # Checkpoint to ensure data is flushed to disk BEFORE reading the file
              try:
-                con.checkpoint()
+                con.execute("CHECKPOINT")
              except Exception as e:
                 print(f"Warning: Checkpoint failed during upload: {e}")
 
@@ -190,7 +190,7 @@ async def startup_event():
                 print("Table 'documents' created.")
                 
                 # Checkpointing is CRITICAL in DuckDB to persist schema changes
-                con.checkpoint()
+                con.execute("CHECKPOINT")
             except Exception as create_err:
                 print(f"CRITICAL: Error Creating Table: {create_err}")
                 raise create_err
@@ -242,7 +242,7 @@ async def startup_event():
                 if db_count > faiss_count:
                     print(f"Trimming DB to match FAISS count ({faiss_count})...")
                     con.execute("DELETE FROM documents WHERE id >= ?", (faiss_count,))
-                    con.checkpoint()
+                    con.execute("CHECKPOINT")
                 
                 if db_count < faiss_count:
                      print("Critical: FAISS has more vectors than DB rows. Resetting FAISS index...")
@@ -318,7 +318,7 @@ async def seed_document(doc: DocumentIngest):
             print("Resetting state for seed...")
             index = faiss.IndexFlatL2(EMBEDDING_DIM)
             con.execute("DELETE FROM documents") 
-            con.checkpoint() # Ensure delete is persisted
+            con.execute("CHECKPOINT") # Ensure delete is persisted
             
             # 2. Split text into chunks
             chunks = chunk_text(doc.text)
