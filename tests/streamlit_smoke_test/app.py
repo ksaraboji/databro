@@ -135,7 +135,7 @@ with tab3:
                     if play_audio:
                         with st.spinner("Synthesizing Speech..."):
                             try:
-                                audio_res = requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=60)
+                                audio_res = requests.post(f"{gateway_url}/speak", json={"text": response_text}, timeout=120)
                                 if audio_res.status_code == 200:
                                     audio_url = audio_res.json().get("audio_url")
                                     if audio_url:
@@ -269,9 +269,13 @@ with tab3:
         st.subheader("Interaction")
         
         # Display History
-        for msg in st.session_state.chat_history:
+        for i, msg in enumerate(st.session_state.chat_history):
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
+                # Play audio if present. Autoplay only if it's the very last message.
+                if msg.get("audio_url"):
+                    is_last = (i == len(st.session_state.chat_history) - 1)
+                    st.audio(msg["audio_url"], format="audio/wav", autoplay=is_last)
         
         # Input
         if st.session_state.lesson_started:
@@ -289,7 +293,7 @@ with tab3:
                 with st.spinner("Transcribing..."):
                     try:
                         files = {"file": ("audio.wav", audio_value, "audio/wav")}
-                        t_res = requests.post(f"{gateway_url}/listen", files=files, timeout=60)
+                        t_res = requests.post(f"{gateway_url}/listen", files=files, timeout=120)
                         
                         if t_res.status_code == 200:
                             transcribed_text = t_res.json().get("text", "")

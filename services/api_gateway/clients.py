@@ -63,7 +63,7 @@ async def synthesize_speech(text: str) -> Optional[str]:
             response = await client.post(
                 f"{SPEECH_SERVICE_URL}/speak",
                 json={"text": text},
-                timeout=60.0 # TTS can take time
+                timeout=120.0 # TTS can take time
             )
             response.raise_for_status()
             return response.json().get("audio_url")
