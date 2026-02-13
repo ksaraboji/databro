@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
 from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
 from graph import app_graph
-from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio
+from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio, synthesize_speech
 from langchain_core.messages import HumanMessage
 import uuid
 
@@ -23,6 +23,17 @@ async def listen_endpoint(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=result["error"])
         
     return result
+
+@app.post("/speak")
+async def speak_endpoint(text: str = Body(..., embed=True)):
+    """
+    Proxy endpoint for Text-to-Speech.
+    Returns a URL to the generated audio file.
+    """
+    url = await synthesize_speech(text)
+    if not url:
+        raise HTTPException(status_code=500, detail="Speech synthesis failed or returned no URL")
+    return {"audio_url": url}
 
 @app.get("/topics")
 async def get_topics():

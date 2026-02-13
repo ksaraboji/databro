@@ -58,9 +58,18 @@ async def transcribe_audio(file_content: bytes, filename: str) -> dict:
 
 async def synthesize_speech(text: str) -> Optional[str]:
     """Calls the Speech service to convert text to speech."""
-    # TODO: This endpoint might return audio bytes or a URL to a blob
-    # For now, we'll assume it returns a URL or we handle the logic later
-    return None 
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{SPEECH_SERVICE_URL}/speak",
+                json={"text": text},
+                timeout=60.0 # TTS can take time
+            )
+            response.raise_for_status()
+            return response.json().get("audio_url")
+    except Exception as e:
+        print(f"Error calling Speech Service (TTS): {e}")
+        return None 
 
 async def seed_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:
     """Calls the RAG service to seed data."""
