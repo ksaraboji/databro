@@ -72,7 +72,7 @@ def upload_state():
         if con:
              # Checkpoint to ensure data is flushed to disk BEFORE reading the file
              try:
-                con.checkpoint()
+                con.execute("CHECKPOINT")
              except Exception as e:
                 print(f"Warning: Checkpoint failed during upload: {e}")
 
@@ -177,8 +177,9 @@ async def startup_event():
             try:
                 # Ensure clean slate if check failed
                 con.execute("DROP SEQUENCE IF EXISTS seq_doc_id")
-                # DuckDB sequences default MINVALUE is 1. If we want 0, we must specify it.
-                con.execute("CREATE SEQUENCE seq_doc_id START 0 MINVALUE 0;")
+                # DuckDB sequences default MINVALUE is 1. If we want 0, we must specify it clearly.
+                # Use standard SQL sequence syntax: MINVALUE first or after START doesn't matter, but values must align.
+                con.execute("CREATE SEQUENCE seq_doc_id MINVALUE 0 START 0;")
                 con.execute("""
                     CREATE TABLE documents (
                         id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
@@ -189,7 +190,7 @@ async def startup_event():
                 print("Table 'documents' created.")
                 
                 # Checkpointing is CRITICAL in DuckDB to persist schema changes
-                con.checkpoint()
+                con.execute("CHECKPOINT")
             except Exception as create_err:
                 print(f"CRITICAL: Error Creating Table: {create_err}")
                 raise create_err
@@ -241,7 +242,7 @@ async def startup_event():
                 if db_count > faiss_count:
                     print(f"Trimming DB to match FAISS count ({faiss_count})...")
                     con.execute("DELETE FROM documents WHERE id >= ?", (faiss_count,))
-                    con.checkpoint()
+                    con.execute("CHECKPOINT")
                 
                 if db_count < faiss_count:
                      print("Critical: FAISS has more vectors than DB rows. Resetting FAISS index...")
@@ -317,7 +318,7 @@ async def seed_document(doc: DocumentIngest):
             print("Resetting state for seed...")
             index = faiss.IndexFlatL2(EMBEDDING_DIM)
             con.execute("DELETE FROM documents") 
-            con.checkpoint() # Ensure delete is persisted
+            con.execute("CHECKPOINT") # Ensure delete is persisted
             
             # 2. Split text into chunks
             chunks = chunk_text(doc.text)
@@ -349,6 +350,7 @@ async def seed_document(doc: DocumentIngest):
             await asyncio.to_thread(upload_state)
 
             return {"message": "RAG seeded successfully", "chunks_count": len(chunks), "total_docs_in_index": index.ntotal}
+
         except Exception as e:
             print(f"Seed failed: {e}")
             raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
