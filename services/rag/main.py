@@ -167,7 +167,7 @@ async def startup_event():
     table_exists = False
     try:
             # Just try to query. If table doesn't exist, this throws Catalog Exception
-            con.execute("SELECT COUNT(*) FROM documents")
+            con.execute("SELECT 1 FROM documents LIMIT 1")
             table_exists = True
     except Exception as e:
             print(f"Table 'documents' check failed ({e}). Creating...")
@@ -196,12 +196,17 @@ async def startup_event():
     # Initialize FTS
     try:
         con.execute("INSTALL fts; LOAD fts;")
-        # To be safe, we can drop the index if it exists and recreate it, or catch the error.
-        con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
-        print("DuckDB FTS initialized.")
+        # Check if FTS index already exists to avoid error
+        try:
+             con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+             print("DuckDB FTS initialized.")
+        except duckdb.CatalogException:
+             print("FTS index already exists or table issue.")
+        except Exception as e:
+             print(f"FTS Index creation warning: {e}")
     except Exception as fts_error:
-            # Expected if index already exists
-            print(f"FTS Init Note: {fts_error}")
+            # Expected if fts extension issue
+            print(f"FTS Load Warning: {fts_error}")
 
     # 4. FAISS Initialization
     try:
@@ -238,7 +243,15 @@ async def startup_event():
                     con.checkpoint()
                 
                 if db_count < faiss_count:
-                     print("Critical: FAISS has more vectors than DB rows. Search may fail for recent items.")
+                     print("Critical: FAISS has more vectors than DB rows. Resetting FAISS index...")
+                     # If DB is empty or smaller than FAISS, we must reset FAISS to avoid offset errors
+                     # This usually happens if DB was lost but FAISS persisted
+                     index = faiss.IndexFlatL2(EMBEDDING_DIM)
+                     
+    except duckdb.Error as dbe:
+         print(f"Consistency check/DB Error: {dbe}")
+         # Attempt to recover by re-initializing index if DB queries fail
+         index = faiss.IndexFlatL2(EMBEDDING_DIM)
     except Exception as e:
         print(f"Consistency check failed: {e}")
 
