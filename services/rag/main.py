@@ -163,22 +163,23 @@ async def startup_event():
         con = duckdb.connect(DB_PATH)
 
     # Initialize schema with more robust checks
+    # Check if table exists
+    table_exists = False
     try:
-        # Check if table exists
-        table_exists = False
-        try:
-             # Just try to query. If table doesn't exist, this throws Catalog Exception
-             con.execute("SELECT COUNT(*) FROM documents")
-             table_exists = True
-        except:
-             print("Table 'documents' not found. Creating...")
-             table_exists = False
+            # Just try to query. If table doesn't exist, this throws Catalog Exception
+            con.execute("SELECT COUNT(*) FROM documents")
+            table_exists = True
+    except Exception as e:
+            print(f"Table 'documents' check failed ({e}). Creating...")
+            table_exists = False
 
-        if not table_exists:
-             try:
-                con.execute("CREATE SEQUENCE IF NOT EXISTS seq_doc_id START 0;")
+    if not table_exists:
+            try:
+                # Ensure clean slate if check failed
+                con.execute("DROP SEQUENCE IF EXISTS seq_doc_id")
+                con.execute("CREATE SEQUENCE seq_doc_id START 0;")
                 con.execute("""
-                    CREATE TABLE IF NOT EXISTS documents (
+                    CREATE TABLE documents (
                         id INTEGER PRIMARY KEY DEFAULT nextval('seq_doc_id'),
                         text VARCHAR,
                         metadata JSON
@@ -188,23 +189,19 @@ async def startup_event():
                 
                 # Checkpointing is CRITICAL in DuckDB to persist schema changes
                 con.checkpoint()
-             except Exception as create_err:
-                 print(f"Error Creating Table: {create_err}")
-                 raise create_err
-        
-        # Initialize FTS
-        try:
-            con.execute("INSTALL fts; LOAD fts;")
-            # To be safe, we can drop the index if it exists and recreate it, or catch the error.
-            con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
-            print("DuckDB FTS initialized.")
-        except Exception as fts_error:
-             # Expected if index already exists
-             pass
-
-    except Exception as e:
-        # Don't let schema init failure crash the app entirely, but log it loudly
-        print(f"Warning: FTS init/Schema failed: {e}")
+            except Exception as create_err:
+                print(f"CRITICAL: Error Creating Table: {create_err}")
+                raise create_err
+    
+    # Initialize FTS
+    try:
+        con.execute("INSTALL fts; LOAD fts;")
+        # To be safe, we can drop the index if it exists and recreate it, or catch the error.
+        con.execute("PRAGMA create_fts_index('documents', 'id', 'text');")
+        print("DuckDB FTS initialized.")
+    except Exception as fts_error:
+            # Expected if index already exists
+            print(f"FTS Init Note: {fts_error}")
 
     # 4. FAISS Initialization
     try:
