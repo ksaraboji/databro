@@ -31,6 +31,8 @@ on:
       - "public/**"
       - "package.json"
       - "tsconfig.json"
+      - ".github/workflows/multi-env-deploy.yml"
+      - "terraform/aws/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-app
