@@ -20,8 +20,8 @@ resource "azurerm_container_app" "api_gateway" {
     container {
       name   = "api-gateway"
       image  = "${azurerm_container_registry.main.login_server}/api-gateway:latest"
-      cpu    = 0.5
-      memory = "1.0Gi"
+      cpu    = 1.0
+      memory = "2.0Gi"
 
       env {
         name  = "LLM_SERVICE_URL"
