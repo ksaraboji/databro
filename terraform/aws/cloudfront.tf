@@ -106,7 +106,7 @@ resource "aws_cloudfront_distribution" "nextjs_build" {
     error_caching_min_ttl = 10
   }
 
-  aliases = var.domain_name != "" ? [var.domain_name] : []
+  aliases = var.domain_name != "" ? concat([var.domain_name], var.additional_domain_names) : []
 
   origin {
     domain_name = aws_s3_bucket.nextjs_build.bucket_regional_domain_name
