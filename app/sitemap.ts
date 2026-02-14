@@ -20,6 +20,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/tools/json-formatter',
     '/tools/sql-formatter',
     '/tools/checksum-calculator',
+    '/tools/credit-card-validator',
+    '/tools/jwt-debugger',
+    '/tools/upc-validator',
+    '/tools/aadhaar-validator',
+    '/tools/qr-code-generator',
   ];
 
   return routes.map((route) => ({
