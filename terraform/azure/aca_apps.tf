@@ -57,23 +57,29 @@ resource "azurerm_container_app" "api_gateway" {
         value       = azurerm_cosmosdb_sql_container.visitors.name
       }
 
+      # Startup Probe: Wait for app to be ready (load models, connect DB)
+      # Failures here restart the container.
       startup_probe {
         transport = "HTTP"
         port      = 80
-        path      = "/health"
-        initial_delay     = 10
-        interval_seconds  = 5
-        timeout           = 5
+        path      = "/health" 
+        # CAUTION: Check 'azurerm' provider version. 
+        # v3.x uses `initial_delay`, `interval_seconds`, `timeout` (seconds).
+        initial_delay           = 10
+        interval_seconds        = 5 
+        timeout                 = 5
         failure_count_threshold = 10
       }
       
+      # Liveness Probe: Check if app is still running.
+      # Failures here restart the container.
       liveness_probe {
         transport = "HTTP"
         port      = 80
         path      = "/health"
-        initial_delay     = 15
-        interval_seconds  = 10
-        timeout           = 5
+        initial_delay           = 15
+        interval_seconds        = 10
+        timeout                 = 5
         failure_count_threshold = 3
       }
     }
