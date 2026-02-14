@@ -153,16 +153,17 @@ async def summarize_document_endpoint(file: UploadFile = File(...)):
         return {"summary": summary, "original_length": len(text), "method": "direct"}
     
     # --- REDUCE PHASE: Recursive Summarization ---
-    chunk_summaries = []
     print(f"Document too large ({len(text)} chars). Processing {len(chunks)} chunks...")
     
     # Use threadpool for chunk summaries to parallelize and avoid blocking
-    for i, chunk in enumerate(chunks):
-        # We ask for a "denser" summary for intermediate steps
+    import asyncio
+    
+    async def process_chunk(i, chunk):
         prompt = f"Summarize the following section of a larger document. Focus on key facts and details.\n\nSection {i+1}:\n{chunk}"
-        # Still need to await generate_completion since it uses httpx, which is async
-        chunk_sum = await generate_completion(prompt)
-        chunk_summaries.append(chunk_sum)
+        return await generate_completion(prompt)
+
+    # Launch all chunk summarizations in parallel
+    chunk_summaries = await asyncio.gather(*(process_chunk(i, chunk) for i, chunk in enumerate(chunks)))
     
     # Combined Summary
     combined_text = "\n\n".join(chunk_summaries)
