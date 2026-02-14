@@ -28,6 +28,6 @@ resource "azurerm_cosmosdb_sql_container" "visitors" {
   resource_group_name = azurerm_resource_group.main.name
   account_name        = azurerm_cosmosdb_account.main.name
   database_name       = azurerm_cosmosdb_sql_database.main.name
-  partition_key_path  = "/id"
+  partition_key_paths = ["/id"]
   throughput          = 400 # Minimum throughput
 }

@@ -60,11 +60,13 @@ resource "azurerm_container_app" "api_gateway" {
       # Startup Probe: Wait for app to be ready (load models, connect DB)
       # Failures here restart the container.
       startup_probe {
-        transport = "HTTP"
-        port      = 80
-        path      = "/health" 
-        # CAUTION: Check 'azurerm' provider version. 
-        # v3.x uses `initial_delay`, `interval_seconds`, `timeout` (seconds).
+        transport               = "HTTP"
+        port                    = 80
+        path                    = "/health" 
+        header {
+          name  = "Custom-Header"
+          value = "Awesome"
+        }
         initial_delay           = 10
         interval_seconds        = 5 
         timeout                 = 5
@@ -74,9 +76,13 @@ resource "azurerm_container_app" "api_gateway" {
       # Liveness Probe: Check if app is still running.
       # Failures here restart the container.
       liveness_probe {
-        transport = "HTTP"
-        port      = 80
-        path      = "/health"
+        transport               = "HTTP"
+        port                    = 80
+        path                    = "/health"
+        header {
+          name  = "Custom-Header"
+          value = "Awesome"
+        }
         initial_delay           = 15
         interval_seconds        = 10
         timeout                 = 5
