@@ -4,8 +4,128 @@ from graph import app_graph
 from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio, synthesize_speech
 from langchain_core.messages import HumanMessage
 import uuid
+import io
+import pypdf
+import docx
+from clients import generate_completion
 
 app = FastAPI(title="Professor API Gateway")
+
+async def extract_text_from_file(file: UploadFile, content: bytes) -> str:
+    filename = file.filename.lower()
+    text = ""
+    
+    try:
+        if filename.endswith(".pdf"):
+            pdf_reader = pypdf.PdfReader(io.BytesIO(content))
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+        elif filename.endswith(".docx"):
+            doc = docx.Document(io.BytesIO(content))
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+        elif filename.endswith(".txt") or filename.endswith(".md"):
+            try:
+                text = content.decode("utf-8")
+            except:
+                text = content.decode("latin-1")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF, DOCX, TXT, or MD.")
+    except Exception as e:
+        print(f"Error extracting text: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        
+    # Sanitize
+    text = text.replace("\x00", "") # Remove null bytes
+    return text.strip()
+
+def chunk_text(text, chunk_size=12000, overlap=500):
+    """
+    Splits text into chunks of roughly `chunk_size` characters, 
+    respecting word boundaries if possible.
+    Llama 3.2 context is ~128k, but keeping prompts smaller (8k-16k) 
+    ensures faster/better attention.
+    """
+    if not text:
+        return []
+        
+    chunks = []
+    start = 0
+    text_len = len(text)
+    
+    while start < text_len:
+        end = start + chunk_size
+        
+        # If we are not at the end of text, try to find a space to break at
+        if end < text_len:
+            # Look for the last space within the chunk to avoid splitting words
+            last_space = text.rfind(' ', start, end)
+            if last_space != -1 and last_space > start:
+                end = last_space
+        
+        chunk = text[start:end]
+        chunks.append(chunk)
+        
+        # Move start forward, subtracting overlap
+        start = end - overlap
+        
+        # Prevent infinite loops if overlap >= chunk_size or no progress
+        if start >= end:
+            start = end
+            
+    return chunks
+
+@app.post("/summarize")
+async def summarize_document_endpoint(file: UploadFile = File(...)):
+    """
+    Summarize an uploaded document (PDF, DOCX, TXT).
+    Uses Map-Reduce strategy for large documents.
+    """
+    content = await file.read()
+    if not content:
+         raise HTTPException(status_code=400, detail="Empty file uploaded.")
+         
+    text = await extract_text_from_file(file, content)
+    
+    if len(text) < 50:
+        raise HTTPException(status_code=400, detail="Document content too short to summarize.")
+        
+    # --- MAP PHASE: Chunking ---
+    # We use a safe chunk size (~12k chars is ~3k tokens).
+    # This leaves plenty of room for the model's response.
+    chunks = chunk_text(text, chunk_size=12000, overlap=500)
+    
+    if len(chunks) == 1:
+        # Simple case: fits in one context
+        prompt = f"Please provide a concise summary of the following document. Capture the main points, key arguments, and any conclusions.\n\nDocument Content:\n{text}"
+        summary = await generate_completion(prompt)
+        return {"summary": summary, "original_length": len(text), "method": "direct"}
+    
+    # --- REDUCE PHASE: Recursive Summarization ---
+    chunk_summaries = []
+    print(f"Document too large ({len(text)} chars). Processing {len(chunks)} chunks...")
+    
+    for i, chunk in enumerate(chunks):
+        # We ask for a "denser" summary for intermediate steps
+        prompt = f"Summarize the following section of a larger document. Focus on key facts and details.\n\nSection {i+1}:\n{chunk}"
+        chunk_sum = await generate_completion(prompt)
+        chunk_summaries.append(chunk_sum)
+    
+    # Combined Summary
+    combined_text = "\n\n".join(chunk_summaries)
+    
+    # If the combined summaries are STILL too big, we might need a second pass,
+    # but for now, let's assume the reduction was sufficient (usually reduces by 10x).
+    final_prompt = f"Below are summaries of different sections of a document. Please combine them into one coherent, flowing executive summary.\n\nSection Summaries:\n{combined_text}"
+    
+    final_summary = await generate_completion(final_prompt)
+    
+    return {
+        "summary": final_summary, 
+        "original_length": len(text),
+        "method": "map_reduce", 
+        "chunks_processed": len(chunks)
+    }
 
 @app.get("/health")
 def health():
