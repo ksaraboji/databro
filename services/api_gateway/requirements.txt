@@ -8,3 +8,4 @@ pydantic
 python-multipart
 pypdf
 python-docx
+azure-cosmos
