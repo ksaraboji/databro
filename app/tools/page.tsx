@@ -112,20 +112,6 @@ const toolCategories: Category[] = [
         href: "/tools/future-income-calculator",
         color: "bg-emerald-50 hover:bg-emerald-100",
       },
-      {
-        name: "Food Lens (AI)",
-        description: "Identify food and meals instantly using on-device computer vision.",
-        icon: <Utensils className="w-8 h-8 text-orange-600" />,
-        href: "/tools/food-lens",
-        color: "bg-orange-50 hover:bg-orange-100",
-      },
-      {
-        name: "Document Summarizer (AI)",
-        description: "Summarize PDF and Text documents privately in your browser using local LLM.",
-        icon: <FileText className="w-8 h-8 text-violet-600" />,
-        href: "/tools/document-summarizer",
-        color: "bg-violet-50 hover:bg-violet-100",
-      },
     ],
   },
 ];
