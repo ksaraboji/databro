@@ -3,6 +3,7 @@ aws_region   = "us-east-2"
 project_name = "databro"
 environment  = "prod"
 domain_name  = "databro.dev"
+additional_domain_names = ["data-bro.com"]
 
 # bucket name for prod
 prod_bucket_name = "databro-prod-build"

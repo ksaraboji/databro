@@ -63,6 +63,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "additional_domain_names" {
+  description = "Additional domain names (SANs) for the certificate and CloudFront"
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
