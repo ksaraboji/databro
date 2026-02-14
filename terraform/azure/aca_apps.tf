@@ -57,26 +57,24 @@ resource "azurerm_container_app" "api_gateway" {
         value       = azurerm_cosmosdb_sql_container.visitors.name
       }
 
-      probe {
+      startup_probe {
         transport = "HTTP"
-        type      = "Startup"
         port      = 80
         path      = "/health"
-        initial_delay_seconds = 10
-        period_seconds        = 5
-        timeout_seconds       = 5
-        failure_threshold     = 10
+        initial_delay     = 10
+        interval_seconds  = 5
+        timeout           = 5
+        failure_count_threshold = 10
       }
       
-      probe {
+      liveness_probe {
         transport = "HTTP"
-        type      = "Liveness"
         port      = 80
         path      = "/health"
-        initial_delay_seconds = 15
-        period_seconds        = 10
-        timeout_seconds       = 5
-        failure_threshold     = 3
+        initial_delay     = 15
+        interval_seconds  = 10
+        timeout           = 5
+        failure_count_threshold = 3
       }
     }
   }
