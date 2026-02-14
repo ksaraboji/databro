@@ -45,6 +45,13 @@ const toolCategories: Category[] = [
         href: "/tools/pdf-splitter",
         color: "bg-pink-50 hover:bg-pink-100",
       },
+      {
+        name: "Doc to Markdown",
+        description: "Convert Word documents and PDFs into clean Markdown for LLMs.",
+        icon: <FileText className="w-8 h-8 text-blue-600" />,
+        href: "/tools/doc-to-markdown",
+        color: "bg-blue-50 hover:bg-blue-100",
+      },
     ],
   },
   {

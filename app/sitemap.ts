@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/tools/universal-converter',
     '/tools/pdf-merger',
     '/tools/pdf-splitter',
+    '/tools/doc-to-markdown',
     '/tools/base64-converter',
     '/tools/secure-zip',
     '/tools/json-formatter',

@@ -71,6 +71,11 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
         text: "The PDF Splitter & Extractor tool is available at https://dev.databro.dev/tools/pdf-splitter. It allows extracting specific pages from PDF documents."
     },
     {
+        id: "tool-doc-md",
+        keywords: ["doc", "docx", "word", "pdf", "markdown", "md", "convert", "extract", "text", "llm", "prompt", "link", "url"],
+        text: "The Doc to Markdown tool is available at https://dev.databro.dev/tools/doc-to-markdown. It converts Microsoft Word (.docx) and PDF files into clean Markdown text for LLM prompts."
+    },
+    {
         id: "tool-base64",
         keywords: ["base64", "encoder", "decoder", "encode", "decode", "text", "binary", "link", "url"],
         text: "The Base64 Encoder / Decoder tool is available at https://dev.databro.dev/tools/base64-converter. It handles UTF-8 text encoding and decoding."

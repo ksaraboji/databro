@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   description:
     "Data Engineer crafting data pipelines and infrastructure. Portfolio of Kumar Saraboji showcasing projects in data engineering, analytics, AI agents, and serverless cloud technologies.",
-  keywords: ["Data Engineer", "Cloud Automation", "AWS", "Next.js", "React", "TypeScript", "AI Agents", "ETL", "Portfolio", "Kumar Saraboji", "Serverless", "LocalFirst"],
+  keywords: ["Data Engineer", "Cloud Automation", "AWS", "Next.js", "React", "TypeScript", "AI Agents", "ETL", "Portfolio", "Kumar Saraboji", "Serverless", "LocalFirst", "data-bro.com", "databro.dev"],
   authors: [{ name: "Kumar Saraboji", url: "https://databro.dev" }],
   creator: "Kumar Saraboji",
   publisher: "Kumar Saraboji",
