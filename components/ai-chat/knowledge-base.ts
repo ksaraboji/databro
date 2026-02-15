@@ -103,6 +103,31 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "tools",
         keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
-        text: "Available tools: SQL Formatter (/tools/sql-formatter), Checksum Calculator (/tools/checksum-calculator), JSON Formatter (/tools/json-formatter), File Converter (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter (/tools/pdf-splitter), Base64 Converter (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), Data Profiler (/tools/data-profiler), and Financial Planner (/tools/future-income-calculator)." 
+        text: "Available tools: QR Code Generator (/tools/qr-code-generator), Credit Card Validator (/tools/credit-card-validator), UPC/EAN Validator (/tools/upc-validator), Aadhaar Validator (/tools/aadhaar-validator), JWT Debugger (/tools/jwt-debugger), SQL Formatter (/tools/sql-formatter), Checksum Calculator (/tools/checksum-calculator), JSON Formatter (/tools/json-formatter), File Converter (/tools/universal-converter), Doc to Markdown (/tools/doc-to-markdown), PDF Merger (/tools/pdf-merger), PDF Splitter (/tools/pdf-splitter), Base64 Converter (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), Data Profiler (/tools/data-profiler), and Financial Planner (/tools/future-income-calculator)." 
+    },
+    {
+        id: "qr-generator",
+        keywords: ["qr", "code", "generator", "barcode", "make qr", "create qr"],
+        text: "The QR Code Generator (/tools/qr-code-generator) creates customizable QR codes locally in the browser. Users can adjust size, color, and error correction levels."
+    },
+    {
+        id: "cc-validator",
+        keywords: ["credit card", "finance", "luhn", "validate", "card number", "payment"],
+        text: "The Credit Card Validator (/tools/credit-card-validator) uses the Luhn algorithm to check if a card number is valid. It processes entirely in-browser for complete privacy."
+    },
+    {
+        id: "upc-validator",
+        keywords: ["upc", "ean", "gtin", "barcode", "retail", "product code"],
+        text: "The UPC/EAN Validator (/tools/upc-validator) checks the validity of 12-digit UPCs, 13-digit EANs, and other GTIN formats using the standard Modulo-10 checksum algorithm."
+    },
+    {
+        id: "aadhaar-validator",
+        keywords: ["aadhaar", "uidai", "india", "id", "verhoeff"],
+        text: "The Aadhaar Validator (/tools/aadhaar-validator) uses the Verhoeff algorithm to validate Indian national ID numbers. It runs locally and does not contact UIDAI servers."
+    },
+    {
+        id: "jwt-debugger",
+        keywords: ["jwt", "token", "json web token", "decode", "security", "auth"],
+        text: "The JWT Debugger (/tools/jwt-debugger) decodes the Header and Payload of a JWT string. It checks for structural validity and expiration timestamps but does not verify cryptographic signatures."
     }
 ];

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, Utensils } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, Utensils, CreditCard, ShoppingCart, Fingerprint, Lock, Key, QrCode } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -98,6 +98,41 @@ const toolCategories: Category[] = [
         icon: <Hash className="w-8 h-8 text-emerald-600" />,
         href: "/tools/checksum-calculator",
         color: "bg-emerald-50 hover:bg-emerald-100",
+      },
+      {
+        name: "Credit Card Validator",
+        description: "Validate credit card numbers using the Luhn checksum algorithm locally.",
+        icon: <CreditCard className="w-8 h-8 text-violet-600" />,
+        href: "/tools/credit-card-validator",
+        color: "bg-violet-50 hover:bg-violet-100",
+      },
+      {
+        name: "UPC / EAN Validator",
+        description: "Verify retail barcodes (UPC-A, EAN-13, etc.) check digits instantly.",
+        icon: <ShoppingCart className="w-8 h-8 text-rose-600" />,
+        href: "/tools/upc-validator",
+        color: "bg-rose-50 hover:bg-rose-100",
+      },
+      {
+        name: "Aadhaar Validator",
+        description: "Validate Indian Aadhaar numbers privately using the Verhoeff algorithm.",
+        icon: <Fingerprint className="w-8 h-8 text-orange-600" />,
+        href: "/tools/aadhaar-validator",
+        color: "bg-orange-50 hover:bg-orange-100",
+      },
+      {
+        name: "JWT Debugger",
+        description: "Decode and inspect JSON Web Tokens (JWT) headers and payloads securely.",
+        icon: <Key className="w-8 h-8 text-cyan-600" />,
+        href: "/tools/jwt-debugger",
+        color: "bg-cyan-50 hover:bg-cyan-100",
+      },
+      {
+        name: "QR Code Generator",
+        description: "Create customizable QR codes for links, text, or Wi-Fi credentials instantly.",
+        icon: <QrCode className="w-8 h-8 text-teal-600" />,
+        href: "/tools/qr-code-generator",
+        color: "bg-teal-50 hover:bg-teal-100",
       },
     ],
   },
