@@ -10,7 +10,8 @@ terraform {
 
 provider "azurerm" {
   features {}
-  skip_provider_registration = true
+  # allow terraform to register providers like Microsoft.DocumentDB
+  skip_provider_registration = false
 }
 
 resource "azurerm_resource_group" "main" {
