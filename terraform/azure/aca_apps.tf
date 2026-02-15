@@ -35,6 +35,28 @@ resource "azurerm_container_app" "api_gateway" {
         name  = "SPEECH_SERVICE_URL"
         value = "http://speech-service"
       }
+
+      probe {
+        transport = "HTTP"
+        type      = "Startup"
+        port      = 80
+        path      = "/health"
+        initial_delay_seconds = 10
+        period_seconds        = 5
+        timeout_seconds       = 5
+        failure_threshold     = 10
+      }
+      
+      probe {
+        transport = "HTTP"
+        type      = "Liveness"
+        port      = 80
+        path      = "/health"
+        initial_delay_seconds = 15
+        period_seconds        = 10
+        timeout_seconds       = 5
+        failure_threshold     = 3
+      }
     }
   }
 

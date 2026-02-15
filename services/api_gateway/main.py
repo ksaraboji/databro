@@ -1,20 +1,30 @@
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
 from graph import app_graph
 from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio, synthesize_speech
 from langchain_core.messages import HumanMessage
 import uuid
 import io
-import pypdf
-import docx
 from clients import generate_completion
 
 app = FastAPI(title="Professor API Gateway")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def extract_text_from_file(file: UploadFile, content: bytes) -> str:
     filename = file.filename.lower()
     text = ""
     
+    import pypdf
+    import docx
+
     try:
         if filename.endswith(".pdf"):
             pdf_reader = pypdf.PdfReader(io.BytesIO(content))
