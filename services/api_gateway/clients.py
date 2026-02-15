@@ -13,7 +13,7 @@ async def generate_completion(prompt: str, model: str = "llama3.2") -> str:
             response = await client.post(
                 f"{LLM_SERVICE_URL}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
-                timeout=120.0
+                timeout=300.0
             )
             response.raise_for_status()
             return response.json().get("response", "")
