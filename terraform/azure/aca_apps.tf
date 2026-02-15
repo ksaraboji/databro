@@ -16,6 +16,11 @@ resource "azurerm_container_app" "api_gateway" {
     value = azurerm_container_registry.main.admin_password
   }
 
+  secret {
+    name  = "cosmos-key"
+    value = azurerm_cosmosdb_account.main.primary_key
+  }
+
   template {
     container {
       name   = "api-gateway"
@@ -34,6 +39,22 @@ resource "azurerm_container_app" "api_gateway" {
       env {
         name  = "SPEECH_SERVICE_URL"
         value = "http://speech-service"
+      }
+      env {
+        name        = "COSMOS_ENDPOINT"
+        value       = azurerm_cosmosdb_account.main.endpoint
+      }
+      env {
+        name        = "COSMOS_KEY"
+        secret_name = "cosmos-key"
+      }
+      env {
+        name        = "COSMOS_DATABASE"
+        value       = azurerm_cosmosdb_sql_database.main.name
+      }
+      env {
+        name        = "COSMOS_CONTAINER"
+        value       = azurerm_cosmosdb_sql_container.visitors.name
       }
 
       probe {
