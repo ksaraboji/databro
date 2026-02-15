@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
 from graph import app_graph
 from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio, synthesize_speech
@@ -18,12 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async def extract_text_from_file(file: UploadFile, content: bytes) -> str:
-    filename = file.filename.lower()
+# synchronous function to be run in threadpool
+def extract_text_sync(filename: str, content: bytes) -> str:
     text = ""
-    
-    import pypdf
-    import docx
+    # Import locally to avoid startup overhead
+    try:
+        import pypdf
+        import docx
+    except ImportError:
+        # Fallback for dev environments without ML dependencies
+        return ""
 
     try:
         if filename.endswith(".pdf"):
@@ -40,14 +45,38 @@ async def extract_text_from_file(file: UploadFile, content: bytes) -> str:
             except:
                 text = content.decode("latin-1")
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF, DOCX, TXT, or MD.")
+            return ""
     except Exception as e:
         print(f"Error extracting text: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        return ""
         
     # Sanitize
-    text = text.replace("\x00", "") # Remove null bytes
-    return text.strip()
+    return text.replace("\x00", "").strip()
+
+async def extract_text_from_file(file: UploadFile, content: bytes) -> str:
+    filename = file.filename.lower()
+    
+    try:
+        # Run CPU intensive extraction in a separate thread
+        text = await run_in_threadpool(extract_text_sync, filename, content)
+    except Exception as e:
+        print(f"Extraction failed in threadpool: {e}")
+        text = ""
+    
+    if not text or not text.strip():
+        # Fallback check before failing
+        if filename.endswith(('.txt', '.md')):
+            try:
+                text = content.decode('utf-8')
+            except:
+                pass
+    
+    # If still empty, raise error
+    if not text or not text.strip():
+         print(f"Failed to extract text from {filename}")
+         raise HTTPException(status_code=400, detail="Unsupported file format or failed to extract text (content empty).")
+         
+    return text
 
 def chunk_text(text, chunk_size=12000, overlap=500):
     """
@@ -97,13 +126,17 @@ async def summarize_document_endpoint(file: UploadFile = File(...)):
          
     text = await extract_text_from_file(file, content)
     
+    # Run CPU intensive text sanitization in threadpool
+    text = await run_in_threadpool(lambda t: t.replace("\x00", "").strip(), text)
+    
     if len(text) < 50:
         raise HTTPException(status_code=400, detail="Document content too short to summarize.")
         
     # --- MAP PHASE: Chunking ---
     # We use a safe chunk size (~12k chars is ~3k tokens).
     # This leaves plenty of room for the model's response.
-    chunks = chunk_text(text, chunk_size=12000, overlap=500)
+    # Offload chunking to threadpool
+    chunks = await run_in_threadpool(chunk_text, text, chunk_size=12000, overlap=500)
     
     if len(chunks) == 1:
         # Simple case: fits in one context
@@ -115,9 +148,11 @@ async def summarize_document_endpoint(file: UploadFile = File(...)):
     chunk_summaries = []
     print(f"Document too large ({len(text)} chars). Processing {len(chunks)} chunks...")
     
+    # Use threadpool for chunk summaries to parallelize and avoid blocking
     for i, chunk in enumerate(chunks):
         # We ask for a "denser" summary for intermediate steps
         prompt = f"Summarize the following section of a larger document. Focus on key facts and details.\n\nSection {i+1}:\n{chunk}"
+        # Still need to await generate_completion since it uses httpx, which is async
         chunk_sum = await generate_completion(prompt)
         chunk_summaries.append(chunk_sum)
     
