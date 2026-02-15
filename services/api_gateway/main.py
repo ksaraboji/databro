@@ -22,20 +22,28 @@ app.add_middleware(
 # synchronous function to be run in threadpool
 def extract_text_sync(filename: str, content: bytes) -> str:
     text = ""
-    # Import locally to avoid startup overhead
+    
+    # Try imports once
+    has_pypdf = False
+    has_docx = False
     try:
         import pypdf
+        has_pypdf = True
+    except ImportError: pass
+    
+    try:
         import docx
-    except ImportError:
-        # Fallback for dev environments without ML dependencies
-        return ""
+        has_docx = True
+    except ImportError: pass
 
     try:
         if filename.endswith(".pdf"):
+            if not has_pypdf: return ""
             pdf_reader = pypdf.PdfReader(io.BytesIO(content))
             for page in pdf_reader.pages:
                 text += page.extract_text() + "\n"
         elif filename.endswith(".docx"):
+            if not has_docx: return ""
             doc = docx.Document(io.BytesIO(content))
             for para in doc.paragraphs:
                 text += para.text + "\n"
