@@ -80,23 +80,22 @@ export default function Home() {
           <Link href="/tools" className="w-full sm:w-auto">
             <button
               className={cn(
-                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
                 "bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800",
                 "hover:scale-105 active:scale-95 transition-all",
                 "shadow-lg md:shadow-xl shadow-indigo-200 text-white",
-                "flex items-center justify-center gap-2 w-full sm:w-auto",
+                "flex items-center justify-center gap-2 w-full sm:w-auto max-w-full",
               )}
             >
-              <span className="hidden sm:inline">Your CPU, Not Mine</span>
-              <span className="sm:hidden">Client-Side</span>
-              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+              <span>Your CPU, Not Mine</span>
+              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse flex-shrink-0" />
             </button>
           </Link>
 
           <Link href="/backend" className="w-full sm:w-auto">
             <button
               className={cn(
-                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
                 "bg-white border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50",
                 "text-slate-700 hover:text-indigo-700",
                 "hover:scale-105 active:scale-95 transition-all",
@@ -111,7 +110,7 @@ export default function Home() {
           <Link href="/visualizations" className="w-full sm:w-auto">
              <button
               className={cn(
-                "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
+                "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
                 "bg-white border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50",
                 "text-slate-700 hover:text-indigo-700",
                 "hover:scale-105 active:scale-95 transition-all",

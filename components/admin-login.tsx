@@ -16,7 +16,7 @@ export default function AdminLogin() {
           redirectTo: `${window.location.origin}/admin`,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'select_account',
           },
         },
       });
