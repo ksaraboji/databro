@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpen, MessageSquare, Mic, Database } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, Mic, Database, Server, Workflow, Bot, Code2, LineChart } from "lucide-react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
 
 type Feature = {
@@ -11,136 +12,168 @@ type Feature = {
   icon: React.ReactNode;
   href: string;
   color: string;
+  status: "live" | "building" | "planned";
 };
 
 type Category = {
   id: string;
   title: string;
+  icon: React.ReactNode;
   features: Feature[];
 };
 
 const backendFeatures: Category[] = [
   {
     id: "ai-services",
-    title: "AI Services",
+    title: "AI & LLM Services",
+    icon: <Bot className="w-6 h-6 text-indigo-600" />,
     features: [
       {
         name: "Document Summarizer",
-        description: "Upload lengthy PDFs or Word documents and get concise summaries powered by LLMs.",
-        icon: <BookOpen className="w-8 h-8 text-blue-600" />,
+        description: "Analyze lengthy PDFs or Word docs with LLM-powered summarization.",
+        icon: <BookOpen className="w-5 h-5 text-white" />,
         href: "/backend/document-summarizer",
-        color: "bg-blue-50 hover:bg-blue-100",
+        color: "bg-indigo-500",
+        status: "live",
       },
-      {
-        name: "Learning Assistant",
-        description: "Interactive AI tutor that creates lesson plans and teaches data engineering concepts.",
-        icon: <MessageSquare className="w-8 h-8 text-indigo-600" />,
-        href: "/learning",
-        color: "bg-indigo-50 hover:bg-indigo-100",
-      },
-      {
-        name: "Speech Services",
-        description: "Convert text to speech and transcribe audio using Azure AI Speech.",
-        icon: <Mic className="w-8 h-8 text-purple-600" />,
-        href: "/backend/speech-converter", // Assuming this will be built or exists
-        color: "bg-purple-50 hover:bg-purple-100",
-      }
     ],
   },
-  {
-    id: "data-services",
-    title: "Data Services",
-    features: [
-      {
-        name: "RAG Knowledge Base",
-        description: "Query a Retrieval-Augmented Generation system built on your documents.",
-        icon: <Database className="w-8 h-8 text-emerald-600" />,
-        href: "/backend/rag-explorer", // Placeholder
-        color: "bg-emerald-50 hover:bg-emerald-100",
-      },
-    ]
-  }
 ];
 
-export default function BackendFeaturesPage() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6 md:p-12 relative overflow-hidden font-sans">
-      
-      {/* Background Decorations */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
 
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+};
+
+export default function BackendPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <FloatingHomeButton />
 
-      <div className="max-w-6xl mx-auto relative z-10">
-        <div className="mb-4">
-            <Link
-                href="/"
-                className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-            >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Home
-            </Link>
-        </div>
-        <header className="mb-12 text-center">
-          <motion.h1 
+      <div className="max-w-6xl mx-auto space-y-12 md:space-y-16 py-8">
+        {/* Header */}
+        <header className="space-y-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Back to Home
+          </Link>
+          
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-4"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="space-y-4"
           >
-            Backend Capabilities
-          </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="text-lg text-slate-600 max-w-2xl mx-auto"
-          >
-            Explore the powerful backend services powering this portfolio, from LLM integration to data processing pipelines.
-          </motion.p>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-slate-950">
+              Burning My Credits
+            </h1>
+            <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
+              Heavy-duty microservices running across the multi-cloud verse. 
+              Please be gentle, my personal credit card is on the line.
+            </p>
+          </motion.div>
         </header>
 
-        <div className="space-y-12">
-          {backendFeatures.map((category, catIndex) => (
-            <motion.section 
-              key={category.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: catIndex * 0.1 + 0.2 }}
-            >
-              <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
-                <span className="w-2 h-8 bg-indigo-500 rounded-full mr-3"></span>
-                {category.title}
-              </h2>
+        {/* Categories Grid */}
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="space-y-16"
+        >
+          {backendFeatures.map((category) => (
+            <div key={category.id} className="space-y-8">
+              <motion.div variants={item} className="flex items-center gap-3 border-b border-slate-200 pb-4">
+                <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100">
+                    {category.icon}
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
+                  {category.title}
+                </h2>
+              </motion.div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {category.features.map((feature, index) => (
-                  <Link key={feature.name} href={feature.href} className="group">
-                    <motion.div
-                      whileHover={{ y: -5, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-                      className={`h-full p-6 rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-300 relative overflow-hidden`}
-                    >
-                      <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-20 transition-transform group-hover:scale-150 duration-500 ${feature.color}`} />
-                      
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-4 ${feature.color} transition-colors duration-300`}>
-                        {feature.icon}
+                {category.features.map((feature) => (
+                  <motion.div 
+                    key={feature.name} 
+                    variants={item}
+                    className="h-full"
+                  >
+                    <Link href={feature.href} className="block h-full group">
+                      <div className={cn(
+                        "h-full p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden",
+                        "bg-white border-slate-200 shadow-sm",
+                        "hover:border-indigo-300 hover:shadow-lg hover:-translate-y-1",
+                        "flex flex-col gap-4"
+                      )}>
+                        {/* Decorative background blob on hover */}
+                        <div className="absolute -right-10 -top-10 w-32 h-32 bg-indigo-50/50 rounded-full blur-2xl group-hover:bg-indigo-100/50 transition-colors" />
+
+                        <div className="flex items-start justify-between relative z-10">
+                          <div className={cn("p-3 rounded-xl shadow-sm", feature.color)}>
+                            {feature.icon}
+                          </div>
+                          <StatusBadge status={feature.status} />
+                        </div>
+                        
+                        <div className="relative z-10 space-y-2">
+                          <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                            {feature.name}
+                          </h3>
+                          <p className="text-slate-600 text-sm leading-relaxed">
+                            {feature.description}
+                          </p>
+                        </div>
+
+                        {/* Hover indicator */}
+                        <div className="mt-auto pt-4 flex items-center text-sm font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">
+                          View details <ArrowLeft className="w-4 h-4 ml-1 rotate-180" />
+                        </div>
                       </div>
-                      
-                      <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">
-                        {feature.name}
-                      </h3>
-                      
-                      <p className="text-slate-600 text-sm leading-relaxed">
-                        {feature.description}
-                      </p>
-                    </motion.div>
-                  </Link>
+                    </Link>
+                  </motion.div>
                 ))}
               </div>
-            </motion.section>
+            </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: Feature["status"] }) {
+  const styles = {
+    live: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    building: "bg-amber-100 text-amber-700 border-amber-200",
+    planned: "bg-slate-100 text-slate-500 border-slate-200 dashed border-dashed",
+  };
+
+  const labels = {
+    live: "Live",
+    building: "In Progress",
+    planned: "Concept",
+  };
+
+  return (
+    <span className={cn(
+      "px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold border",
+      styles[status]
+    )}>
+      {labels[status]}
+    </span>
   );
 }

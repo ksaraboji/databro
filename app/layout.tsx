@@ -4,6 +4,7 @@ import ClientOnlyPostit from "@/components/client-only-postit";
 import AiChatWidget from "@/components/ai-chat/widget";
 import Footer from "@/components/footer";
 import "./globals.css";
+import { usePathname } from 'next/navigation';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,12 +76,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClientOnlyPostit />
+        {/* <ClientOnlyPostit /> */}
         {children}
         <Footer />
         <AiChatWidget />

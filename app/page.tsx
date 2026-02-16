@@ -87,13 +87,13 @@ export default function Home() {
                 "flex items-center justify-center gap-2 w-full sm:w-auto",
               )}
             >
-              <span className="hidden sm:inline">Enter the Playground</span>
-              <span className="sm:hidden">Playground</span>
+              <span className="hidden sm:inline">Your CPU, Not Mine</span>
+              <span className="sm:hidden">Client-Side</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
             </button>
           </Link>
 
-          <Link href="/learning" className="w-full sm:w-auto">
+          <Link href="/backend" className="w-full sm:w-auto">
             <button
               className={cn(
                 "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
@@ -104,13 +104,12 @@ export default function Home() {
                 "flex items-center justify-center gap-2 w-full sm:w-auto",
               )}
             >
-              <span className="hidden sm:inline">Learning Journey</span>
-              <span className="sm:hidden">Learning</span>
+              <span>Burning My Credits</span>
             </button>
           </Link>
 
-          <Link href="/writing" className="w-full sm:w-auto">
-            <button
+          <Link href="/visualizations" className="w-full sm:w-auto">
+             <button
               className={cn(
                 "rounded-full h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold",
                 "bg-white border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50",
@@ -120,8 +119,7 @@ export default function Home() {
                 "flex items-center justify-center gap-2 w-full sm:w-auto",
               )}
             >
-              <span className="hidden sm:inline">Technical Writing</span>
-              <span className="sm:hidden">Writing</span>
+              <span>Data Stories</span>
             </button>
           </Link>
         </motion.div>
@@ -131,7 +129,7 @@ export default function Home() {
            animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.2 } }}
            className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-2 w-full sm:w-auto px-3"
         >
-          <Link href="/backend" className="w-full sm:w-auto">
+          <Link href="/learning" className="w-full sm:w-auto">
             <button
               className={cn(
                 "rounded-full h-10 sm:h-12 px-6 text-sm font-semibold",
@@ -142,12 +140,13 @@ export default function Home() {
                 "flex items-center justify-center gap-2 w-full sm:w-auto",
               )}
             >
-              <span>Backend Projects</span>
+              <span className="hidden sm:inline">Brain Dump</span>
+              <span className="sm:hidden">Notes</span>
             </button>
           </Link>
 
-          <Link href="/visualizations" className="w-full sm:w-auto">
-             <button
+          <Link href="/writing" className="w-full sm:w-auto">
+            <button
               className={cn(
                 "rounded-full h-10 sm:h-12 px-6 text-sm font-semibold",
                 "bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50",
@@ -157,7 +156,8 @@ export default function Home() {
                 "flex items-center justify-center gap-2 w-full sm:w-auto",
               )}
             >
-              <span>Visualizations</span>
+              <span className="hidden sm:inline">Build Logs</span>
+              <span className="sm:hidden">Logs</span>
             </button>
           </Link>
         </motion.div>
