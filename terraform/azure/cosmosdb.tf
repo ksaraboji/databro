@@ -14,6 +14,7 @@ resource "azurerm_cosmosdb_account" "main" {
   geo_location {
     location          = azurerm_resource_group.main.location
     failover_priority = 0
+    zone_redundant    = false # Disable Availability Zones to avoid capacity issues
   }
 }
 
