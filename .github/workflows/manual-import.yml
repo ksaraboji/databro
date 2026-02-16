@@ -1,0 +1,46 @@
+name: Manual Terraform Import
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_address:
+        description: 'Terraform Resource Address (e.g., azurerm_cosmosdb_account.main)'
+        required: true
+        default: 'azurerm_cosmosdb_account.main'
+      azure_resource_id:
+        description: 'Azure Resource ID to import'
+        required: true
+        default: '/subscriptions/.../providers/Microsoft.DocumentDB/databaseAccounts/...'
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: terraform/azure
+
+    env:
+      # These secrets must be set in your GitHub repo settings
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init
+        # Initialize backend (same as your main workflow)
+        run: terraform init -backend-config=backend-dev.hcl
+
+      - name: Run Terraform Import
+        run: |
+          terraform import ${{ inputs.resource_address }} "${{ inputs.azure_resource_id }}"

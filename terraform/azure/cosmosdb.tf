@@ -1,6 +1,6 @@
 resource "azurerm_cosmosdb_account" "main" {
   name                = "databro-${var.environment}-cosmos"
-  location            = azurerm_resource_group.main.location
+  location            = "East US 2" # Hardcoded to avoid East US capacity limits
   resource_group_name = azurerm_resource_group.main.name
   offer_type          = "Standard"
   kind                = "GlobalDocumentDB"
@@ -12,9 +12,9 @@ resource "azurerm_cosmosdb_account" "main" {
   }
 
   geo_location {
-    location          = azurerm_resource_group.main.location
+    location          = "East US 2" # Must match account location
     failover_priority = 0
-    zone_redundant    = false # Disable Availability Zones to avoid capacity issues
+    zone_redundant    = false 
   }
 }
 
