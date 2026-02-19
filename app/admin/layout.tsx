@@ -49,7 +49,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const allowedEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  if (allowedEmail && session.user.email !== allowedEmail) {
+  
+  // Debug logging
+  console.log('Session Email:', session.user.email);
+  console.log('Allowed Email:', allowedEmail);
+
+  // If no allowed email is configured, deny access by default for security
+  if (!allowedEmail || session.user.email !== allowedEmail) {
+    console.log('Access Denied: Email mismatch or configuration missing');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 px-4 text-center">
         <div className="w-full max-w-md bg-white/80 backdrop-blur-md border border-red-100 rounded-2xl shadow-xl shadow-red-100/50 p-8">
