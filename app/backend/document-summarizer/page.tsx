@@ -83,26 +83,27 @@ export default function BackendProjects() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto space-y-8 py-12">
-        <header className="space-y-4 text-center sm:text-left">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+      <div className="max-w-4xl mx-auto space-y-8 py-8 md:py-12">
+        <header className="space-y-6">
           <Link
             href="/backend"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors group"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Backend Services
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Back to Under the Hood
           </Link>
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="space-y-4"
           >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-slate-950">
               Document Summarizer
             </h1>
-            <p className="text-lg text-slate-600">
-              Summarize lengthy PDFs and documents using our AI microservice.
+            <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
+              Upload a PDF or Word document to generate a concise summary using our LLM-powered microservice.
             </p>
           </motion.div>
         </header>

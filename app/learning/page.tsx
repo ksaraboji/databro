@@ -63,46 +63,50 @@ const CERTIFICATIONS: Certification[] = [
 
 export default function LearningPage() {
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+      <FloatingHomeButton />
+      
+      <div className="max-w-6xl mx-auto space-y-12 md:space-y-16 py-8">
         {/* Navigation */}
-        <div className="mb-8">
+        <header className="space-y-6">
           <Link
             href="/"
-            className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors group"
           >
-            <ChevronLeft className="w-4 h-4 mr-1" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             Back to Home
           </Link>
-        </div>
-
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-16"
-        >
-          <h1 className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl mb-4">
-            Continuous <span className="text-indigo-600">Learning</span>
-          </h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            Keeping up with the ever-evolving landscape of Data Engineering and AI.
-            Here are my certifications and active learning profiles.
-          </p>
-        </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="space-y-4"
+          >
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-slate-950">
+              Brain Dump
+            </h1>
+            <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
+              Raw notes, certifications, and progress from my continuous learning journey in Data Engineering and AI.
+            </p>
+          </motion.div>
+        </header>
 
         {/* Profiles Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-20"
+          className="space-y-8"
         >
-          <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
-            <BookOpen className="w-6 h-6 mr-2 text-indigo-600" />
-            Learning Platforms
-          </h2>
+          <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+            <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100">
+                <BookOpen className="w-6 h-6 text-indigo-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
+              Learning Platforms
+            </h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {PROFILES.map((profile) => (
               <a

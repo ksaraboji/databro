@@ -175,12 +175,12 @@ export default function ToolsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-2"
           >
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900">
-              The Workbench
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-slate-950">
+              Your CPU, Not Mine
             </h1>
-            <p className="text-lg text-slate-600 max-w-2xl">
-              A collection of utilities to help you wrangle data, debug pipelines,
-              and save your sanity.
+            <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
+              Lightweight browser tools that run entirely on your machine. 
+              No, really—turn off your WiFi and they'll still work.
             </p>
           </motion.div>
         </header>

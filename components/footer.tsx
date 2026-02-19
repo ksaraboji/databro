@@ -9,6 +9,8 @@ export default function Footer() {
         <div className="flex justify-center gap-4 mt-2">
             <Link href="https://github.com/ksaraboji" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition-colors">GitHub</Link>
             <Link href="https://linkedin.com/in/ksaraboji" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-500 transition-colors">LinkedIn</Link>
+            <span className="text-slate-300">|</span>
+            <Link href="/admin" className="hover:text-amber-500 transition-colors">Admin</Link>
         </div>
       </div>
     </footer>
