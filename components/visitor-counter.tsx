@@ -27,10 +27,10 @@ export default function VisitorCounter() {
 
     // Only run if not already counted this session (optional optimization, but good for "visits")
     // For now, let's just run it once per mount
-    const hasVisited = sessionStorage.getItem("hasVisited");
+    const hasVisited = sessionStorage.getItem("hasVisitedLocation");
     if (!hasVisited) {
         fetchVisitorCount();
-        sessionStorage.setItem("hasVisited", "true");
+        sessionStorage.setItem("hasVisitedLocation", "true");
     }
   }, [hasCounted]);
 

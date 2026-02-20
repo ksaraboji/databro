@@ -27,6 +27,14 @@ const backendFeatures: Category[] = [
     title: "AI & LLM Services",
     features: [
       {
+        name: "Professor AI",
+        description: "Interactive learning sessions powered by RAG and LLMs. Master complex topics with a personalized tutor.",
+        icon: <Bot className="w-8 h-8 text-indigo-600" />,
+        href: "/backend/professor",
+        color: "bg-indigo-50 hover:bg-indigo-100",
+        status: "live",
+      },
+      {
         name: "Document Summarizer",
         description: "Analyze lengthy PDFs or Word docs with LLM-powered summarization.",
         icon: <BookOpen className="w-8 h-8 text-indigo-600" />,
