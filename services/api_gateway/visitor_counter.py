@@ -11,7 +11,7 @@ COSMOS_KEY = os.getenv("COSMOS_KEY")
 DATABASE_NAME = os.getenv("COSMOS_DATABASE", "databro-db")
 CONTAINER_NAME = os.getenv("COSMOS_CONTAINER", "visitors")
 
-async def get_and_increment_visitor_count():
+async def get_and_increment_visitor_count(location: str = "Unknown"):
     if not COSMOS_ENDPOINT or not COSMOS_KEY:
         logger.warning("Cosmos DB credentials not found. Visitor counter disabled.")
         return 0
@@ -28,13 +28,24 @@ async def get_and_increment_visitor_count():
                 item = await container.read_item(item=item_id, partition_key=item_id)
                 new_count = item.get("count", 0) + 1
                 item["count"] = new_count
+                
+                # Update location stats
+                locations = item.get("locations", {})
+                current_loc_count = locations.get(location, 0)
+                locations[location] = current_loc_count + 1
+                item["locations"] = locations
+
                 await container.replace_item(item=item_id, body=item)
                 return new_count
             except CosmosHttpResponseError as e:
                 if e.status_code == 404:
                     # Item doesn't exist, create it
                     try:
-                        new_item = {"id": item_id, "count": 1}
+                        new_item = {
+                            "id": item_id, 
+                            "count": 1,
+                            "locations": {location: 1}
+                        }
                         await container.create_item(body=new_item)
                         return 1
                     except Exception as create_error:
@@ -46,3 +57,24 @@ async def get_and_increment_visitor_count():
     except Exception as e:
         logger.error(f"Unexpected error in visitor counter: {e}")
         return 0
+
+async def get_visitor_stats():
+    if not COSMOS_ENDPOINT or not COSMOS_KEY:
+        return {"total": 0, "locations": {}}
+
+    try:
+        async with CosmosClient(COSMOS_ENDPOINT, credential=COSMOS_KEY) as client:
+            database = client.get_database_client(DATABASE_NAME)
+            container = database.get_container_client(CONTAINER_NAME)
+            item_id = "global-counter"
+            try:
+                item = await container.read_item(item=item_id, partition_key=item_id)
+                return {
+                    "total": item.get("count", 0),
+                    "locations": item.get("locations", {})
+                }
+            except CosmosHttpResponseError:
+                return {"total": 0, "locations": {}}
+    except Exception as e:
+        logger.error(f"Error fetching visitor stats: {e}")
+        return {"total": 0, "locations": {}}

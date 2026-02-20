@@ -8,19 +8,29 @@ from langchain_core.messages import HumanMessage
 import uuid
 import io
 from clients import generate_completion
-from visitor_counter import get_and_increment_visitor_count
+from visitor_counter import get_and_increment_visitor_count, get_visitor_stats
 
 app = FastAPI(title="Professor API Gateway")
 
 @app.get("/visitor-count")
-async def get_visitor_count():
-    """Increments and returns the current visitor count."""
+async def get_visitor_count(location: str = "Unknown"):
+    """Increments and returns the current visitor count with location tracking."""
     try:
-        count = await get_and_increment_visitor_count()
+        count = await get_and_increment_visitor_count(location)
         return {"count": count}
     except Exception as e:
         # Fallback if DB is down
         return {"count": 1}
+
+@app.get("/visitor-stats")
+async def get_visitor_statistics():
+    """Returns total visitor count and location breakdown."""
+    try:
+        stats = await get_visitor_stats()
+        return stats
+    except Exception as e:
+        return {"total": 0, "locations": {}}
+
 
 app.add_middleware(
     CORSMiddleware,

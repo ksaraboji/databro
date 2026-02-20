@@ -1,33 +1,39 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function VisitorCounter() {
-  const [count, setCount] = useState<number | null>(null);
+  const [hasCounted, setHasCounted] = useState(false);
 
   useEffect(() => {
+    // Prevent double counting in React Strict Mode or re-renders
+    if (hasCounted) return;
+
     async function fetchVisitorCount() {
       try {
-        const response = await fetch("https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io/visitor-count");
+        // Use timezone as a proxy for location (e.g., "America/New_York")
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const locationPool = timeZone.split('/')[0]; // simple grouping by continent/region
+        
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io"}/visitor-count?location=${encodeURIComponent(locationPool)}`);
+        
         if (response.ok) {
-          const data = await response.json();
-          setCount(data.count);
+           setHasCounted(true);
         }
       } catch (error) {
-        console.error("Failed to fetch visitor count", error);
-        // Silently fail or keep null
+        console.error("Failed to update visitor count", error);
       }
     }
-    fetchVisitorCount();
-  }, []);
 
-  if (count === null) return null;
+    // Only run if not already counted this session (optional optimization, but good for "visits")
+    // For now, let's just run it once per mount
+    const hasVisited = sessionStorage.getItem("hasVisited");
+    if (!hasVisited) {
+        fetchVisitorCount();
+        sessionStorage.setItem("hasVisited", "true");
+    }
+  }, [hasCounted]);
 
-  return (
-    <div className="fixed bottom-4 left-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full px-4 py-2 shadow-sm text-xs font-medium text-slate-500 flex items-center gap-2">
-      <Eye className="w-3 h-3 text-indigo-500" />
-      <span>{count.toLocaleString()} visits</span>
-    </div>
-  );
+  // Hidden component, logic only
+  return null;
 }
