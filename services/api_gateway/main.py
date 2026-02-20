@@ -250,7 +250,10 @@ async def conversate_endpoint(file: UploadFile = File(...), user_id: str = Form(
     response_text = events["output_text"]
     
     # 3. Synthesize (TTS)
-    audio_url = await synthesize_speech(response_text)
+    tts_result = await synthesize_speech(response_text)
+    audio_url = None
+    if isinstance(tts_result, dict) and "audio_url" in tts_result:
+        audio_url = tts_result["audio_url"]
     
     return {
         "user_text": user_text,

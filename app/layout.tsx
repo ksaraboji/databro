@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ClientOnlyPostit from "@/components/client-only-postit";
+import VisitorCounter from "@/components/visitor-counter";
 import AiChatWidget from "@/components/ai-chat/widget";
 import Footer from "@/components/footer";
 import "./globals.css";
@@ -83,6 +84,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {/* <ClientOnlyPostit /> */}
+        <VisitorCounter />
         {children}
         <Footer />
         <AiChatWidget />

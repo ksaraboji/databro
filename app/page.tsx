@@ -4,12 +4,11 @@ import Link from "next/link";
 import { ArrowRight, Workflow, Cpu, Bot } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import VisitorCounter from "@/components/visitor-counter";
 
 export default function Home() {
   return (
     <div className="flex flex-col items-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 px-3 sm:px-6 lg:px-8">
-      <VisitorCounter />
+
       <motion.main
         initial={{ opacity: 0 }}
         animate={{

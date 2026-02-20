@@ -6,6 +6,8 @@ import { Session } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminVisitorStats from '@/components/admin-visitor-stats';
+import SystemHealth from '@/components/admin/system-health';
+import RagManagement from '@/components/admin/rag-management';
 
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -62,49 +64,22 @@ export default function AdminPage() {
           <AdminVisitorStats />
         </section>
 
+        {/* System Health */}
         <section>
           <div className="flex items-center gap-3 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800">Quick Actions</h2>
+            <h2 className="text-2xl font-bold text-slate-800">System Status</h2>
             <div className="h-px bg-slate-200 grow"></div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Admin Tool Card 1 */}
-            <div className="group bg-white border border-slate-200 hover:border-indigo-300 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300">
-              <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">Users</h2>
-              <p className="text-slate-500 line-clamp-2 mb-4">Manage user roles, permissions and access controls.</p>
-              <button className="text-sm font-bold text-indigo-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                Access Tool <span>&rarr;</span>
-              </button>
-            </div>
-          
-            {/* Admin Tool Card 2 */}
-            <div className="group bg-white border border-slate-200 hover:border-indigo-300 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300">
-              <div className="h-10 w-10 bg-amber-50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-amber-600 transition-colors">Content CMS</h2>
-              <p className="text-slate-500 line-clamp-2 mb-4">Create and edit blog posts, tutorials and page content.</p>
-              <button className="text-sm font-bold text-amber-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                Access Tool <span>&rarr;</span>
-              </button>
-            </div>
+           <SystemHealth />
+        </section>
 
-            {/* Admin Tool Card 3 */}
-            <div className="group bg-white border border-slate-200 hover:border-indigo-300 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300">
-              <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors">System Logs</h2>
-              <p className="text-slate-500 line-clamp-2 mb-4">Monitor system health, error logs and performance metrics.</p>
-              <button className="text-sm font-bold text-emerald-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                Access Tool <span>&rarr;</span>
-              </button>
-            </div>
+        {/* RAG Management */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-2xl font-bold text-slate-800">Knowledge Base</h2>
+            <div className="h-px bg-slate-200 grow"></div>
           </div>
+           <RagManagement />
         </section>
       </main>
     </div>
