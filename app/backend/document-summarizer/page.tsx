@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileText, CheckCircle2, AlertCircle, Loader2, Copy, Download, Home, BookOpen, Bot } from "lucide-react";
+import { ArrowLeft, Upload, FileText, CheckCircle2, AlertCircle, Loader2, Copy, Download, Home, BookOpen, Bot, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
