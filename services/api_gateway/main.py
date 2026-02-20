@@ -219,48 +219,6 @@ async def listen_endpoint(file: UploadFile = File(...)):
         
     return result
 
-@app.post("/conversate")
-async def conversate_endpoint(file: UploadFile = File(...), user_id: str = Form(None), topic: str = Form(None)):
-    """
-    All-in-one conversational endpoint.
-    1. Transcribe Audio (STT)
-    2. Process Logic (LLM + RAG)
-    3. Synthesize Speech (TTS)
-    """
-    if not user_id:
-        user_id = str(uuid.uuid4())
-
-    # 1. Transcribe
-    content = await file.read()
-    stt_res = await transcribe_audio(content, file.filename)
-    if "error" in stt_res or not stt_res.get("text"):
-        raise HTTPException(status_code=500, detail=stt_res.get("error", "Transcription failed"))
-    
-    user_text = stt_res["text"]
-    
-    # 2. Logic (Interact)
-    config = {"configurable": {"thread_id": user_id}}
-    input_update = {"messages": [HumanMessage(content=user_text)]}
-    
-    # Check if we need initialized state (if first time)
-    # Ideally, client handles /start_lesson first.
-    # If topic is provided, we could try to initialize, but let's assume session exists.
-    
-    events = await app_graph.ainvoke(input_update, config=config)
-    response_text = events["output_text"]
-    
-    # 3. Synthesize (TTS)
-    tts_result = await synthesize_speech(response_text)
-    audio_url = None
-    if isinstance(tts_result, dict) and "audio_url" in tts_result:
-        audio_url = tts_result["audio_url"]
-    
-    return {
-        "user_text": user_text,
-        "response_text": response_text,
-        "audio_url": audio_url
-    }
-
 
 @app.post("/speak")
 async def speak_endpoint(text: str = Body(..., embed=True)):
@@ -380,7 +338,16 @@ async def interact(req: InterruptionRequest):
     
     # Run the graph
     # entry_router will see the new message and route accordingly
-    events = await app_graph.ainvoke(input_update, config=config)
+    try:
+        events = await app_graph.ainvoke(input_update, config=config)
+    except Exception as e:
+        print(f"Error in graph execution: {e}")
+        return LessonResponse(
+            content_text="I'm having trouble thinking right now. Please try again.",
+            is_finished=False,
+            current_section=None,
+            plan=[]
+        )
     
     current_plan = events.get("plan", [])
     current_idx = events.get("current_index", 0)
