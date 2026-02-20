@@ -2,10 +2,11 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileText, CheckCircle2, AlertCircle, Loader2, Copy, Download, Check } from "lucide-react";
+import { ArrowLeft, Upload, FileText, CheckCircle2, AlertCircle, Loader2, Copy, Download, Home, BookOpen, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-export default function BackendProjects() {
+export default function DocumentSummarizer() {
   const [file, setFile] = useState<File | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -83,148 +84,173 @@ export default function BackendProjects() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="max-w-4xl mx-auto space-y-8 py-8 md:py-12">
-        <header className="space-y-6">
-          <Link
-            href="/backend"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors group"
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
+      <div className="max-w-4xl mx-auto space-y-8">
+        
+        {/* Header */}
+        <header className="flex items-center justify-between pb-6 border-b border-slate-200">
+          <div className="flex items-center gap-4">
+             <Link 
+                href="/backend"
+                className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+             >
+                <ArrowLeft className="w-5 h-5" />
+             </Link>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Document Summarizer</h1>
+                <p className="text-slate-500 text-sm">LLM-powered analysis</p>
+              </div>
+            </div>
+          </div>
+
+          <Link 
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            Back to Under the Hood
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
           </Link>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="space-y-4"
-          >
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-slate-950">
-              Document Summarizer
-            </h1>
-            <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
-              Upload a PDF or Word document to generate a concise summary using our LLM-powered microservice.
-            </p>
-          </motion.div>
         </header>
 
-        <div className="grid gap-8">
-            {/* Project 1: Document Summarizer */}
-            <motion.div
+        {/* Main Content */}
+        <div className="space-y-8">
+          
+          {/* Upload Section */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-indigo-600" />
+              Upload Document
+            </h2>
+            
+            <div className={cn(
+              "border-2 border-dashed rounded-xl p-8 transition-all duration-300 text-center relative",
+              file ? "border-indigo-500 bg-indigo-50/30" : "border-slate-300 hover:border-indigo-400 hover:bg-slate-50",
+              loading && "pointer-events-none opacity-50"
+            )}>
+              <input
+                type="file"
+                onChange={handleFileChange}
+                accept=".pdf,.docx,.txt"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              
+              <div className="flex flex-col items-center gap-3">
+                {file ? (
+                  <>
+                    <div className="p-3 bg-indigo-100 rounded-full text-indigo-600">
+                      <FileText className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">{file.name}</p>
+                      <p className="text-sm text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setFile(null);
+                      }}
+                      className="text-sm text-red-500 hover:text-red-600 font-medium z-10"
+                    >
+                      Remove file
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-3 bg-slate-100 rounded-full text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-500 transition-colors">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">Click to upload or drag and drop</p>
+                      <p className="text-sm text-slate-500 mt-1">PDF, DOCX, or TXT (Max 10MB)</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleSummarize}
+                disabled={!file || loading}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg",
+                  !file || loading 
+                    ? "bg-slate-300 cursor-not-allowed" 
+                    : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5"
+                )}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Bot className="w-5 h-5" />
+                    Generate Summary
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-start gap-3"
+              >
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <p className="text-sm">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Results Section */}
+          <AnimatePresence>
+            {summary && (
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
-            >
-                <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/50">
-                    <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-indigo-600" />
-                                Intelligent Document Summarizer
-                            </h2>
-                            <p className="text-slate-600 text-sm">
-                                Upload a PDF or Word document to extract text and generate a concise summary using Llama 3.2.
-                            </p>
-                        </div>
-                        <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold uppercase rounded-full">
-                            Live Demo
-                        </div>
-                    </div>
+                className="space-y-4 pt-4 border-t border-slate-200"
+              >
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    Analysis Result
+                  </h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCopy}
+                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Download Markdown"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="p-6 sm:p-8 space-y-6">
-                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors relative group">
-                        <input 
-                            type="file" 
-                            onChange={handleFileChange}
-                            accept=".pdf,.docx,.txt,.md"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                        />
-                        <div className="space-y-4 pointer-events-none group-hover:scale-105 transition-transform duration-200">
-                            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-600">
-                                <Upload className="w-8 h-8" />
-                            </div>
-                            <div>
-                                <p className="text-slate-900 font-bold text-lg">
-                                    {file ? file.name : "Click to upload or drag and drop"}
-                                </p>
-                                <p className="text-slate-500 text-sm mt-1">
-                                    Supports PDF, DOCX, TXT (Max 5MB)
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end pt-4 border-t border-slate-100">
-                        <button
-                            onClick={handleSummarize}
-                            disabled={!file || loading}
-                            className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2"
-                        >
-                            {loading ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                    Analyzing...
-                                </>
-                            ) : (
-                                <>
-                                    <FileText className="w-4 h-4" />
-                                    Generate Summary
-                                </>
-                            )}
-                        </button>
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                        {error && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3"
-                            >
-                                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                                <div className="text-red-800 text-sm font-medium">{error}</div>
-                            </motion.div>
-                        )}
-
-                        {summary && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 space-y-4 shadow-sm"
-                            >
-                                <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
-                                    <div className="flex items-center gap-2 text-emerald-800 font-bold">
-                                        <CheckCircle2 className="w-5 h-5" />
-                                        Summary Generated Successfully
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={handleCopy}
-                                            className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 transition-colors"
-                                            title="Copy to clipboard"
-                                        >
-                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                        </button>
-                                        <button
-                                            onClick={handleDownload}
-                                            className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 transition-colors"
-                                            title="Download as Markdown"
-                                        >
-                                            <Download className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="prose prose-sm prose-emerald max-w-none text-emerald-900/90 leading-relaxed whitespace-pre-wrap">
-                                    {summary}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                <div className="prose prose-slate max-w-none bg-white p-6 rounded-xl border border-slate-200 shadow-sm leading-relaxed">
+                  <div className="whitespace-pre-wrap">{summary}</div>
                 </div>
-            </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
       </div>
     </div>
