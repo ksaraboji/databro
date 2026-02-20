@@ -182,7 +182,7 @@ export default function ProfessorLesson() {
     if (!isListening) {
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = undefined;
+            animationFrameRef.current = null;
         }
         return;
     }
