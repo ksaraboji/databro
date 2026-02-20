@@ -231,7 +231,6 @@ export default function ProfessorLesson() {
             const y = (canvas.height - finalHeight) / 2;
             
             ctx.beginPath();
-            // @ts-expect-error - roundRect support
             if(typeof ctx.roundRect === 'function') {
                  ctx.roundRect(x, y, barWidth - 2, finalHeight, 2);
             } else {
