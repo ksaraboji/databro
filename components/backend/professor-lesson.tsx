@@ -48,9 +48,7 @@ export default function ProfessorLesson() {
   
   // Audio Visualization Refs
   const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [userId, setUserId] = useState("");
 
@@ -156,8 +154,45 @@ export default function ProfessorLesson() {
     }
   };
 
+  const playFeedbackSound = (type: 'start' | 'stop') => {
+      try {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (!AudioContext) return;
+          
+          const ctx = new AudioContext();
+          const oscillator = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          if (type === 'start') {
+              // High-pitched "ding"
+              oscillator.type = 'sine';
+              oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+              oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
+              gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+              gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+              oscillator.start();
+              oscillator.stop(ctx.currentTime + 0.1);
+          } else {
+              // Lower-pitched "click"
+              oscillator.type = 'sine';
+              oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+              oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1);
+              gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+              gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+              oscillator.start();
+              oscillator.stop(ctx.currentTime + 0.1);
+          }
+      } catch (e) {
+          console.error("Audio feedback error", e);
+      }
+  };
+
   const startRecording = async () => {
     try {
+      playFeedbackSound('start');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       // 1. Setup MediaRecorder
       const mediaRecorder = new MediaRecorder(stream);
@@ -188,20 +223,7 @@ export default function ProfessorLesson() {
       mediaRecorder.start();
       setIsListening(true);
       
-      // 2. Setup Audio Visualization immediately
-      if (!audioContextRef.current) {
-         // @ts-expect-error - WebKit support
-         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      } else if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
-      }
-      
-      const analyser = audioContextRef.current!.createAnalyser();
-      analyser.fftSize = 64; 
-      const source = audioContextRef.current!.createMediaStreamSource(stream);
-      source.connect(analyser);
-      analyserRef.current = analyser;
-      // Drawing will be triggered by useEffect when canvas is ready
+      // (Removed canvas visualization setup)
 
     } catch (err) {
       console.error("Error accessing microphone:", err);
@@ -210,93 +232,14 @@ export default function ProfessorLesson() {
   };
 
   // Effect to handle visualization loop
-  useEffect(() => {
-    if (!isListening) {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-        }
-        return;
-    }
+  // (Removed canvas visualization in favor of CSS animation)
 
-    const draw = () => {
-        if (!canvasRef.current) {
-            // Wait for canvas to be mounted
-            animationFrameRef.current = requestAnimationFrame(draw);
-            return;
-        }
-        
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const analyser = analyserRef.current;
-        if (!analyser) {
-             // Wait for analyser to be initialized (async startRecording)
-             animationFrameRef.current = requestAnimationFrame(draw);
-             return;
-        }
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        analyser.getByteFrequencyData(dataArray);
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw bars
-        const barWidth = (canvas.width / bufferLength) * 2.5; 
-        let barHeight;
-        let x = 0;
-
-        for(let i = 0; i < bufferLength; i++) {
-            barHeight = dataArray[i] / 2;
-            
-            // Gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#4f46e5'); // Indigo-600
-            gradient.addColorStop(1, '#818cf8'); // Indigo-400
-            
-            ctx.fillStyle = gradient;
-            
-            // Draw slightly rounded bar centered vertically
-            const finalHeight = Math.max(2, barHeight * 0.8); 
-            const y = (canvas.height - finalHeight) / 2;
-            
-            ctx.beginPath();
-            if(typeof ctx.roundRect === 'function') {
-                 ctx.roundRect(x, y, barWidth - 2, finalHeight, 2);
-            } else {
-                 ctx.rect(x, y, barWidth - 2, finalHeight);
-            }
-            ctx.fill();
-
-            x += barWidth;
-        }
-
-        animationFrameRef.current = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-        }
-    };
-  }, [isListening]);
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isListening) {
+      playFeedbackSound('stop');
       mediaRecorderRef.current.stop();
       setIsListening(false);
-    }
-  };
-
-  const toggleListening = () => {
-    if (isListening) {
-      stopRecording();
-    } else {
-      startRecording();
     }
   };
 
@@ -388,7 +331,7 @@ export default function ProfessorLesson() {
                                 onFocus={() => setIsDropdownOpen(true)}
                                 disabled={loading}
                                 className="w-full pl-8 pr-16 py-6 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl text-lg font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all shadow-sm hover:shadow-md hover:border-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed"
-                                placeholder="What adds value to your portfolio today?..."
+                                placeholder="What do you want to learn today?..."
                             />
                             
                             {/* Icons on the right */}
@@ -469,20 +412,6 @@ export default function ProfessorLesson() {
                             </button>
                         </div>
                     )}
-
-
-                <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-400 z-10 max-w-2xl">
-                    <span className="font-medium text-slate-300 mr-2">Popular Topics:</span>
-                    {(availableTopics.length > 0 ? availableTopics.slice(0, 5) : ["DuckDB Internals", "Vector Search", "Kubernetes Patterns", "React Hooks", "Rust Ownership"]).map(t => (
-                        <button 
-                            key={t} 
-                            onClick={() => setTopic(t)} 
-                            className="px-5 py-2.5 bg-white/80 hover:bg-white text-slate-600 hover:text-indigo-600 rounded-full transition-all border border-slate-200/60 hover:border-indigo-200 shadow-sm hover:shadow-md hover:shadow-indigo-100/50 active:scale-95 text-sm font-medium backdrop-blur-sm"
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
             </motion.div>
         ) : (
             // LESSON INTERFACE
@@ -664,29 +593,31 @@ export default function ProfessorLesson() {
                                     />
                                     
                                     {/* Microphone Button */}
-                                    <div className="absolute right-2 top-2 bottom-2 max-w-[120px] flex items-center justify-end">
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-end">
                                         {isListening ? (
-                                            <div className="flex items-center gap-2 h-full bg-white pr-2 pl-2 rounded-xl z-10 shadow-sm border border-slate-100">
-                                                <canvas 
-                                                    ref={canvasRef} 
-                                                    width={100} 
-                                                    height={30} 
-                                                    className="w-[100px] h-[30px]"
-                                                />
+                                            <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm pr-1 pl-3 py-1 rounded-full shadow-lg border border-indigo-100 animate-in fade-in zoom-in duration-200 ring-4 ring-indigo-50">
+                                                <div className="flex gap-1 h-4 items-center">
+                                                    <span className="w-1 h-3 bg-indigo-500 rounded-full animate-[bounce_1s_infinite_100ms]"></span>
+                                                    <span className="w-1 h-4 bg-purple-500 rounded-full animate-[bounce_1s_infinite_200ms]"></span>
+                                                    <span className="w-1 h-2 bg-pink-500 rounded-full animate-[bounce_1s_infinite_300ms]"></span>
+                                                    <span className="w-1 h-4 bg-indigo-500 rounded-full animate-[bounce_1s_infinite_400ms]"></span>
+                                                    <span className="w-1 h-3 bg-blue-500 rounded-full animate-[bounce_1s_infinite_500ms]"></span>
+                                                </div>
+                                                <span className="text-xs font-semibold text-indigo-600 tracking-wide uppercase">Listening</span>
                                                 <button
                                                     type="button"
                                                     onClick={stopRecording}
-                                                    className="h-8 w-8 flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors animate-pulse"
+                                                    className="h-8 w-8 flex items-center justify-center bg-red-50 text-red-600 rounded-full hover:bg-red-100 transition-colors"
                                                     title="Stop Recording"
                                                 >
-                                                    <Mic className="w-4 h-4" />
+                                                    <span className="w-3 h-3 bg-red-500 rounded-sm"></span>
                                                 </button>
                                             </div>
                                         ) : (
                                             <button
                                                 type="button"
                                                 onClick={startRecording}
-                                                className="h-full aspect-square rounded-xl transition-all flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50"
+                                                className="p-2.5 rounded-xl transition-all flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 active:scale-95"
                                                 title="Voice Input"
                                             >
                                                 <Mic className="w-5 h-5" />
