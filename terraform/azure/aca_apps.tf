@@ -21,6 +21,21 @@ resource "azurerm_container_app" "api_gateway" {
     value = azurerm_cosmosdb_account.main.primary_key
   }
 
+  secret {
+    name  = "devto-api-key"
+    value = var.devto_api_key
+  }
+
+  secret {
+    name  = "hf-api-key"
+    value = var.hf_api_key
+  }
+
+  secret {
+    name  = "groq-api-key"
+    value = var.groq_api_key
+  }
+
   template {
     container {
       name   = "api-gateway"
@@ -47,6 +62,18 @@ resource "azurerm_container_app" "api_gateway" {
       env {
         name        = "COSMOS_KEY"
         secret_name = "cosmos-key"
+      }
+      env {
+        name        = "DEVTO_API_KEY"
+        secret_name = "devto-api-key"
+      }
+      env {
+        name        = "HF_API_KEY"
+        secret_name = "hf-api-key"
+      }
+      env {
+        name        = "GROQ_API_KEY"
+        secret_name = "groq-api-key"
       }
       env {
         name        = "COSMOS_DATABASE"

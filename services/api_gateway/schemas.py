@@ -16,3 +16,15 @@ class LessonResponse(BaseModel):
     is_finished: bool
     current_section: Optional[str] = None
     plan: Optional[List[str]] = None
+
+class MarketingRequest(BaseModel):
+    topic: str
+    admin_id: str
+
+class MarketingResponse(BaseModel):
+    job_id: str
+    status: str
+    headline: Optional[str] = None
+    summary: Optional[str] = None
+    article_content: Optional[str] = None
+    logs: Optional[List[str]] = None
