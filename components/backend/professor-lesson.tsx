@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2 } from "lucide-react";
+import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2, Search, ChevronDown, Sparkles } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,29 @@ export default function ProfessorLesson() {
   const [lessonStarted, setLessonStarted] = useState(false);
   const [lessonPlan, setLessonPlan] = useState<string[]>([]);
   const [isListening, setIsListening] = useState(false);
+  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  
+  // Close the dropdown if clicked outside.
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [dropdownRef]);
+  
   const audioChunksRef = useRef<Blob[]>([]);
   
   // Audio Visualization Refs
@@ -43,6 +63,18 @@ export default function ProfessorLesson() {
         }
         setUserId(storedId);
     }
+  }, []);
+
+  useEffect(() => {
+    // Fetch available topics
+    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io"}/topics`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.topics && Array.isArray(data.topics)) {
+                setAvailableTopics(data.topics);
+            }
+        })
+        .catch(err => console.error("Failed to fetch topics:", err));
   }, []);
 
   const gatewayUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io";
@@ -340,18 +372,84 @@ export default function ProfessorLesson() {
                     </p>
                 </div>
 
-                <form onSubmit={startLesson} className="w-full max-w-lg flex flex-col items-center gap-6 relative z-10">
-                        <input 
-                            type="text" 
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                            disabled={loading}
-                            className="w-full px-6 py-4 bg-white/70 backdrop-blur-sm border border-slate-200 rounded-xl text-lg font-normal text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-sm hover:shadow-md hover:border-indigo-200 text-center disabled:opacity-70 disabled:cursor-not-allowed"
-                            placeholder="e.g. Docker, RAG..."
-                        />
+                <div ref={dropdownRef} className="w-full max-w-lg relative z-20">
+                     <form onSubmit={startLesson} className="w-full flex flex-col items-center gap-2">
+                        
+                        <div className="relative w-full group">
+                            {/* Input Field with modern styling */}
+                            {/* Input Field with modern styling */}
+                            <input 
+                                type="text"
+                                value={topic}
+                                onChange={(e) => {
+                                    setTopic(e.target.value);
+                                    if (!isDropdownOpen) setIsDropdownOpen(true);
+                                }}
+                                onFocus={() => setIsDropdownOpen(true)}
+                                disabled={loading}
+                                className="w-full pl-8 pr-16 py-6 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl text-lg font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all shadow-sm hover:shadow-md hover:border-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed"
+                                placeholder="What adds value to your portfolio today?..."
+                            />
+                            
+                            {/* Icons on the right */}
+                            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3 text-slate-400 pointer-events-none">
+                                {loading ? (
+                                    <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                                ) : (
+                                    <>
+                                       <Search className="w-6 h-6 group-focus-within:text-indigo-500 transition-colors" />
+                                       {/* Optional: Keep chevron small if needed, or remove for cleaner look. Keeping for now as it indicates dropdown */}
+                                       <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''} opacity-50`} />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Dropdown Menu */}
+                        <AnimatePresence>
+                            {isDropdownOpen && availableTopics.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col gap-1"
+                                >
+                                    <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                        <Sparkles className="w-3 h-3 text-indigo-400" />
+                                        Suggested Topics
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                        {availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).length > 0 ? (
+                                            availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).map((t) => (
+                                                <button
+                                                    key={t}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setTopic(t);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors flex items-center justify-between group"
+                                                >
+                                                    <span className="font-medium">{t}</span>
+                                                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-indigo-400" />
+                                                </button>
+                                            ))
+                                        ) : (
+                                             <div className="px-4 py-3 text-slate-500 text-sm italic text-center">
+                                                No matching topics found. Press Enter to search using "{topic}".
+                                             </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                     </form>
+                </div>
                     
                     {loading ? (
-                        <div className="flex flex-col items-center gap-3 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <div className="flex flex-col items-center gap-3 mt-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                              <div className="bg-indigo-600 px-6 py-3 rounded-full text-white text-base font-semibold shadow-xl shadow-indigo-500/30 flex items-center gap-3 ring-4 ring-indigo-50/50">
                                 <Loader2 className="w-5 h-5 animate-spin text-white/90" />
                                 Preparing Lesson...
@@ -359,20 +457,23 @@ export default function ProfessorLesson() {
                              <p className="text-sm text-slate-400 font-medium animate-pulse">This may take a moment</p>
                         </div>
                     ) : (
-                        <button 
-                             type="submit"
-                             disabled={!topic.trim()}
-                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-semibold text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md shadow-indigo-500/20 hover:shadow-lg hover:translate-y-[-1px] active:translate-y-[1px]"
-                        >
-                            Start Learning
-                            <ArrowRight className="w-4 h-4 ml-1" />
-                        </button>
+                        <div className="flex justify-center mt-6">
+                            <button 
+                                 type="button"
+                                 onClick={(e) => startLesson(e)}
+                                 disabled={!topic.trim()}
+                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full font-semibold text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:translate-y-[-2px] active:translate-y-[0px] ring-4 ring-white/20"
+                            >
+                                Start Learning
+                                <ArrowRight className="w-4 h-4 ml-1" />
+                            </button>
+                        </div>
                     )}
-                </form>
+
 
                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-400 z-10 max-w-2xl">
                     <span className="font-medium text-slate-300 mr-2">Popular Topics:</span>
-                    {["DuckDB Internals", "Vector Search", "Kubernetes Patterns", "React Hooks", "Rust Ownership"].map(t => (
+                    {(availableTopics.length > 0 ? availableTopics.slice(0, 5) : ["DuckDB Internals", "Vector Search", "Kubernetes Patterns", "React Hooks", "Rust Ownership"]).map(t => (
                         <button 
                             key={t} 
                             onClick={() => setTopic(t)} 
