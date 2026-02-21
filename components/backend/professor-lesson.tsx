@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2, Search, ChevronDown, Sparkles } from "lucide-react";
+import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2, Search, ChevronDown, Sparkles, Menu, X } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,9 @@ export default function ProfessorLesson() {
   const [availableTopics, setAvailableTopics] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
@@ -72,7 +74,8 @@ export default function ProfessorLesson() {
                 setAvailableTopics(data.topics);
             }
         })
-        .catch(err => console.error("Failed to fetch topics:", err));
+        .catch(err => console.error("Failed to fetch topics:", err))
+        .finally(() => setTopicsLoading(false));
   }, []);
 
   const gatewayUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io";
@@ -330,13 +333,13 @@ export default function ProfessorLesson() {
                                 }}
                                 onFocus={() => setIsDropdownOpen(true)}
                                 disabled={loading}
-                                className="w-full pl-8 pr-16 py-6 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl text-lg font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all shadow-sm hover:shadow-md hover:border-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed"
-                                placeholder="What do you want to learn today?..."
+                                className="w-full pl-8 pr-16 py-6 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl text-lg font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all shadow-sm hover:shadow-md hover:border-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed text-ellipsis"
+                                placeholder={topicsLoading ? "Loading knowledge base..." : "Select topic or start typing..."}
                             />
                             
                             {/* Icons on the right */}
                             <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3 text-slate-400 pointer-events-none">
-                                {loading ? (
+                                {loading || topicsLoading ? (
                                     <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                 ) : (
                                     <>
@@ -350,38 +353,49 @@ export default function ProfessorLesson() {
 
                         {/* Dropdown Menu */}
                         <AnimatePresence>
-                            {isDropdownOpen && availableTopics.length > 0 && (
+                            {isDropdownOpen && (
                                 <motion.div
                                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                                     transition={{ duration: 0.2 }}
-                                    className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col gap-1"
+                                    className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col gap-1 max-h-60"
                                 >
-                                    <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                    <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-50 mb-1 sticky top-0 bg-white/95 backdrop-blur-sm z-10">
                                         <Sparkles className="w-3 h-3 text-indigo-400" />
                                         Suggested Topics
                                     </div>
-                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                        {availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).length > 0 ? (
-                                            availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).map((t) => (
-                                                <button
-                                                    key={t}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setTopic(t);
-                                                        setIsDropdownOpen(false);
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors flex items-center justify-between group"
-                                                >
-                                                    <span className="font-medium">{t}</span>
-                                                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-indigo-400" />
-                                                </button>
-                                            ))
+                                    <div className="overflow-y-auto custom-scrollbar flex-1">
+                                        {topicsLoading ? (
+                                            <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-400 space-y-3">
+                                                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                                                <span className="text-sm font-medium animate-pulse">Fetching topics from Knowledge Base...</span>
+                                            </div>
+                                        ) : availableTopics.length > 0 ? (
+                                            availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).length > 0 ? (
+                                                availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).map((t) => (
+                                                    <button
+                                                        key={t}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setTopic(t);
+                                                            setIsDropdownOpen(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors flex items-center justify-between group"
+                                                    >
+                                                        <span className="font-medium">{t}</span>
+                                                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-indigo-400" />
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                 <div className="px-4 py-3 text-slate-500 text-sm italic text-center">
+                                                    No matching topics found. Press Enter to search using "{topic}".
+                                                 </div>
+                                            )
                                         ) : (
-                                             <div className="px-4 py-3 text-slate-500 text-sm italic text-center">
-                                                No matching topics found. Press Enter to search using "{topic}".
-                                             </div>
+                                            <div className="px-4 py-3 text-slate-500 text-sm italic text-center">
+                                                No topics available. Press Enter to search using "{topic}".
+                                            </div>
                                         )}
                                     </div>
                                 </motion.div>
@@ -419,23 +433,54 @@ export default function ProfessorLesson() {
                 key="lesson-interface"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex w-full h-full bg-slate-50/50"
+                className="flex flex-col md:flex-row w-full h-full bg-slate-50/50 overflow-hidden relative"
             >
+                {/* MOBILE MENU TOGGLE - Top Bar */}
+                <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 z-30 relative shadow-sm">
+                    <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                        {mobileMenuOpen ? <X className="w-5 h-5"/> : <Menu className="w-5 h-5"/>}
+                    </button>
+                    <span className="font-bold text-slate-800 text-sm truncate max-w-[200px] flex items-center gap-2">
+                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                         {topic}
+                    </span>
+                    <div className="w-8" />
+                </div>
+
                 {/* SIDEBAR: Lesson Plan */}
-                <div className="w-64 border-r border-slate-200 bg-white flex flex-col shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-20 flex-shrink-0">
-                    <div className="p-6 border-b border-slate-100 bg-slate-50/30">
-                         <div className="flex items-center gap-3 mb-1">
-                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-700">
-                                <BookOpen className="w-5 h-5" />
-                            </div>
-                            <h3 className="font-bold text-slate-900 text-lg">Curriculum</h3>
-                         </div>
-                         <p className="text-xs text-slate-500 font-medium pl-10 uppercase tracking-wider">
-                            Topic: <span className="text-indigo-600 font-bold">{topic}</span>
-                         </p>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {/* Mobile Overlay */}
+                {mobileMenuOpen && (
+                    <div 
+                        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+                        onClick={() => setMobileMenuOpen(false)}
+                    />
+                )}
+
+                <div className={cn(
+                    "fixed top-0 left-0 bottom-0 w-[85%] max-w-xs z-50 bg-white shadow-2xl transition-transform duration-300 ease-out md:relative md:translate-x-0 md:w-80 md:shadow-none border-r border-slate-200 flex flex-col h-full",
+                    mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+                )}>
+                    {/* Sidebar Content */}
+                    <div className="flex flex-col h-full">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center shrink-0">
+                             <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-100 rounded-xl text-indigo-700 shadow-sm ring-1 ring-indigo-50">
+                                    <BookOpen className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 text-lg leading-tight">Curriculum</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Your learning path</p>
+                                </div>
+                             </div>
+                             {/* Mobile Close Button inside Sidebar */}
+                             <button onClick={() => setMobileMenuOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-slate-600 bg-slate-100/50 rounded-lg">
+                                <ChevronsLeft className="w-5 h-5" />
+                             </button>
+                        </div>
+                        
+                        {/* Topic Indicator (Mobile only in sidebar if needed, but header has it) - removing dup */}
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                         {lessonPlan.length > 0 ? (
                             lessonPlan.map((item, i) => (
                                 <button
@@ -482,24 +527,26 @@ export default function ProfessorLesson() {
                             <StopCircle className="w-4 h-4 group-hover:scale-110 transition-transform" /> End Session
                         </button>
                     </div>
+                    </div>
                 </div>
 
                 {/* MAIN CHAT AREA */}
-                <div className="flex-1 flex flex-col h-full relative">
+                <div className="flex-1 flex flex-col relative overflow-hidden h-auto w-full md:h-full">
                     {/* Header */}
-                    <header className="px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between sticky top-0 z-10">
+                    <header className="px-4 md:px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between sticky top-0 z-10 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                            <span className="text-sm font-bold text-slate-900 uppercase tracking-wide">Live Session</span>
+                            <span className="text-xs md:text-sm font-bold text-slate-900 uppercase tracking-wide">Live Session</span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                             <Volume2 className="w-3.5 h-3.5 text-indigo-500 animate-[pulse_3s_infinite]" /> 
-                             <span>Audio Output Active</span>
+                        <div className="flex items-center gap-2 text-[10px] md:text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 md:px-3 md:py-1.5 rounded-full border border-slate-200">
+                             <Volume2 className="w-3 h-3 md:w-3.5 md:h-3.5 text-indigo-500 animate-[pulse_3s_infinite]" /> 
+                             <span className="hidden sm:inline">Audio Output Active</span>
+                             <span className="sm:hidden">Audio On</span>
                         </div>
                     </header>
 
                     {/* Messages List */}
-                    <div className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth pb-8 bg-slate-50/30">
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8 scroll-smooth bg-slate-50/30">
                         {messages.map((msg, i) => (
                             <motion.div 
                                 initial={{ opacity: 0, y: 10 }}
