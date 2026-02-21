@@ -122,13 +122,14 @@ async def ingest_rag_data(text: str, filename: str, topic: Optional[str] = None)
 
 async def fetch_rag_topics() -> list:
     """Fetches available topics from RAG service."""
+    rag_topics = []
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{RAG_SERVICE_URL}/topics", timeout=5.0)
             if response.status_code == 200:
-                return response.json().get("topics", [])
+                rag_topics = response.json().get("topics", [])
     except Exception as e:
         print(f"Error fetching topics from RAG: {e}")
     
-    # Fallback to default topics if service is down or empty
-    return ["Data Engineering 101", "DuckDB Internals", "RAG Architectures"]
+    # Return only topics from RAG service
+    return sorted(rag_topics)

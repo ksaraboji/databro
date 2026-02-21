@@ -19,21 +19,38 @@ class ProfessorState(TypedDict):
 # --- Nodes ---
 
 async def planner_node(state: ProfessorState):
-    """Generates a lesson plan for the topic."""
+    """Generates a lesson plan for the topic, using RAG if available."""
     topic = state["topic"]
     print(f"Planning lesson for: {topic}")
     
+    # 1. Fetch Context
+    context = await query_rag(topic)
+    
+    # 2. Generate Plan
     prompt = f"""
-    You are an expert Data Engineering Professor. 
-    Create a short, concise lesson plan with 3-5 sub-topics to teach the concept of '{topic}'.
-    Return ONLY a valid JSON array of strings, e.g., ["Introduction", "Core Concepts", "Best Practices"].
-    Do not include any other text.
+    You are an expert Data Engineering Professor.
+    
+    Context from Knowledge Base (if any):
+    {context}
+    
+    Task: Create a short, concise lesson plan with 3-5 sub-topics to teach the concept of '{topic}'.
+    
+    Rules:
+    1. If the context contains specific information about '{topic}' (e.g. a resume, specific docs), your plan MUST be based on that context.
+    2. If the context is empty or irrelevant, you may use your general knowledge.
+    3. Return ONLY a valid JSON array of strings, e.g., ["Introduction", "Core Concepts", "Best Practices"].
+    4. Do not include any other text.
     """
     
     response = await generate_completion(prompt)
     try:
         # cleanup markdown code blocks if present
         cleaned_response = response.replace("```json", "").replace("```", "").strip()
+        start = cleaned_response.find("[")
+        end = cleaned_response.rfind("]") + 1
+        if start != -1 and end != -1:
+            cleaned_response = cleaned_response[start:end]
+            
         plan = json.loads(cleaned_response)
         if not isinstance(plan, list):
              raise ValueError("Not a list")
@@ -55,13 +72,27 @@ async def teacher_node(state: ProfessorState):
     sub_topic = plan[index]
     print(f"Teaching sub-topic: {sub_topic} ({index+1}/{len(plan)})")
     
-    # Context from previous messages could be added here
+    # 1. Fetch Context specific to this sub-topic
+    # We query RAG with both main topic and sub-topic
+    context = await query_rag(f"{topic}: {sub_topic}")
+    
+    # 2. Generate Content
     prompt = f"""
     You are an expert Data Engineering Professor.
     We are learning about '{topic}'.
-    Teach the user about the sub-topic: '{sub_topic}'.
-    Keep the explanation spoken, engaging, and clear. 
-    Ideally 2-3 paragraphs.
+    Current Sub-topic: '{sub_topic}'.
+    
+    Context from Knowledge Base:
+    {context}
+    
+    Task: Teach the user about the sub-topic '{sub_topic}'.
+    
+    Rules:
+    1. STRICTLY use the provided "Context from Knowledge Base" as your primary source of truth.
+    2. Only use outside knowledge if the context is missing details, but do not contradict the context.
+    3. If the context is about a specific person (e.g. Resume), speak about them based on the text.
+    4. Keep the explanation spoken, engaging, and clear. 
+    5. Ideally 2-3 paragraphs.
     """
     
     content = await generate_completion(prompt)
