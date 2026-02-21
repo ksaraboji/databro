@@ -25,6 +25,7 @@ export default function ProfessorLesson() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [topicsLoading, setTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,6 +55,8 @@ export default function ProfessorLesson() {
   
   const [userId, setUserId] = useState("");
 
+  const gatewayUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io";
+
   useEffect(() => {
     if (typeof window !== "undefined") {
         let storedId = localStorage.getItem("professor_user_id");
@@ -65,20 +68,63 @@ export default function ProfessorLesson() {
     }
   }, []);
 
-  useEffect(() => {
-    // Fetch available topics
-    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io"}/topics`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.topics && Array.isArray(data.topics)) {
-                setAvailableTopics(data.topics);
-            }
-        })
-        .catch(err => console.error("Failed to fetch topics:", err))
-        .finally(() => setTopicsLoading(false));
-  }, []);
+  const fetchTopics = async (retryCount = 0) => {
+    setTopicsLoading(true);
+    setTopicsError(false);
+    try {
+        const res = await fetch(`${gatewayUrl}/topics`);
+        if (!res.ok) throw new Error("Failed response");
+        const data = await res.json();
+        
+        if (data.topics && Array.isArray(data.topics)) {
+            setAvailableTopics(data.topics);
+        }
+    } catch (err) {
+        console.error("Failed to fetch topics:", err);
+        if (retryCount < 2) {
+             // Auto-retry with backoff
+             setTimeout(() => fetchTopics(retryCount + 1), 1500 * (retryCount + 1));
+             return; // Don't set error yet
+        }
+        setTopicsError(true);
+    } finally {
+        // Only stop loading if we are not retrying or if we failed after retries
+        if (retryCount >= 2 || (retryCount < 2 && arguments.length === 0)) { // Logic slightly complex, let's simplify in next block
+             // Actually, if we retry, we call fetchTopics again which sets loading true. 
+             // But we want to keep loading true *during* the wait.
+        }
+        // Correct approach: only set loading false if we finished (success or final error)
+    }
+  };
 
-  const gatewayUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "https://api-gateway.victorioushill-531514fe.eastus.azurecontainerapps.io";
+  // Simplified fetch logic for replacement
+  useEffect(() => {
+    let mounted = true;
+    
+    const getTopics = async (retries = 2) => {
+        try {
+            const res = await fetch(`${gatewayUrl}/topics`);
+            if (!res.ok) throw new Error("Status " + res.status);
+            const data = await res.json();
+            if (mounted && data.topics && Array.isArray(data.topics)) {
+                setAvailableTopics(data.topics.sort());
+                setTopicsLoading(false);
+            }
+        } catch (err) {
+            console.error(err);
+            if (retries > 0 && mounted) {
+                setTimeout(() => getTopics(retries - 1), 2000);
+            } else if (mounted) {
+                setTopicsError(true);
+                setTopicsLoading(false);
+            }
+        }
+    };
+    
+    getTopics();
+    
+    return () => { mounted = false; };
+  }, [gatewayUrl]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -370,6 +416,17 @@ export default function ProfessorLesson() {
                                             <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-400 space-y-3">
                                                 <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                                 <span className="text-sm font-medium animate-pulse">Fetching topics from Knowledge Base...</span>
+                                            </div>
+                                        ) : topicsError ? (
+                                            <div className="px-4 py-8 flex flex-col items-center justify-center text-red-500 space-y-3">
+                                                <span className="text-sm font-medium text-center">Connection error.</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => window.location.reload()}
+                                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors uppercase tracking-wider"
+                                                >
+                                                    Retry
+                                                </button>
                                             </div>
                                         ) : availableTopics.length > 0 ? (
                                             availableTopics.filter(t => t.toLowerCase().includes(topic.toLowerCase())).length > 0 ? (
