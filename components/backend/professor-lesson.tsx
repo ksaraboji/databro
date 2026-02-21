@@ -101,19 +101,35 @@ export default function ProfessorLesson() {
   useEffect(() => {
     let mounted = true;
     
-    const getTopics = async (retries = 2) => {
+    const getTopics = async (retries = 3) => {
         try {
             const res = await fetch(`${gatewayUrl}/topics`);
             if (!res.ok) throw new Error("Status " + res.status);
             const data = await res.json();
-            if (mounted && data.topics && Array.isArray(data.topics)) {
+            
+            if (!mounted) return;
+
+            if (data.topics && Array.isArray(data.topics) && data.topics.length > 0) {
                 setAvailableTopics(data.topics.sort());
                 setTopicsLoading(false);
+            } else {
+                // Topic list is empty. This is suspicious on cold start.
+                if (retries > 0) {
+                    // Retry with exponential backoff
+                    console.log(`Topics empty, retrying... (${retries} left)`);
+                    const delay = (4 - retries) * 2000;
+                    setTimeout(() => getTopics(retries - 1), delay);
+                } else {
+                    // Given up, it's truly empty
+                    setAvailableTopics([]); 
+                    setTopicsLoading(false);
+                }
             }
         } catch (err) {
             console.error(err);
             if (retries > 0 && mounted) {
-                setTimeout(() => getTopics(retries - 1), 2000);
+                const delay = (4 - retries) * 2000;
+                setTimeout(() => getTopics(retries - 1), delay);
             } else if (mounted) {
                 setTopicsError(true);
                 setTopicsLoading(false);
