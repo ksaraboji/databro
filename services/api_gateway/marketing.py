@@ -64,26 +64,25 @@ llm = ChatGroq(
 
 # --- Utilities ---
 
-def upload_to_azure(data: bytes, filename: str, content_type: str) -> str:
+def upload_to_azure(data: bytes, filename: str, content_type: str) -> Optional[str]:
     """Uploads bytes to Azure Blob Storage and returns the public URL."""
     if not AZURE_STORAGE_CONN_STR:
         print("Azure Storage Connection String (AZURE_STORAGE_CONNECTION_STRING) is missing.")
-        return f"https://mock-storage.com/{filename}"
+        return None
     
     if not BlobServiceClient:
         print("Azure BlobServiceClient is not available (library missing?).")
-        return f"https://mock-storage.com/{filename}"
+        return None
         
     try:
         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONN_STR)
         blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
         my_content_settings = ContentSettings(content_type=content_type)
-        blob_client.upload_blob(data, overwrite=True, content_settings=my_content_settings
-        blob_client.upload_blob(data, overwrite=True, content_settings={"content_type": content_type})
+        blob_client.upload_blob(data, overwrite=True, content_settings=my_content_settings)
         return blob_client.url
     except Exception as e:
         print(f"Azure Upload Error: {e}")
-        return f"https://mock-storage.com/{filename}"
+        return None
 
 # --- Media Generation (Custom Wrappers) ---
 # Keeping these as async utility functions as LangChain doesn't have standard T2V tools yet
@@ -312,23 +311,20 @@ async def production_studio_node(state: MarketingState):
         cover_prompt = state["image_prompts"][0]
         logs.append(f"Generating cover image: {cover_prompt[:30]}...")
         
-        img_bytes = await generate_image_hf(cover_prompt)
-        if img_bytes:
         try:
-            filename = f"cover_{hash(cover_prompt)}.jpg"
-            img_url = upload_to_azure(img_bytes, filename, "image/jpeg")
-            if "mock-storage.com" in img_url:
-                 # Check if the mock is due to an error, we should probably record that
-                 # But upload_to_azure already prints the error.
-                 logs.append(f"Azure Upload Failed for Image, using mock: {img_url}")
+            img_bytes = await generate_image_hf(cover_prompt)
+            if img_bytes:
+                filename = f"cover_{hash(cover_prompt)}.jpg"
+                img_url = upload_to_azure(img_bytes, filename, "image/jpeg")
+                if img_url:
+                     image_urls.append(img_url) 
+                     logs.append(f"Cover image uploaded: {img_url}")
+                else:
+                     logs.append("Azure Upload Failed for Image.")
             else:
-                 image_urls.append(img_url) 
-                 logs.append(f"Cover image uploaded: {img_url}")
+                logs.append("Failed to generate cover image.")
         except Exception as e:
-            logs.append(f"Error uploading image: {e}")
-            image_urls.append("https://via.placeholder.com/800x400")
-    else:
-        logs.append("Failed to generate cover image.")
+            logs.append(f"Image Gen/Upload Error: {e}")
     
     # 2. Generate Video using Wan2.1
     video_prompt = "Cinematic " + state["headline"] + ", " + (state["script"][0] if state["script"] else "Data visualization")
@@ -340,11 +336,11 @@ async def production_studio_node(state: MarketingState):
         try:
             filename = f"video_{hash(video_prompt)}.mp4"
             video_url = upload_to_azure(video_bytes, filename, "video/mp4")
-            if video_url and "mock-storage.com" in video_url:
-                logs.append("Azure Upload failed (returned mock URL).")
-                video_url = None
+            if video_url:
+                logs.append(f"Video uploaded: {video_url}")
             else:
-                 logs.append(f"Video uploaded: {video_url}")
+                logs.append("Azure Upload Failed for Video.")
+                video_url = None
         except Exception as e:
             logs.append(f"Error uploading video: {e}")
             video_url = None
