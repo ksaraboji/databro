@@ -82,7 +82,8 @@ def upload_to_azure(data: bytes, filename: str, content_type: str) -> str:
 async def generate_image_hf(prompt: str) -> Optional[bytes]:
     """Generates an image using Hugging Face Inference API."""
     if not AsyncInferenceClient or not HF_API_KEY:
-        print("Error: HF_API_KEY not set or huggingface_hub not installed.")
+        print(f"Error: HF_API_KEY status: {'set' if HF_API_KEY else 'missing/empty'}")
+        print(f"Warning: huggingface_hub installed: {AsyncInferenceClient is not None}")
         return None
     
     # Increase timeout to 120s as image generation can sometimes be slow
