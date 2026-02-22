@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - feature/setup
     paths:
       - "services/api_gateway/**"
       - ".github/workflows/build-api-gateway.yml"
