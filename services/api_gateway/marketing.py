@@ -30,6 +30,14 @@ try:
 except ImportError:
     build = None
 
+# --- Custom Imports ---
+try: 
+    from huggingface_hub import AsyncInferenceClient 
+except ImportError: 
+    AsyncInferenceClient = None 
+    print("Warning: huggingface_hub not installed")
+import io
+
 # --- Configuration ---
 HF_API_KEY = os.getenv("HF_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -73,59 +81,46 @@ def upload_to_azure(data: bytes, filename: str, content_type: str) -> str:
 
 async def generate_image_hf(prompt: str) -> Optional[bytes]:
     """Generates an image using Hugging Face Inference API."""
-    if not HF_API_KEY:
-        print("Error: HF_API_KEY not set.")
+    if not AsyncInferenceClient or not HF_API_KEY:
+        print("Error: HF_API_KEY not set or huggingface_hub not installed.")
         return None
-        
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    # Using the new router endpoint as api-inference is deprecated
-    api_url = f"https://router.huggingface.co/hf-inference/models/{HF_IMAGE_MODEL}"
     
     # Increase timeout to 120s as image generation can sometimes be slow
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        try:
-            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers)
-            if resp.status_code != 200:
-                print(f"HF Error {resp.status_code}: {resp.text}")
-                return None
-            return resp.content
-        except Exception as e:
-            print(f"HF Gen Error: {e}")
-            return None
+    client = AsyncInferenceClient(token=HF_API_KEY, timeout=120.0)
+    
+    try:
+        # returns a PIL.Image object directly
+        image = await client.text_to_image(prompt, model=HF_IMAGE_MODEL)
+        
+        # Convert PIL Image to bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='JPEG')
+        return img_byte_arr.getvalue()
+    except Exception as e:
+        print(f"HF Gen Error: {e}")
+        return None
 
 async def generate_video_hf(prompt: str) -> Optional[bytes]:
     """
     Generates a video using Hugging Face Inference API for Wan2.1-T2V-1.3B.
     This model generates a short video clip from a text prompt.
     """
-    if not HF_API_KEY:
-        print("Error: HF_API_KEY not set.")
+    if not AsyncInferenceClient or not HF_API_KEY:
+        print("Error: HF_API_KEY not set or huggingface_hub not installed.")
         return None
         
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    # Using the new router endpoint as api-inference is deprecated
-    api_url = f"https://router.huggingface.co/hf-inference/models/{HF_VIDEO_MODEL}"
-    
     print(f"Generating video for: '{prompt[:50]}...' using {HF_VIDEO_MODEL}")
     
     # Increase timeout to 300s (5 mins) as video generation is very slow
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        try:
-            # Video generation can take time, increasing timeout
-            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers)
-            
-            if resp.status_code == 503:
-                 print(f"HF Error 503 (Model Loading): {resp.text}")
-                 # Could retry here, but for now just fail gracefully
-                 return None
-                 
-            if resp.status_code != 200:
-                print(f"HF Error {resp.status_code}: {resp.text}")
-                return None
-            return resp.content
-        except Exception as e:
-            print(f"HF Video Gen Error: {e}")
-            return None
+    client = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0)
+    
+    try:
+        # text_to_video return type varies; often raw bytes for video
+        video_bytes = await client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        return video_bytes
+    except Exception as e:
+        print(f"HF Video Gen Error: {e}")
+        return None
 
 # --- State Definition & Pydantic Config ---
 
