@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - feature/setup         
     paths:
       - "terraform/azure/**"
       - ".github/workflows/deploy-azure-infra.yml"
@@ -12,6 +13,7 @@ on:
     branches:
       - main
       - develop
+      - feature/setup
     paths:
       - "terraform/azure/**"
 
