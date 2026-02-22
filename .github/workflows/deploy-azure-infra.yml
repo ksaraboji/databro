@@ -25,6 +25,7 @@ jobs:
   terraform-dev:
     name: Terraform (dev)
     if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/setup'
+    environment: dev
     runs-on: ubuntu-latest
     defaults:
       run:
