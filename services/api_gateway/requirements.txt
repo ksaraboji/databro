@@ -16,5 +16,5 @@ tweepy
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
-huggingface_hub
+huggingface_hub>=0.28.0
 Pillow
