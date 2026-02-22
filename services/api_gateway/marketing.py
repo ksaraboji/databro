@@ -166,8 +166,9 @@ async def content_strategist_node(state: MarketingState):
     Agent 1: Content Strategist & Writer.
     Uses ChatGroq to draft article and extract metadata via LCEL.
     """
+    logs = []
     topic = state["topic"]
-    print(f"--- [Strategist] Drafting content for: {topic} ---")
+    logs.append(f"--- [Strategist] Drafting content for: {topic} ---")
     
     # 1. Write Article
     system = "You are an expert Content Strategist & Technical Writer."
@@ -179,11 +180,11 @@ async def content_strategist_node(state: MarketingState):
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
     chain = prompt | llm | StrOutputParser()
     
+    article = f"Error generating article for {topic}"
     try:
         article = await chain.ainvoke({"topic": topic})
     except Exception as e:
-        print(f"LLM Error: {e}")
-        article = f"Error generating article for {topic}"
+        logs.append(f"LLM Error (Article): {e}")
     
     # 2. Extract Metadata
     parser = JsonOutputParser(pydantic_object=ArticleMetadata)
@@ -195,36 +196,45 @@ async def content_strategist_node(state: MarketingState):
     
     meta_chain = meta_prompt | llm | parser
     
+    headline = f"Mastering {topic}"
+    summary = "Check out our new deep dive!"
+    tags = ["#DataEngineering", "#Tech"]
+    image_prompts = [f"Data engineering concept for {topic}"]
+    
     try:
         meta = await meta_chain.ainvoke({
             "article": article[:3000],
             "format_instructions": parser.get_format_instructions()
         })
         
-        return {
-            "article_content": article,
-            "headline": meta.get("headline", f"Guide to {topic}"),
-            "summary": meta.get("summary", f"Learn about {topic}!"),
-            "tags": meta.get("tags", ["#DataEngineering", "#Tech"]),
-            "image_prompts": [meta.get("image_prompt", f"Abstract tech visualization of {topic}")]
-        }
+        headline = meta.get("headline", headline)
+        summary = meta.get("summary", summary)
+        tags = meta.get("tags", tags)
+        # Handle if image_prompt is missing or empty
+        img_p = meta.get("image_prompt")
+        if img_p:
+            image_prompts = [img_p]
+            
     except Exception as e:
-        print(f"Metadata Gen Error: {e}")
-        return {
-            "article_content": article,
-            "headline": f"Mastering {topic}",
-            "summary": "Check out our new deep dive!",
-            "tags": ["#DataEngineering", "#Tech"],
-            "image_prompts": [f"Data engineering concept for {topic}"]
-        }
+        logs.append(f"Metadata Gen Error: {e}")
+
+    return {
+        "article_content": article,
+        "headline": headline,
+        "summary": summary,
+        "tags": tags,
+        "image_prompts": image_prompts,
+        "logs": logs
+    }
 
 async def visual_director_node(state: MarketingState):
     """
     Agent 2: Visual Director.
     Generates the script for the reel and prompts for images using structured output.
     """
-    print("--- [Visual Director] Planning video assets ---")
-    headline = state["headline"]
+    logs = []
+    logs.append("--- [Visual Director] Planning video assets ---")
+    headline = state.get("headline", "New Tech Update")
     
     parser = JsonOutputParser(pydantic_object=VideoScript)
     
@@ -235,29 +245,38 @@ async def visual_director_node(state: MarketingState):
     
     chain = prompt | llm | parser
     
+    script = []
+    new_prompts = []
+    
     try:
         data = await chain.ainvoke({
             "headline": headline, 
             "format_instructions": parser.get_format_instructions()
         })
         
-        script = data.get("sentences", [])
-        new_prompts = data.get("visuals", [])
+        # Ensure data is a dict
+        if isinstance(data, dict):
+             script = data.get("sentences", [])
+             new_prompts = data.get("visuals", [])
+        else:
+             logs.append(f"Script Gen Warning: Expected dict, got {type(data)}")
         
-        # Combine existing prompts
-        all_prompts = state.get("image_prompts", []) + new_prompts
-        
-        return {
-            "script": script,
-            "image_prompts": all_prompts
-        }
     except Exception as e:
-        print(f"Script Gen Error: {e}")
-        # Fallback
-        return {
-            "script": [headline, "Read more below!"],
-            "image_prompts": state.get("image_prompts", [])
-        }
+        logs.append(f"Script Gen Error: {e}")
+        # Fallback script
+        script = [headline, "Read the full article on our blog!", "Link in bio."]
+    
+    # Combine existing prompts
+    current_prompts = state.get("image_prompts", [])
+    if not current_prompts:
+        current_prompts = []
+    all_prompts = current_prompts + new_prompts
+    
+    return {
+        "script": script,
+        "image_prompts": all_prompts,
+        "logs": logs
+    }
 
 
 async def production_studio_node(state: MarketingState):
