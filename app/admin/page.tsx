@@ -81,6 +81,31 @@ export default function AdminPage() {
           </div>
            <RagManagement />
         </section>
+
+        {/* Marketing / AI Studio */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-2xl font-bold text-slate-800">AI Content Studio</h2>
+            <div className="h-px bg-slate-200 grow"></div>
+          </div>
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 text-white relative overflow-hidden group">
+              <div className="absolute inset-0 bg-white/10 mix-blend-overlay group-hover:scale-105 transition-transform duration-700 pointer-events-none" />
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div>
+                      <h3 className="text-2xl font-bold mb-2">Automated Marketing Agent</h3>
+                      <p className="text-indigo-100 max-w-xl text-lg">
+                          Generate articles, tweets, video scripts, and image assets about any data engineering topic instantly using autonomous agents.
+                      </p>
+                  </div>
+                  <Link 
+                      href="/admin/marketing"
+                      className="px-8 py-3 bg-white text-indigo-600 rounded-full font-bold hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl active:scale-95 shrink-0"
+                  >
+                      Launch Studio
+                  </Link>
+              </div>
+          </div>
+        </section>
       </main>
     </div>
   );

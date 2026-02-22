@@ -17,3 +17,9 @@ resource "azurerm_storage_container" "public_audio" {
   storage_account_name  = azurerm_storage_account.app_data.name
   container_access_type = "blob" # Public read access for blobs only
 }
+
+resource "azurerm_storage_container" "marketing_assets" {
+  name                  = "marketing-assets"
+  storage_account_name  = azurerm_storage_account.app_data.name
+  container_access_type = "blob" # Public read access for blobs so social platforms can fetch
+}

@@ -1,16 +1,85 @@
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
-from schemas import LessonStartRequest, InterruptionRequest, LessonResponse
+from schemas import LessonStartRequest, InterruptionRequest, LessonResponse, MarketingRequest, MarketingResponse
 from graph import app_graph
+from marketing import marketing_app, MarketingState
 from clients import seed_rag_data, ingest_rag_data, fetch_rag_topics, transcribe_audio, synthesize_speech
 from langchain_core.messages import HumanMessage
 import uuid
 import io
+import asyncio
 from clients import generate_completion
 from visitor_counter import get_and_increment_visitor_count, get_visitor_stats
 
+# --- Marketing Agent Functions ---
+marketing_jobs = {}
+async def run_marketing_job(job_id: str, topic: str):
+    """
+    Runs the marketing agent workflow in the background.
+    """
+    try:
+        initial_state = {
+            "topic": topic,
+            "article_content": "",
+            "headline": "",
+            "summary": "",
+            "script": [],
+            "image_prompts": [],
+            "audio_segments": [],
+            "image_urls": [],
+            "video_url": "",
+            "tags": [],
+            "status": "starting",
+            "logs": [],
+            "errors": []
+        }
+        
+        # Async invoke the graph
+        config = {"configurable": {"thread_id": job_id}}
+        final_state = await marketing_app.ainvoke(initial_state, config=config)
+        
+        marketing_jobs[job_id] = {
+            "status": final_state.get("status", "finished"),
+            "result": final_state
+        }
+    except Exception as e:
+        print(f"Marketing Job Error: {e}")
+        marketing_jobs[job_id] = {"status": "failed", "error": str(e)}
+
+# -------------------------------
+
 app = FastAPI(title="Professor API Gateway")
+
+@app.get("/marketing/status/{job_id}", response_model=MarketingResponse)
+async def get_marketing_status(job_id: str):
+    job = marketing_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    result = job.get("result", {})
+    return MarketingResponse(
+        job_id=job_id,
+        status=job.get("status", "unknown"),
+        headline=result.get("headline"),
+        summary=result.get("summary"),
+        article_content=result.get("article_content"),
+        logs=result.get("logs")
+    )
+
+@app.post("/marketing/generate", response_model=MarketingResponse)
+async def generate_marketing_campaign(req: MarketingRequest, background_tasks: BackgroundTasks):
+    # Authorization mock
+    if req.admin_id != "admin_secret_123":
+        raise HTTPException(status_code=403, detail="Unauthorized")
+        
+    job_id = str(uuid.uuid4())
+    marketing_jobs[job_id] = {"status": "queued"}
+    
+    # Run in background
+    background_tasks.add_task(run_marketing_job, job_id, req.topic)
+    
+    return MarketingResponse(job_id=job_id, status="queued", logs=["Job started in background."])
 
 @app.get("/visitor-count")
 async def get_visitor_count(location: str = "Unknown"):

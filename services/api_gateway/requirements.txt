@@ -9,3 +9,10 @@ python-multipart
 pypdf
 python-docx
 azure-cosmos
+langchain-groq
+langchain-huggingface
+azure-storage-blob
+tweepy
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2

@@ -35,6 +35,9 @@ jobs:
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_devto_api_key: ${{ secrets.DEVTO_API_KEY }}
+      TF_VAR_hf_api_key: ${{ secrets.HF_API_KEY }}
+      TF_VAR_groq_api_key: ${{ secrets.GROQ_API_KEY }}
 
     steps:
       - name: Checkout code
@@ -95,6 +98,9 @@ jobs:
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_devto_api_key: ${{ secrets.DEVTO_API_KEY }}
+      TF_VAR_hf_api_key: ${{ secrets.HF_API_KEY }}
+      TF_VAR_groq_api_key: ${{ secrets.GROQ_API_KEY }}
 
     steps:
       - name: Checkout code
