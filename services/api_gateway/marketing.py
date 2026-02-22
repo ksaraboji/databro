@@ -46,7 +46,7 @@ HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-1.3B"
 # --- LangChain Models ---
 llm = ChatGroq(
     temperature=0.7,
-    model_name="llama3-70b-8192",
+    model_name="llama-3.3-70b-versatile",
     groq_api_key=GROQ_API_KEY
 )
 
@@ -78,11 +78,13 @@ async def generate_image_hf(prompt: str) -> Optional[bytes]:
         return None
         
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    api_url = f"https://api-inference.huggingface.co/models/{HF_IMAGE_MODEL}"
+    # Using the new router endpoint as api-inference is deprecated
+    api_url = f"https://router.huggingface.co/hf-inference/models/{HF_IMAGE_MODEL}"
     
-    async with httpx.AsyncClient() as client:
+    # Increase timeout to 120s as image generation can sometimes be slow
+    async with httpx.AsyncClient(timeout=120.0) as client:
         try:
-            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers, timeout=60.0)
+            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers)
             if resp.status_code != 200:
                 print(f"HF Error {resp.status_code}: {resp.text}")
                 return None
@@ -101,14 +103,16 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
         return None
         
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    api_url = f"https://api-inference.huggingface.co/models/{HF_VIDEO_MODEL}"
+    # Using the new router endpoint as api-inference is deprecated
+    api_url = f"https://router.huggingface.co/hf-inference/models/{HF_VIDEO_MODEL}"
     
     print(f"Generating video for: '{prompt[:50]}...' using {HF_VIDEO_MODEL}")
     
-    async with httpx.AsyncClient() as client:
+    # Increase timeout to 300s (5 mins) as video generation is very slow
+    async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             # Video generation can take time, increasing timeout
-            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers, timeout=120.0)
+            resp = await client.post(api_url, json={"inputs": prompt}, headers=headers)
             
             if resp.status_code == 503:
                  print(f"HF Error 503 (Model Loading): {resp.text}")
