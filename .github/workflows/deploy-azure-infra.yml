@@ -24,7 +24,7 @@ concurrency:
 jobs:
   terraform-dev:
     name: Terraform (dev)
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/setup'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -84,7 +84,7 @@ jobs:
             });
 
       - name: Terraform Apply - Dev
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/setup')
         id: apply-dev
         run: terraform apply -var-file=dev.tfvars -no-color -auto-approve -input=false
 
