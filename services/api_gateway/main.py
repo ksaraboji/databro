@@ -261,7 +261,8 @@ async def start_lesson(req: LessonStartRequest):
         "plan": [], # Reset plan
         "current_index": 0, # Reset index
         "mode": "planning",
-        "output_text": ""
+        "output_text": "",
+        "use_rag": False # Default, will be set by planner
     }
     
     # Run the graph

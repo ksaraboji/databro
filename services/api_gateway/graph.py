@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from clients import generate_completion, query_rag
+from clients import generate_completion, query_rag, fetch_rag_topics
 
 # --- State Definition ---
 class ProfessorState(TypedDict):
@@ -15,6 +15,7 @@ class ProfessorState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
     mode: str  # "planning", "teaching", "answering", "finished"
     output_text: str # The final text to be spoken/returned
+    use_rag: bool # Whether to use RAG for this session
 
 # --- Nodes ---
 
@@ -23,8 +24,34 @@ async def planner_node(state: ProfessorState):
     topic = state["topic"]
     print(f"Planning lesson for: {topic}")
     
+    # 0. Check if RAG should be used
+    rag_topics = await fetch_rag_topics()
+    if not rag_topics:
+        print("Warning: No RAG topics found or service unavailable.")
+    
+    # Robust check:
+    # 1. Exact match (case-insensitive)
+    # 2. Topic is a substring of a RAG topic (e.g. user typed "Kumar" and topic is "Kumar Saraboji")
+    # 3. RAG topic is a substring of user topic (e.g. user typed "Kumar Saraboji Resume" and topic is "Kumar Saraboji")
+    use_rag = False
+    
+    if rag_topics:
+        topic_lower = topic.lower().strip()
+        for t in rag_topics:
+            t_lower = t.lower().strip()
+            if t_lower == topic_lower:
+                use_rag = True
+                break
+            if len(topic_lower) > 3 and (topic_lower in t_lower or t_lower in topic_lower):
+                use_rag = True
+                break
+    
+    print(f"Topic '{topic}' in RAG: {use_rag}")
+
     # 1. Fetch Context
-    context = await query_rag(topic)
+    context = ""
+    if use_rag:
+        context = await query_rag(topic)
     
     # 2. Generate Plan
     prompt = f"""
@@ -58,13 +85,14 @@ async def planner_node(state: ProfessorState):
         print(f"Error parsing plan: {e}. Fallback used.")
         plan = [f"Introduction to {topic}", f"Deep Dive into {topic}", "Summary"]
 
-    return {"plan": plan, "mode": "teaching", "current_index": 0}
+    return {"plan": plan, "mode": "teaching", "current_index": 0, "use_rag": use_rag}
 
 async def teacher_node(state: ProfessorState):
     """Generates the teaching content for the current sub-topic."""
     plan = state["plan"]
     index = state["current_index"]
     topic = state["topic"]
+    use_rag = state.get("use_rag", False)
     
     if index >= len(plan):
         return {"mode": "finished", "output_text": "We have completed the lesson plan. Let me know if you have any other questions!"}
@@ -73,8 +101,10 @@ async def teacher_node(state: ProfessorState):
     print(f"Teaching sub-topic: {sub_topic} ({index+1}/{len(plan)})")
     
     # 1. Fetch Context specific to this sub-topic
-    # We query RAG with both main topic and sub-topic
-    context = await query_rag(f"{topic}: {sub_topic}")
+    context = ""
+    if use_rag:
+        # We query RAG with both main topic and sub-topic
+        context = await query_rag(f"{topic}: {sub_topic}")
     
     # 2. Generate Content
     prompt = f"""
@@ -112,11 +142,14 @@ async def qa_node(state: ProfessorState):
         
     question = last_message.content
     topic = state["topic"]
+    use_rag = state.get("use_rag", False)
     
     print(f"Answering question: {question}")
     
     # 1. Retrieval
-    context = await query_rag(f"{topic} {question}")
+    context = ""
+    if use_rag:
+        context = await query_rag(f"{topic} {question}")
     
     # 2. Generation
     prompt = f"""
