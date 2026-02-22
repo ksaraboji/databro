@@ -27,8 +27,9 @@ async def run_marketing_job(job_id: str, topic: str):
             "script": [],
             "image_prompts": [],
             "audio_segments": [],
-            "image_paths": [],
-            "video_path": "",
+            "image_urls": [],
+            "video_url": "",
+            "tags": [],
             "status": "starting",
             "logs": [],
             "errors": []
