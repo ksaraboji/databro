@@ -49,6 +49,8 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID") # Business Account ID
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
+# Reverting to Wan2.1 since user has Pro subscription. 
+# Note: If 402 persists, check if this model requires a Dedicated Endpoint.
 HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-1.3B" 
 
 # --- LangChain Models ---
@@ -116,10 +118,11 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     client = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0)
     
     try:
-        # text_to_video return type varies; often raw bytes for video
+        # returns bytes for video
         video_bytes = await client.text_to_video(prompt, model=HF_VIDEO_MODEL)
         return video_bytes
     except Exception as e:
+        # 402 Payment Required is common for serverless video models
         print(f"HF Video Gen Error: {e}")
         return None
 
