@@ -36,6 +36,11 @@ resource "azurerm_container_app" "api_gateway" {
     value = var.groq_api_key
   }
 
+  secret {
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.app_data.primary_connection_string
+  }
+
   template {
     container {
       name   = "api-gateway"
@@ -74,6 +79,10 @@ resource "azurerm_container_app" "api_gateway" {
       env {
         name        = "GROQ_API_KEY"
         secret_name = "groq-api-key"
+      }
+      env {
+        name        = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
       }
       env {
         name        = "COSMOS_DATABASE"

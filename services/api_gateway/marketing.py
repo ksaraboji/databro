@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field
 # Only importing if installed, to avoid deployment crashes if env not ready
 try:
     from azure.storage.blob import BlobServiceClient
-except ImportError:
+except ImportError as e:
+    print(f"Failed to import azure.storage.blob: {e}")
     BlobServiceClient = None
 
 try:
@@ -64,8 +65,12 @@ llm = ChatGroq(
 
 def upload_to_azure(data: bytes, filename: str, content_type: str) -> str:
     """Uploads bytes to Azure Blob Storage and returns the public URL."""
-    if not AZURE_STORAGE_CONN_STR or not BlobServiceClient:
-        print("Azure Storage not configured or library missing.")
+    if not AZURE_STORAGE_CONN_STR:
+        print("Azure Storage Connection String (AZURE_STORAGE_CONNECTION_STRING) is missing.")
+        return f"https://mock-storage.com/{filename}"
+    
+    if not BlobServiceClient:
+        print("Azure BlobServiceClient is not available (library missing?).")
         return f"https://mock-storage.com/{filename}"
         
     try:
@@ -115,15 +120,28 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     print(f"Generating video for: '{prompt[:50]}...' using {HF_VIDEO_MODEL}")
     
     # Increase timeout to 300s (5 mins) as video generation is very slow
-    client = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0)
+    # Force 'hf-inference' provider to ensure we use the standard API that returns bytes
+    # This avoids issues where the library might auto-select a provider (like fal-ai) that returns JSON but fails
+    client = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0, provider="hf-inference")
     
     try:
         # returns bytes for video
+        # We try to force the model to use the standard Inference API which returns bytes
         video_bytes = await client.text_to_video(prompt, model=HF_VIDEO_MODEL)
         return video_bytes
     except Exception as e:
-        # 402 Payment Required is common for serverless video models
-        print(f"HF Video Gen Error: {e}")
+        # If the specific model fails, try another free one or fail gracefully
+        print(f"HF Video Gen Error with {HF_VIDEO_MODEL}: {e}")
+        
+        # Fallback to a different model if Wan2.1 fails (often 503 or 402 or key errors)
+        FALLBACK_MODEL = "damo-vilab/text-to-video-ms-1.7b"
+        if HF_VIDEO_MODEL != FALLBACK_MODEL:
+             print(f"Retrying with fallback model: {FALLBACK_MODEL}")
+             try:
+                 video_bytes = await client.text_to_video(prompt, model=FALLBACK_MODEL)
+                 return video_bytes
+             except Exception as e2:
+                 print(f"HF Video Gen Error with fallback: {e2}")
         return None
 
 # --- State Definition & Pydantic Config ---
