@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2, Search, ChevronDown, Sparkles, Menu, X } from "lucide-react";
+import { Send, Bot, User, BookOpen, GraduationCap, ArrowRight, Mic, Volume2, StopCircle, Check, Loader2, Search, ChevronDown, Sparkles, Menu, X, ChevronsLeft } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
