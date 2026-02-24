@@ -15,10 +15,11 @@ from pydantic import BaseModel, Field
 
 # Only importing if installed, to avoid deployment crashes if env not ready
 try:
-    from azure.storage.blob import BlobServiceClient
+    from azure.storage.blob import BlobServiceClient, ContentSettings
 except ImportError as e:
     print(f"Failed to import azure.storage.blob: {e}")
     BlobServiceClient = None
+    ContentSettings = None
 
 try:
     import tweepy
@@ -76,7 +77,8 @@ def upload_to_azure(data: bytes, filename: str, content_type: str) -> str:
     try:
         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONN_STR)
         blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
-        
+        my_content_settings = ContentSettings(content_type=content_type)
+        blob_client.upload_blob(data, overwrite=True, content_settings=my_content_settings
         blob_client.upload_blob(data, overwrite=True, content_settings={"content_type": content_type})
         return blob_client.url
     except Exception as e:
@@ -312,12 +314,21 @@ async def production_studio_node(state: MarketingState):
         
         img_bytes = await generate_image_hf(cover_prompt)
         if img_bytes:
+        try:
             filename = f"cover_{hash(cover_prompt)}.jpg"
             img_url = upload_to_azure(img_bytes, filename, "image/jpeg")
-            image_urls.append(img_url) 
-            logs.append(f"Cover image uploaded: {img_url}")
-        else:
-            logs.append("Failed to generate cover image.")
+            if "mock-storage.com" in img_url:
+                 # Check if the mock is due to an error, we should probably record that
+                 # But upload_to_azure already prints the error.
+                 logs.append(f"Azure Upload Failed for Image, using mock: {img_url}")
+            else:
+                 image_urls.append(img_url) 
+                 logs.append(f"Cover image uploaded: {img_url}")
+        except Exception as e:
+            logs.append(f"Error uploading image: {e}")
+            image_urls.append("https://via.placeholder.com/800x400")
+    else:
+        logs.append("Failed to generate cover image.")
     
     # 2. Generate Video using Wan2.1
     video_prompt = "Cinematic " + state["headline"] + ", " + (state["script"][0] if state["script"] else "Data visualization")
@@ -326,12 +337,20 @@ async def production_studio_node(state: MarketingState):
     video_url = ""
     
     if video_bytes:
-        filename = f"video_{hash(video_prompt)}.mp4"
-        video_url = upload_to_azure(video_bytes, filename, "video/mp4")
-        logs.append(f"Video uploaded: {video_url}")
+        try:
+            filename = f"video_{hash(video_prompt)}.mp4"
+            video_url = upload_to_azure(video_bytes, filename, "video/mp4")
+            if video_url and "mock-storage.com" in video_url:
+                logs.append("Azure Upload failed (returned mock URL).")
+                video_url = None
+            else:
+                 logs.append(f"Video uploaded: {video_url}")
+        except Exception as e:
+            logs.append(f"Error uploading video: {e}")
+            video_url = None
     else:
-        logs.append(f"Model {HF_VIDEO_MODEL} busy/unavailable. Fallback to mock.")
-        video_url = "https://mock-storage.com/dummy_video_fallback.mp4"
+        logs.append(f"Model {HF_VIDEO_MODEL} busy/unavailable or generation failed.")
+        video_url = None
     
     return {
         "image_urls": image_urls, 
