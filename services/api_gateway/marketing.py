@@ -120,25 +120,39 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     print(f"Generating video for: '{prompt[:50]}...' using {HF_VIDEO_MODEL}")
     
     # Increase timeout to 300s (5 mins) as video generation is very slow
-    # Force 'hf-inference' provider to ensure we use the standard API that returns bytes
-    # This avoids issues where the library might auto-select a provider (like fal-ai) that returns JSON but fails
-    client = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0, provider="hf-inference")
+    # Configure client specifically for text-to-video using fal-ai via HF Routing
+    # This requires huggingface_hub >= 0.28.0
+    try:
+        client = AsyncInferenceClient(
+            model=HF_VIDEO_MODEL, 
+            token=HF_API_KEY, 
+            timeout=300.0,
+            provider="fal-ai" # Explicitly use fal-ai as suggested for Wan2.1
+        )
+    except Exception as client_init_error:
+        print(f"Error initializing AsyncInferenceClient with provider='fal-ai': {client_init_error}")
+        return None
     
     try:
         # returns bytes for video
-        # We try to force the model to use the standard Inference API which returns bytes
-        video_bytes = await client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        # model is already set in client, so we don't need to pass it here
+        video_bytes = await client.text_to_video(prompt)
         return video_bytes
     except Exception as e:
         # If the specific model fails, try another free one or fail gracefully
         print(f"HF Video Gen Error with {HF_VIDEO_MODEL}: {e}")
         
-        # Fallback to a different model if Wan2.1 fails (often 503 or 402 or key errors)
+        # Fallback to a different model if Wan2.1 fails
         FALLBACK_MODEL = "damo-vilab/text-to-video-ms-1.7b"
         if HF_VIDEO_MODEL != FALLBACK_MODEL:
              print(f"Retrying with fallback model: {FALLBACK_MODEL}")
              try:
-                 video_bytes = await client.text_to_video(prompt, model=FALLBACK_MODEL)
+                 # Fallback might need a standard client without specific provider?
+                 # Or just try with the same client if it supports the fallback model
+                 # But since we set provider='fal-ai', it might not support damo-vilab
+                 # So let's try a raw request or a new client for fallback
+                 client_fallback = AsyncInferenceClient(token=HF_API_KEY, timeout=300.0)
+                 video_bytes = await client_fallback.text_to_video(prompt, model=FALLBACK_MODEL)
                  return video_bytes
              except Exception as e2:
                  print(f"HF Video Gen Error with fallback: {e2}")
