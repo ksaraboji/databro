@@ -381,7 +381,7 @@ class MarketingState(TypedDict):
 class ArticleMetadata(BaseModel):
     headline: str = Field(description="A catchy, click-worthy headline (max 10 words)")
     summary: str = Field(description="A concise summary for Twitter (max 280 chars)")
-    image_prompt: str = Field(description="A visual description for a cover image")
+    image_prompt: str = Field(description="A highly descriptive, elaborate, and artistic visual prompt (40-60 words) for generating the blog cover image. Detail the environment, subject, lighting, and rendering style.")
     tags: List[str] = Field(description="List of 5-7 relevant hashtags (e.g. #DataEngineering)")
 
 class VideoScript(BaseModel):
@@ -442,7 +442,7 @@ async def content_strategist_node(state: MarketingState):
     parser = JsonOutputParser(pydantic_object=ArticleMetadata)
     
     meta_prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a Marketing Expert. Extract metadata from the article."),
+        ("system", "You are a highly creative Marketing Art Director. Extract metadata and design a stunning cover image prompt."),
         ("human", """Article: {article}
 
         {format_instructions}
@@ -451,7 +451,13 @@ async def content_strategist_node(state: MarketingState):
         1. A catchy Headline
         2. A concise Summary for Twitter
         3. 5-7 relevant Hashtags
-        4. A vivid, high-quality Image Prompt for a cover image. It should be cinematic, 8k resolution, and specifically describe the lighting and materials related to the topic. Avoid generic "tech blue" backgrounds. Use complementary colors and dynamic composition.""")
+        4. A vivid, high-quality Image Prompt for a blog cover image. 
+           CRITICAL STYLE RULES FOR THE IMAGE PROMPT:
+           - NEVER use simple/plain backgrounds or "tech blue".
+           - Describe a gorgeous, highly detailed focal subject (e.g., an intricate isometric server city, a glowing crystal core, a robotic artisan).
+           - Specify the lighting (e.g., golden hour, moody neon, bioluminescent).
+           - Specify the rendering style (e.g., Unreal Engine 5, Octane Render, macro photography).
+           - The image should not contain text.""")
     ])
     
     meta_chain = meta_prompt | llm | parser
@@ -627,11 +633,11 @@ async def production_studio_node(state: MarketingState):
         
         The 4 prompts must be unique scenes:
         1. **Title Card**: A massive, jaw-dropping 3D environment related to '{topic}' (e.g. inside a quantum computer, a solar farm, a cyberpunk server city). In the foreground, large, 3D, glowing text reads: "{headline}". The text is integrated into the environment, with cables or light beams connecting to it. Background is FULL of detail.
-        2. **Action/Detail Shot**: A dynamic, motion-filled shot representing the core action of: "{summary}". (e.g. A robot hand assembling a chip, a data stream colliding, a rocket launch). High shutter speed, frozen motion. NO TEXT. Background is rich and textured.
-        3. **Conceptual/Abstract**: A surreal, high-art interpretation of the topic. Think "Wired Magazine" cover art. Strange, beautiful, unexpected geometry and lighting. NO TEXT. Complex fractal or organic background.
-        4. **Branding/Closing**: A stunning, high-tech environment (not a plain studio). A physical, metallic 3D logo text reading "Databro" sits on a floating platform in a digital nebula or server room. Below it, smaller engraved text reads: "databro.dev". Cinematic lighting, lens flares, dust particles.
+        2. **Action/Detail Shot**: A dynamic background representing: "{summary}". Crucially, overlaid on this background, there must be elegant, glowing text listing 2 or 3 short bullet points summarizing key concepts of the topic. Ensure the text is highly legible against the complex background.
+        3. **Conceptual/Abstract**: A surreal, high-art interpretation of the topic. Think "Wired Magazine" cover art. Overlaid on this artwork, include beautiful glowing text featuring 2 or 3 more short technical highlights about '{topic}'. Keep the text clean and professional.
+        4. **Branding/Closing**: A stunning, high-tech environment. In the absolute dead center of the frame (so it does not get truncated when cropped for vertical video), a physical, metallic 3D logo text reading "Databro". Exactly below that, smaller text reading: "databro.dev". Below that, a subtle credit reading "Kumar Saraboji, Data Engineer". Keep everything tightly grouped in the center 50% of the screen.
         
-        Return ONLY a JSON list of 4 strings. Each string should be 40-60 words long."""),
+        Return ONLY a JSON list of 4 strings. Each string should be 40-70 words long."""),
         ("human", "Generate the 4 visual prompts now. Topic: {topic}. Summary: {summary}. Headline: {headline}")
     ])
     
@@ -650,9 +656,9 @@ async def production_studio_node(state: MarketingState):
     if not keyframe_prompts or len(keyframe_prompts) < 4:
         keyframe_prompts = [
             f"Epic cinematic wide shot of a futuristic datascape city at night. Towering glowing server skyscrapers. In the center, large 3D glowing white text reads: '{headline}'. Volumetric fog, neon lights, 8k resolution, complex background.",
-            f"Macro photography of a computer processor with complex golden circuitry and blue light pulses. Depth of field, bokeh, highly detailed, 8k resolution.",
-            f"Abstract 3D art illustration of a neural network glowing in a void. Glass and neon textures, intricate geometry, surreal and beautiful.",
-            "Futuristic server room with blue LED strips and smoke. Large, clean, white 3D sans-serif text reading 'Databro' floats in the center. Smaller text 'databro.dev' below it. Cinematic lighting, lens flares, detailed background."
+            f"Macro photography of a computer processor with complex golden circuitry and blue light pulses. Overlaid text reads: 'Data Pipelines, Scalability, Architecture'. Depth of field, bokeh, highly detailed, 8k resolution.",
+            f"Abstract 3D art illustration of a neural network glowing in a void. Overlaid text reads: 'Automation, Analytics, Insights'. Glass and neon textures, intricate geometry.",
+            "Futuristic server room with blue LED strips. Tightly grouped in the center of the frame: Large, clean, white 3D sans-serif text reading 'Databro'. Exactly below it, smaller text 'databro.dev'. Below that, 'Kumar Saraboji, Data Engineer'. Cinematic lighting."
         ]
     
     video_clips = []
