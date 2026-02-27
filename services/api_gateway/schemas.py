@@ -20,6 +20,7 @@ class LessonResponse(BaseModel):
 class MarketingRequest(BaseModel):
     topic: str
     admin_id: str
+    publish_config: Optional[dict] = None
 
 class MarketingResponse(BaseModel):
     job_id: str

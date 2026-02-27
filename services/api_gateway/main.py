@@ -14,7 +14,7 @@ from visitor_counter import get_and_increment_visitor_count, get_visitor_stats
 
 # --- Marketing Agent Functions ---
 marketing_jobs = {}
-async def run_marketing_job(job_id: str, topic: str):
+async def run_marketing_job(job_id: str, topic: str, publish_config: dict = None):
     """
     Runs the marketing agent workflow in the background.
     """
@@ -32,7 +32,8 @@ async def run_marketing_job(job_id: str, topic: str):
             "tags": [],
             "status": "starting",
             "logs": [],
-            "errors": []
+            "errors": [],
+            "publish_config": publish_config or {}
         }
         
         # Async invoke the graph
@@ -77,7 +78,7 @@ async def generate_marketing_campaign(req: MarketingRequest, background_tasks: B
     marketing_jobs[job_id] = {"status": "queued"}
     
     # Run in background
-    background_tasks.add_task(run_marketing_job, job_id, req.topic)
+    background_tasks.add_task(run_marketing_job, job_id, req.topic, req.publish_config)
     
     return MarketingResponse(job_id=job_id, status="queued", logs=["Job started in background."])
 

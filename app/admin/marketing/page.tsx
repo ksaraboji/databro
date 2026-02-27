@@ -20,6 +20,12 @@ export default function MarketingAdminPage() {
     const [result, setResult] = useState<any>(null);
     const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>('mobile');
     const logsEndRef = useRef<HTMLDivElement>(null);
+    const [publishConfig, setPublishConfig] = useState({
+        devto: true,
+        twitter: false,
+        instagram: false,
+        youtube: false
+    });
 
     // Auto-scroll logs
     useEffect(() => {
@@ -53,7 +59,11 @@ export default function MarketingAdminPage() {
             const res = await fetch(`${targetUrl}/marketing/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ topic, admin_id: "admin_secret_123" })
+                body: JSON.stringify({ 
+                    topic, 
+                    admin_id: "admin_secret_123",
+                    publish_config: publishConfig 
+                })
             });
             
             if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
@@ -80,10 +90,26 @@ export default function MarketingAdminPage() {
                 
                 // Update logs if new ones exist (mocking log diffing for now)
                 if (data.logs && data.logs.length > logs.length) {
-                   // simplistic log update
-                   // just taking the last one for demo
-                   const lastLog = data.logs[data.logs.length - 1];
-                   addLog(lastLog, 'info');
+                   // Filter and format logs for frontend
+                   const newLogs = data.logs.slice(logs.length).map((msg: string) => {
+                       let type: 'info' | 'success' | 'error' = 'info';
+                       if (msg.startsWith("Error:")) type = 'error';
+                       else if (msg.startsWith("Success:")) type = 'success';
+                       else if (msg.startsWith("Warning:")) type = 'info';
+                       
+                       return {
+                           timestamp: new Date().toLocaleTimeString(),
+                           message: msg,
+                           type: type
+                       };
+                   });
+                   
+                   setLogs(prev => {
+                        // Avoid duplicates if polling is fast
+                        const existingMsgs = new Set(prev.map(l => l.message));
+                        const uniqueNewLogs = newLogs.filter(l => !existingMsgs.has(l.message));
+                        return [...prev, ...uniqueNewLogs];
+                   });
                 }
                 
                 if (data.status === "finished") {
@@ -167,6 +193,66 @@ export default function MarketingAdminPage() {
                                         </>
                                     )}
                                 </button>
+                            </div>
+                        </div>
+
+                        {/* Publishing Configuration */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <label className="block text-sm font-semibold text-slate-700 mb-3">
+                                Publishing Channels
+                            </label>
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={publishConfig.devto}
+                                        onChange={(e) => setPublishConfig({...publishConfig, devto: e.target.checked})}
+                                        className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="w-4 h-4 text-slate-500" />
+                                        <span className="text-sm font-medium text-slate-700">Dev.to (Article)</span>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={publishConfig.twitter}
+                                        onChange={(e) => setPublishConfig({...publishConfig, twitter: e.target.checked})}
+                                        className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <Twitter className="w-4 h-4 text-sky-500" />
+                                        <span className="text-sm font-medium text-slate-700">Twitter (Summary)</span>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={publishConfig.instagram}
+                                        onChange={(e) => setPublishConfig({...publishConfig, instagram: e.target.checked})}
+                                        className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <Instagram className="w-4 h-4 text-pink-500" />
+                                        <span className="text-sm font-medium text-slate-700">Instagram (Reel)</span>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={publishConfig.youtube}
+                                        onChange={(e) => setPublishConfig({...publishConfig, youtube: e.target.checked})}
+                                        className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <Video className="w-4 h-4 text-red-500" />
+                                        <span className="text-sm font-medium text-slate-700">YouTube (Shorts)</span>
+                                    </div>
+                                </label>
                             </div>
                         </div>
 
