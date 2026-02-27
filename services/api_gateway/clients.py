@@ -2,6 +2,8 @@ import httpx
 import os
 import asyncio
 from typing import Optional
+import uuid
+import filetype
 
 LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:11434")
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://rag-service:80")
@@ -107,28 +109,52 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                     )
                     
                     if response.status_code == 200:
-                        content_type = response.headers.get("content-type", "")
-                        print(f"Music generated successfully. Type: {content_type}, Size: {len(response.content)} bytes")
+                        audio_bytes = response.content
+                        print(f"Music generated successfully. Size: {len(audio_bytes)} bytes")
                         
-                        # Check if response is JSON (common for HF Endpoints if not using specific Accept header)
-                        if "application/json" in content_type:
-                            try:
-                                data = response.json()
-                                # Handle common HF Inference formats
-                                # 1. [{"generated_audio": [floats...], "sample_rate": 32000}]
-                                # 2. {"audio": "base64..."}
-                                if isinstance(data, list) and len(data) > 0 and "generated_audio" in data[0]:
-                                    # This is raw float data, would need numpy/scipy to save as wav
-                                    # BUT usually endpoints support saving as binary if we ask.
-                                    pass # Fallthrough to return content, but warn
-                                    print("Warning: Received raw float data, audio file might be unplayable directly.")
-                                    
-                                # If it's a blob/file response that was mislabeled or just raw bytes
-                                return response.content
-                            except:
-                                return response.content
+                        # Use filetype to guess the real extension
+                        kind = filetype.guess(audio_bytes)
+                        ext = kind.extension if kind else "bin"
+                        print(f"Detected music type: {kind.mime if kind else 'unknown'} ({ext})")
+
+                        # Create a temp file with the DETECTED extension
+                        temp_input = f"/tmp/raw_music_{uuid.uuid4().hex}.{ext}"
+                        final_wav = f"/tmp/music_{uuid.uuid4().hex}.wav"
                         
-                        return response.content
+                        with open(temp_input, "wb") as f:
+                            f.write(audio_bytes)
+                            
+                        # Convert WHATEVER we got (flac, ogg, mp3) to a standard PCM WAV
+                        # This fixes the "corruption" issue by re-encoding standard headers
+                        try:
+                            print(f"Converting {temp_input} to canonical WAV...")
+                            process = await asyncio.create_subprocess_exec(
+                                "ffmpeg", "-y", "-i", temp_input, 
+                                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", 
+                                final_wav,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                            await process.communicate()
+                            
+                            if os.path.exists(final_wav):
+                                with open(final_wav, "rb") as f:
+                                    clean_wav_bytes = f.read()
+                                print(f"Successfully converted music to WAV. Size: {len(clean_wav_bytes)}")
+                                
+                                # Cleanup
+                                os.remove(temp_input)
+                                os.remove(final_wav)
+                                
+                                return clean_wav_bytes
+                            else:
+                                print("FFmpeg conversion failed to create output file, returning raw bytes.")
+                                if os.path.exists(temp_input): os.remove(temp_input)
+                                return audio_bytes
+                        except Exception as conv_e:
+                            print(f"Error during audio conversion: {conv_e}")
+                            if os.path.exists(temp_input): os.remove(temp_input)
+                            return audio_bytes
                     
                     if response.status_code == 503:
                         # Service Unavailable - likely starting up
