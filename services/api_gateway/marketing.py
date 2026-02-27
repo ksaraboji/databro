@@ -404,7 +404,7 @@ class VideoScript(BaseModel):
         description=(
             "A highly descriptive, natural language prompt for a 5-second cinematic background video loop. "
             "CRITICAL REQUIREMENTS:\n"
-            "1. SCENE: An empty, minimalist 3D environment related to the topic. No people, no text, no logos.\n"
+            "1. SCENE: A detailed, atmospheric 3D environment related to the topic. No people, no text, no logos.\n"
             "2. VISUAL STYLE: Distinctive, cinematic, high-end commercial aesthetic. "
             "Use varied color palettes appropriate for the subject (e.g., warm oranges for cloud, cool teals for data, bright neons for AI). Avoid generic black.\n"
             "3. MOTION: A slow, continuous, elegant camera pan. Smooth and fluid.\n"
@@ -417,7 +417,7 @@ class VisualDirectives(BaseModel):
     prompts: List[str] = Field(
         description="A list of exactly 4 highly detailed, cinematic image generation prompts for a video sequence. "
                     "Each prompt must be distinct (Title Card, Detail Shot, Abstract Shot, Closing Branding). "
-                    "Focus on elegance, minimalism, and high-end tech aesthetic."
+                    "Focus on rich textures, complex environments, cinematic lighting, and photorealism. Avoid minimalism."
     )
 
 # --- Nodes ---
@@ -619,22 +619,29 @@ async def production_studio_node(state: MarketingState):
     logs.append(f"Generating dynamic visual directives for: {headline}")
     
     prompt_gen_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a Hollywood Art Director specializing in high-end tech commercials.
+        ("system", """You are a world-class Visual Director for high-budget sci-fi and tech productions.
         Your task is to write 4 distinct, highly detailed, photorealistic image generation prompts for a video sequence.
         
-        Style Guide:
-        - Cinematic, 8k resolution, Unreal Engine 5 render, volumetrics, dynamic lighting.
-        - Avoid generic "tech blue" or simple black backgrounds. Use rich, deep colors appropriate for the topic (e.g., warm data centers, cool server rooms, vibrant cyber cities).
-        - High contrast, sharp focus, depth of field.
+        CRITICAL INSTRUCTION FOR TEXT: 
+        - The image generator can render text, but you MUST be explicit. 
+        - When asking for text, specify: "Large, bold, legible white text saying 'HEADER'". 
+        - Ensure spelling is verified.
         
-        The 4 prompts must be:
-        1. **Title Card**: A stunning, complex 3D background related to '{topic}' (e.g. a sprawling detailed data center, a glowing neural network, a futuristic city). In the center, large, bold, glowing white sans-serif text reading "{headline}". The text must be legible but integrated into the scene.
-        2. **Detail Shot**: A macro close-up of a relevant tech object (e.g. server rack, microchip, fiber optic, data stream) related to the summary: "{summary}". No text.
-        3. **Abstract Shot**: A beautiful, abstract 3D visualization of data processing or AI. High complexity, glass and metal textures. No text.
-        4. **Closing Shot**: A professional, high-end studio background (dark grey/navy gradient). Large, clean, white 3D sans-serif text reading "Databro" in the center AND smaller text "databro.dev" at the bottom.
+        VISUAL STYLE GUIDE (VARY THIS BASED ON TOPIC):
+        - STRICTLY FORBIDDEN: Plain black backgrounds, simple solid colors, or empty "studio" voids.
+        - ALWAYS REQUIRED: Complex, textured backgrounds (smoke, particles, intricate geometry, cityscapes, server farms).
+        - Use cinematic composition: low angles, depth of field, volumetric fog, dramatic lighting (rembrandt, rim lighting).
+        - Materiality: Think glass, obsidian, brushed aluminum, bioluminescence, holographic interfaces.
+        - Color Palette: Match the topic (e.g. Cybersecurity = Red/Black/Gold; AI = Iridescent/Pearl/White; Cloud = Soft Aero/Cumulus/Daylight).
         
-        Return ONLY a JSON list of 4 strings."""),
-        ("human", "Generate the 4 visual prompts now.")
+        The 4 prompts must be unique scenes:
+        1. **Title Card**: A massive, jaw-dropping 3D environment related to '{topic}' (e.g. inside a quantum computer, a solar farm, a cyberpunk server city). In the foreground, large, 3D, glowing text reads: "{headline}". The text is integrated into the environment, with cables or light beams connecting to it. Background is FULL of detail.
+        2. **Action/Detail Shot**: A dynamic, motion-filled shot representing the core action of: "{summary}". (e.g. A robot hand assembling a chip, a data stream colliding, a rocket launch). High shutter speed, frozen motion. NO TEXT. Background is rich and textured.
+        3. **Conceptual/Abstract**: A surreal, high-art interpretation of the topic. Think "Wired Magazine" cover art. Strange, beautiful, unexpected geometry and lighting. NO TEXT. Complex fractal or organic background.
+        4. **Branding/Closing**: A stunning, high-tech environment (not a plain studio). A physical, metallic 3D logo text reading "Databro" sits on a floating platform in a digital nebula or server room. Below it, smaller engraved text reads: "databro.dev". Cinematic lighting, lens flares, dust particles.
+        
+        Return ONLY a JSON list of 4 strings. Each string should be 40-60 words long."""),
+        ("human", "Generate the 4 visual prompts now. Topic: {topic}. Summary: {summary}. Headline: {headline}")
     ])
     
     parser = JsonOutputParser(pydantic_object=VisualDirectives)
@@ -651,10 +658,10 @@ async def production_studio_node(state: MarketingState):
     # Fallback if LLM fails
     if not keyframe_prompts or len(keyframe_prompts) < 4:
         keyframe_prompts = [
-            f"Cinematic 3D render of a futuristic data center with glowing servers. In the center, large bold white text reads: '{headline}'. Volumetric lighting, 8k resolution, detailed background.",
-            "Close up macro shot of digital data stream, glowing blue particles, depth of field, complex texture.",
-            "Abstract geometric shapes rotating in void, glass texture, high end commercial style, colorful lighting.",
-            "Dark professional studio background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Small text 'databro.dev' at bottom. Professional logo design, sharp focus."
+            f"Epic cinematic wide shot of a futuristic datascape city at night. Towering glowing server skyscrapers. In the center, large 3D glowing white text reads: '{headline}'. Volumetric fog, neon lights, 8k resolution, complex background.",
+            f"Macro photography of a computer processor with complex golden circuitry and blue light pulses. Depth of field, bokeh, highly detailed, 8k resolution.",
+            f"Abstract 3D art illustration of a neural network glowing in a void. Glass and neon textures, intricate geometry, surreal and beautiful.",
+            "Futuristic server room with blue LED strips and smoke. Large, clean, white 3D sans-serif text reading 'Databro' floats in the center. Smaller text 'databro.dev' below it. Cinematic lighting, lens flares, detailed background."
         ]
     
     video_clips = []
