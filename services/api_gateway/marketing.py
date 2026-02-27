@@ -40,6 +40,9 @@ except ImportError:
     InferenceClient = None
     print("Warning: huggingface_hub not installed")
 import io
+import tempfile
+import subprocess
+import os
 
 # --- Configuration ---
 HF_API_KEY = os.getenv("HF_API_KEY")
@@ -54,7 +57,8 @@ DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
 # Reverting to Wan2.1 since user has Pro subscription. 
 # Note: If 402 persists, check if this model requires a Dedicated Endpoint.
-HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B" 
+HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B"
+HF_AUDIO_MODEL = "facebook/musicgen-small" 
 
 # --- LangChain Models ---
 llm = ChatGroq(
@@ -109,6 +113,81 @@ async def generate_image_hf(prompt: str) -> Optional[bytes]:
     except Exception as e:
         print(f"HF Gen Error: {e}")
         return None
+
+async def generate_audio_hf(prompt: str) -> Optional[bytes]:
+    """Generates audio using Hugging Face Inference API."""
+    if not AsyncInferenceClient or not HF_API_KEY:
+        print("Error: HF_API_KEY missing for audio gen")
+        return None
+
+    print(f"Generating audio for: '{prompt[:30]}...' using {HF_AUDIO_MODEL}")
+    try:
+        # Using sync client in executor for safety
+        client = InferenceClient(api_key=HF_API_KEY)
+        loop = asyncio.get_running_loop()
+        audio_bytes = await loop.run_in_executor(
+            None,
+            lambda: client.text_to_audio(prompt, model=HF_AUDIO_MODEL)
+        )
+        # musicgen-small returns a dictionary with 'audio' key (numpy array) OR bytes depending on return_full_text
+        # Actually InferenceClient.text_to_audio returns bytes (flac/wav) directly usually? 
+        # API docs say it returns audio bytes.
+        
+        # However, sometimes it returns a tuple (sampling_rate, data).
+        # Let's verify return type handling if needed, but standard InferenceClient usually handles the bytes.
+        # If it returns a numpy array we might need to encode it, but text_to_audio usually returns bytes of a wav/flac file.
+        
+        return audio_bytes
+    except Exception as e:
+        print(f"HF Audio Gen Error: {e}")
+        return None
+
+def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[bytes]:
+    """Combines video and audio bytes using ffmpeg."""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
+            temp_video.write(video_bytes)
+            video_path = temp_video.name
+            
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+            temp_audio.write(audio_bytes)
+            audio_path = temp_audio.name
+            
+        output_path = video_path.replace(".mp4", "_final.mp4")
+        
+        # ffmpeg command: loop audio if shorter, or cut if longer? 
+        # -stream_loop -1 for audio might not work if input is pipe, but here it is file.
+        # simpler: just merge. If audio is shorter, silence at end. If longer, cut.
+        # -shortest: finish when shortest stream finishes (usually video)
+        
+        command = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-i", audio_path,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-shortest", # Clip audio to video length
+            output_path
+        ]
+        
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        
+        with open(output_path, "rb") as f:
+            combined_bytes = f.read()
+            
+        # Cleanup
+        os.remove(video_path)
+        os.remove(audio_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+            
+        return combined_bytes
+    except Exception as e:
+        print(f"FFmpeg Error: {e}")
+        # Return original video if merge fails
+        return video_bytes
 
 async def generate_video_hf(prompt: str) -> Optional[bytes]:
     """
@@ -182,7 +261,7 @@ class ArticleMetadata(BaseModel):
 class VideoScript(BaseModel):
     sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script (total duration ~30s)")
     visuals: List[str] = Field(description="List of visual prompts corresponding to each sentence")
-    video_prompt: str = Field(description="A comprehensive, detailed prompt for generating a single high-quality 5-second background video loop. Requirements: 1. Visual Style: Futurustic, clean, high-tech motion graphics. 2. Content: Show the text headline '{headline}' with kinetic typography. 3. Topic: Include animated 3D logos/icons relevant to the topic (e.g., if 'DuckDB', show a stylized duck/database). 4. Branding: display 'Databro' logo watermark in the corner. 5. Subject: NO PEOPLE. Abstract tech concepts only. 6. Motion: Smooth, continuous loopable movement.")
+    video_prompt: str = Field(description="A comprehensive, detailed prompt for generating a single high-quality 5-second background video loop. Requirements: \n1. VISUAL STYLE: Futuristic, clean, high-tech motion graphics. \n2. TEXT: Show the headline '{headline}' clearly with correct English spelling. Kinetic typography. \n3. IMAGERY: Animated 3D logos/icons relevant to the topic (e.g., if 'DuckDB', show a stylized duck/database). \n4. BRANDING: 'Databro' logo watermark in corner. \n5. SUBJECT: Abstract tech concepts, code snippets, data streams. NO PEOPLE. \n6. AUDIO: Upbeat, engaging tech background music. \n7. ENDING: Subtle icons for Twitter, YouTube, Instagram.")
 
 # --- Nodes ---
 
@@ -270,8 +349,8 @@ async def visual_director_node(state: MarketingState):
     parser = JsonOutputParser(pydantic_object=VideoScript)
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a Visual Director for Tech Videos."),
-        ("human", "Create a 30s YouTube Short script (voiceover) about: '{headline}'. \nContext/Summary: {summary}\nReturns JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt' for generating a 5s abstract background video loop.\n{format_instructions}")
+        ("system", "You are a Visual Director for Tech Videos. Ensure all text in video prompts is in English and spelled correctly."),
+        ("human", "Create a 30s YouTube Short script (voiceover) about: '{headline}'. \nContext/Summary: {summary}\nReturns JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt' for generating a 5s abstract background video loop. \nVideo Prompt must include: Kinetic Typography of Headline, Databro Logo, Topic Icons, Social Media Icons (Twitter/YT/IG) at end. NO PEOPLE.\n{format_instructions}")
     ])
     
     chain = prompt | llm | parser
@@ -360,14 +439,18 @@ async def production_studio_node(state: MarketingState):
         first_line = script[0] if script else "Data visualization"
         summary_text = state.get("summary", "")
         # Fallback now includes summary for better context
-        video_prompt = f"Cinematic {headline}, {summary_text[:50]}, {first_line}, Databro logo overlay, high quality, 4k, no people, animated icons"
+        video_prompt = f"Cinematic {headline}, {summary_text[:50]}, {first_line}, kinetic english typography, Databro logo overlay, high quality, 4k, no people, animated icons, energetic tech sound"
     else:
         # Augment the generated prompt with strict constraints if not already present
         video_prompt = video_gen_prompt
+        if "english" not in video_prompt.lower():
+            video_prompt += ", explicit english text"
         if "no people" not in video_prompt.lower():
             video_prompt += ", NO PEOPLE, abstract tech visualization"
         if "databro" not in video_prompt.lower():
-            video_prompt += ", with 'Databro' text watermark"
+            video_prompt += ", with 'Databro' logo watermark"
+        if "social" not in video_prompt.lower():
+             video_prompt += ", with animated social media icons (Twitter, YouTube, Instagram) at end"
         if "audio" not in video_prompt.lower() and "sound" not in video_prompt.lower():
              video_prompt += ", energetic tech background music"
 
@@ -375,9 +458,33 @@ async def production_studio_node(state: MarketingState):
     
     video_bytes = await generate_video_hf(video_prompt)
     
-    video_url = ""
-    
     if video_bytes:
+        # --- Audio Generation & Stitching ---
+        logs.append("Generating matching audio track...")
+        audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
+        try:
+            audio_bytes = await generate_audio_hf(audio_prompt)
+            if audio_bytes:
+                logs.append("Audio generated. Stitching video and audio...")
+                # Run ffmpeg in executor to avoid blocking
+                loop = asyncio.get_running_loop()
+                combined_bytes = await loop.run_in_executor(
+                    None, 
+                    lambda: combine_audio_video(video_bytes, audio_bytes)
+                )
+                if combined_bytes:
+                    video_bytes = combined_bytes
+                    logs.append("Audio stitching successful.")
+                else:
+                    logs.append("Warning: Audio stitching returned None, using original video.")
+            else:
+                logs.append("Warning: Audio generation failed, proceeding with silent video.")
+        except Exception as audio_e:
+             logs.append(f"Audio Processing Error: {audio_e}")
+
+        # --- Upload ---
+        video_url = ""
+    
         try:
             # Hash might be negative, sanitize filename
             import hashlib
