@@ -264,10 +264,16 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                 output_path
             ]
             
-            subprocess.run(final_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            # Use check=False to capture result and ignore non-fatal exit codes
+            result = subprocess.run(final_cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
-            with open(output_path, "rb") as f:
-                return f.read()
+            # If output exists and is non-zero, we consider it a success even if ffmpeg returned a warning code
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                with open(output_path, "rb") as f:
+                    return f.read()
+            else:
+                 # Only raise if output is missing
+                 raise Exception(f"FFmpeg failed (Exit {result.returncode}): {result.stderr.decode('utf-8')}")
                 
     except Exception as e:
         print(f"Stitch Error: {e}")
@@ -511,10 +517,10 @@ async def production_studio_node(state: MarketingState):
     scripts = state.get("script", [])
     # We construct specific prompts for visual variety
     keyframe_prompts = [
-        f"Cinematic wide shot, matte black and neon blue tech environment. Large glowing text overlay: '{headline}'. {state.get('video_gen_prompt', '')}",
+        f"Sleek minimalistic tech background, matte black. Large, bold, glowing white text in the center reading: '{headline}'. High resolution typography, correct spelling, sharp focus.",
         "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
         "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
-        "Databro logo appearing in center, clean white 3D text against dark background, lens flare."
+        "Dark background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Professional logo design, sharp focus, correct spelling."
     ]
     
     video_clips = []
@@ -572,6 +578,15 @@ async def production_studio_node(state: MarketingState):
             # Generate 30s of audio 
             print("Invoking generate_music_track...") 
             audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
+
+            # Upload Audio immediately if successful
+            if audio_bytes:
+                audio_filename = f"audio_{uuid.uuid4().hex[:8]}.wav"
+                audio_url = upload_to_azure(audio_bytes, audio_filename, "audio/wav")
+                if audio_url:
+                    logs.append(f"Audio track uploaded: {audio_url}")
+                    generated_asset_urls.append(audio_url)
+                    
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
 
