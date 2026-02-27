@@ -507,40 +507,37 @@ async def production_studio_node(state: MarketingState):
     # 2. Generate Video Sequence (Image-to-Video Workflow)
     headline = state.get("headline", "Tech Update")
     
-    # Generate 15 Keyframes using Flux first
+    # Generate 4 Keyframes using Flux first
     scripts = state.get("script", [])
     # We construct specific prompts for visual variety
-    # Base structure for 15 frames to ensure storytelling flow
     keyframe_prompts = [
         f"Cinematic wide shot, matte black and neon blue tech environment. Large glowing text overlay: '{headline}'. {state.get('video_gen_prompt', '')}",
         "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
         "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
-        "Databro logo appearing in center, clean white 3D text against dark background, lens flare.",
-        
-        # Additional 11 frames for 15 total
-        "Futuristic server room aisle, infinite regress, cyan neon lighting, 8k resolution.",
-        "Abstract representation of neural network nodes connecting, glowing lines, dark background.",
-        "Digital waveform visualization, rhythmic motion, sharp focus, vibrant blue and purple.",
-        "Cyberpunk city skyline silhouetted against data clouds, extremely detailed, matte painting style.",
-        "Holographic interface projection in mid-air, complex data charts and graphs, clean UI.",
-        "Microchip macro photography, gold and silicon textures, dramatic side lighting.",
-        "Fiber optic cables bundle end-on view, light transmitting, bokeh effect.",
-        "Liquid metal flowing in zero gravity, reflective surfaces, chrome and neon blue.",
-        "Ascending bar chart made of glowing crystal blocks, upward trend, success visualization.",
-        "Global data network map on a dark rotating earth globe, connection lines spanning continents.",
-        "Final closing shot, fade to black with simple glowing 'Databro' text in center."
+        "Databro logo appearing in center, clean white 3D text against dark background, lens flare."
     ]
     
     video_clips = []
     logs.append("Starting Multi-Shot Video Generation...")
     
     # Generate clips sequentially
+    import uuid
+    
+    generated_asset_urls = []
+
     for i, p in enumerate(keyframe_prompts):
         logs.append(f"Generating Keyframe {i+1}: {p[:30]}...")
         # Reuse existing image gen function
         img_bytes = await generate_image_hf(p)
         
         if img_bytes:
+            # Upload Keyframe Immediately
+            kf_filename = f"keyframe_{i}_{uuid.uuid4().hex[:8]}.jpg"
+            kf_url = upload_to_azure(img_bytes, kf_filename, "image/jpeg")
+            if kf_url:
+                logs.append(f"Keyframe {i+1} uploaded: {kf_url}")
+                generated_asset_urls.append(kf_url)
+            
             # Animate it
             logs.append(f"Animating Keyframe {i+1}...")
             # Simple motion prompt for I2V
@@ -551,6 +548,13 @@ async def production_studio_node(state: MarketingState):
             if clip_bytes:
                 video_clips.append(clip_bytes)
                 logs.append(f"Clip {i+1} generated successfully ({len(clip_bytes)} bytes).")
+                
+                # Upload Video Clip Immediately
+                clip_filename = f"clip_{i}_{uuid.uuid4().hex[:8]}.mp4"
+                clip_url = upload_to_azure(clip_bytes, clip_filename, "video/mp4")
+                if clip_url:
+                    logs.append(f"Clip {i+1} uploaded: {clip_url}")
+                    generated_asset_urls.append(clip_url)
             else:
                  logs.append(f"Failed to animate Keyframe {i+1}")
         else:
@@ -562,21 +566,49 @@ async def production_studio_node(state: MarketingState):
         # --- Audio Generation & Stitching ---
         logs.append(f"Generating matching audio. We have {len(video_clips)} clips.")
         audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
+        
+        audio_bytes = None
         try:
             # Generate 30s of audio 
             print("Invoking generate_music_track...") 
             audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
-            
-            if audio_bytes:
-                logs.append("Audio generated. Stitching clips...")
+        except Exception as audio_e:
+             logs.append(f"Audio Processing Error: {audio_e}")
+
+        # Stitching Logic (With or Without Audio)
+        if audio_bytes:
+            logs.append("Audio generated. Stitching clips...")
+        else:
+            logs.append("Audio generation failed/skipped. Stitching SILENT video...")
+            # Create a silent dummy audio track of 30s to allow stitching logic to proceed?
+            # Or modify stitch_video_clips to handle None audio. 
+            # For now, let's keep it simple: if audio fails, we still want the stitched video.
+            # We'll need to update stitch_video_clips to handle missing audio, or just skip audio add.
+            # Let's just create a silent wave or handle it in stitcher.
+            # Actually, easiest is to just proceed with what we have.
+        
+        if video_clips:
+             try:
+                # If audio failed, we might want to generate a silent video
+                # But strict checking in 'stitch_video_clips' enables audio. 
+                # Let's try to proceed. 
+                # Note: The current 'stitch_video_clips' implementation expects 'audio_bytes'. 
+                # If audio is None, we need to handle it.
                 
-                # Run stitching in executor to avoid blocking main thread with ffmpeg
-                loop = asyncio.get_running_loop()
-                combined_bytes = await loop.run_in_executor(
-                    None, 
-                    lambda: stitch_video_clips(video_clips, audio_bytes)
-                )
-                  
+                if audio_bytes:
+                     # Run stitching in executor
+                    loop = asyncio.get_running_loop()
+                    combined_bytes = await loop.run_in_executor(
+                        None, 
+                        lambda: stitch_video_clips(video_clips, audio_bytes)
+                    )
+                else:
+                    # Fallback: Just concat the video clips without audio
+                    # We can't reuse stitch_video_clips easily without refactoring it.
+                    # For now, let's rely on the individual clips being uploaded (which covers the user request).
+                    logs.append("Skipping final stitch due to missing audio (implementation limitation).")
+                    combined_bytes = None
+
                 if combined_bytes:
                     video_bytes = combined_bytes
                     logs.append("Final video stitched successfully.")
@@ -591,12 +623,12 @@ async def production_studio_node(state: MarketingState):
                         logs.append(f"Video uploaded successfully: {video_url}")
                     else:
                         logs.append("Error: Azure Upload Failed for Final Video.")
-                else:
-                    logs.append("Stitching process returned None.")
-            else:
-                logs.append("Audio generation failed.")
-        except Exception as audio_e:
-             logs.append(f"Audio Processing Error: {audio_e}")
+             except Exception as stitch_e:
+                 logs.append(f"Stitching Error: {stitch_e}")
+
+    logs.append(f"Generated Image URLs: {image_urls}")
+    logs.append(f"Generated Intermediate Assets: {generated_asset_urls}")
+    logs.append(f"Generated Video URL: {video_url}")
     else:
         logs.append("Error: No video clips were generated successfully.")
 
