@@ -123,20 +123,25 @@ async def generate_audio_hf(prompt: str) -> Optional[bytes]:
     print(f"Generating audio for: '{prompt[:30]}...' using {HF_AUDIO_MODEL}")
     try:
         # Using sync client in executor for safety
-        client = InferenceClient(api_key=HF_API_KEY)
+        client = InferenceClient(token=HF_API_KEY)
         loop = asyncio.get_running_loop()
+        
+        # Audio generation API returns raw bytes directly for text-to-audio
         audio_bytes = await loop.run_in_executor(
             None,
-            lambda: client.text_to_audio(prompt, model=HF_AUDIO_MODEL)
+            lambda: client.post(json={"inputs": prompt}, model=HF_AUDIO_MODEL)
         )
-        # musicgen-small returns a dictionary with 'audio' key (numpy array) OR bytes depending on return_full_text
-        # Actually InferenceClient.text_to_audio returns bytes (flac/wav) directly usually? 
-        # API docs say it returns audio bytes.
         
-        # However, sometimes it returns a tuple (sampling_rate, data).
-        # Let's verify return type handling if needed, but standard InferenceClient usually handles the bytes.
-        # If it returns a numpy array we might need to encode it, but text_to_audio usually returns bytes of a wav/flac file.
-        
+        # If response is somehow wrapped in JSON (rare for this endpoint but possible on some fallbacks)
+        if isinstance(audio_bytes, dict) and "audio" in audio_bytes:
+             # Base64 decode or array process if needed. But usually it's raw.
+             # This is just a safeguard. 
+             pass 
+
+        if not isinstance(audio_bytes, bytes):
+            print(f"Warning: Unexpected audio response type: {type(audio_bytes)}")
+            return None
+            
         return audio_bytes
     except Exception as e:
         print(f"HF Audio Gen Error: {e}")
@@ -163,7 +168,7 @@ def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[byte
         command = [
             "ffmpeg", "-y",
             "-i", video_path,
-            "-i", audio_path,
+            "-stream_loop", "-1", "-i", audio_path,
             "-c:v", "copy",
             "-c:a", "aac",
             "-map", "0:v:0",
