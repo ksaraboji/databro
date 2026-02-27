@@ -156,6 +156,7 @@ class MarketingState(TypedDict):
     # Video Assets
     script: List[str] 
     image_prompts: List[str]
+    video_gen_prompt: str  # <--- Added strict text-to-video prompt
     audio_segments: List[str] 
     image_urls: List[str] 
     video_url: str 
@@ -174,8 +175,9 @@ class ArticleMetadata(BaseModel):
     tags: List[str] = Field(description="List of 5-7 relevant hashtags (e.g. #DataEngineering)")
 
 class VideoScript(BaseModel):
-    sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script")
+    sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script (total duration ~30s)")
     visuals: List[str] = Field(description="List of visual prompts corresponding to each sentence")
+    video_prompt: str = Field(description="A comprehensive, detailed prompt for generating a single high-quality 5-second background video loop. Requirements: 1. Visual Style: Futurustic, clean, high-tech motion graphics. 2. Content: Show the text headline '{headline}' with kinetic typography. 3. Topic: Include animated 3D logos/icons relevant to the topic (e.g., if 'DuckDB', show a stylized duck/database). 4. Branding: display 'Databro' logo watermark in the corner. 5. Subject: NO PEOPLE. Abstract tech concepts only. 6. Motion: Smooth, continuous loopable movement.")
 
 # --- Nodes ---
 
@@ -258,22 +260,25 @@ async def visual_director_node(state: MarketingState):
     logs = []
     logs.append("--- [Visual Director] Planning video assets ---")
     headline = state.get("headline", "New Tech Update")
+    summary = state.get("summary", "")
     
     parser = JsonOutputParser(pydantic_object=VideoScript)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a Visual Director for Tech Videos."),
-        ("human", "Create a 30s YouTube Short script about: '{headline}'. Returns JSON with 'sentences' and 'visuals'.\n{format_instructions}")
+        ("human", "Create a 30s YouTube Short script (voiceover) about: '{headline}'. \nContext/Summary: {summary}\nReturns JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt' for generating a 5s abstract background video loop.\n{format_instructions}")
     ])
     
     chain = prompt | llm | parser
     
     script = []
     new_prompts = []
+    video_gen_prompt = ""
     
     try:
         data = await chain.ainvoke({
             "headline": headline, 
+            "summary": summary,
             "format_instructions": parser.get_format_instructions()
         })
         
@@ -281,6 +286,7 @@ async def visual_director_node(state: MarketingState):
         if isinstance(data, dict):
              script = data.get("sentences", [])
              new_prompts = data.get("visuals", [])
+             video_gen_prompt = data.get("video_prompt", "")
         else:
              logs.append(f"Script Gen Warning: Expected dict, got {type(data)}")
         
@@ -297,10 +303,13 @@ async def visual_director_node(state: MarketingState):
     
     logs.append(f"Generated Script: {script}")
     logs.append(f"All Image Prompts: {all_prompts}")
+    if video_gen_prompt:
+        logs.append(f"Video Generation Prompt: {video_gen_prompt}")
 
     return {
         "script": script,
         "image_prompts": all_prompts,
+        "video_gen_prompt": video_gen_prompt,
         "logs": logs
     }
 
@@ -340,10 +349,24 @@ async def production_studio_node(state: MarketingState):
     # 2. Generate Video using Wan2.1
     headline = state.get("headline", "Tech Update")
     script = state.get("script", [])
-    first_line = script[0] if script else "Data visualization"
-    
-    video_prompt = f"Cinematic {headline}, {first_line}"
-    logs.append(f"Generating video with prompt: {video_prompt[:50]}...")
+    # Prefer the dedicated video prompt from Visual Director
+    video_gen_prompt = state.get("video_gen_prompt")
+    if not video_gen_prompt:
+        first_line = script[0] if script else "Data visualization"
+        summary_text = state.get("summary", "")
+        # Fallback now includes summary for better context
+        video_prompt = f"Cinematic {headline}, {summary_text[:50]}, {first_line}, Databro logo overlay, high quality, 4k, no people, animated icons"
+    else:
+        # Augment the generated prompt with strict constraints if not already present
+        video_prompt = video_gen_prompt
+        if "no people" not in video_prompt.lower():
+            video_prompt += ", NO PEOPLE, abstract tech visualization"
+        if "databro" not in video_prompt.lower():
+            video_prompt += ", with 'Databro' text watermark"
+        if "audio" not in video_prompt.lower() and "sound" not in video_prompt.lower():
+             video_prompt += ", energetic tech background music"
+
+    logs.append(f"Generating video with prompt: {video_prompt[:100]}...")
     
     video_bytes = await generate_video_hf(video_prompt)
     
