@@ -126,7 +126,7 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     try:
         # Initialize client with provider, but pass model in the method call as per docs
         client = AsyncInferenceClient(
-            api_key=HF_API_KEY, 
+            api_key="HF_API_KEY", 
             provider="fal-ai" 
         )
     except Exception as client_init_error:
