@@ -75,28 +75,37 @@ async def synthesize_speech(text: str) -> dict:
         return {"error": str(e)} 
 
 async def generate_music_track(prompt: str, duration: int = 10) -> Optional[bytes]:
-    """Calls the Speech service to generate music."""
-    print(f"Calling Speech Service (Music) with prompt: '{prompt[:30]}...' duration: {duration}s")
+    """Calls the HF Endpoint to generate music."""
+    # Use user-provided dedicated endpoint
+    url = "https://brkfdgvdr1bdxm4b.us-east-1.aws.endpoints.huggingface.cloud"
+    api_key = os.getenv("HF_API_KEY")
+
+    if not api_key:
+        print("Error: HF_API_KEY not found in environment for music generation.")
+        return None
+
+    print(f"Calling HF Endpoint (Music) with prompt: '{prompt[:30]}...' duration: {duration}s")
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{SPEECH_SERVICE_URL}/music",
-                json={"prompt": prompt, "duration": duration},
-                # Increased timeout to 600s (10 minutes)
-                # MusicGen on CPU can take ~2-3 mins for 30s audio.
-                # If we are looping inside the service, it might be faster, 
-                # but initial model load + generation is slow.
+                url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={"inputs": prompt}, # Duration is often fixed or set by model config in endpoints
                 timeout=600.0 
             )
             
             if response.status_code != 200:
-                print(f"Speech Service Music Error ({response.status_code}): {response.text}")
+                print(f"HF Endpoint Music Error ({response.status_code}): {response.text}")
                 return None
             
-            print(f"Music generated successfully. Size: {len(response.content) if response.content else 0} bytes")
+            # The endpoint returns raw audio bytes (usually FLAC or WAV)
+            print(f"Music generated successfully. Size: {len(response.content)} bytes")
             return response.content
     except Exception as e:
-        print(f"Error calling Speech Service (Music): {type(e).__name__} - {e}")
+        print(f"Error calling HF Endpoint (Music): {type(e).__name__} - {e}")
         import traceback
         traceback.print_exc()
         return None
