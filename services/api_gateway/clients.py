@@ -110,12 +110,56 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                     
                     if response.status_code == 200:
                         audio_bytes = response.content
-                        print(f"Music generated successfully. Size: {len(audio_bytes)} bytes")
+                        print(f"Music generated successfully. Raw Size: {len(audio_bytes)} bytes")
+                        
+                        # CHECK FOR JSON WRAPPER (Common cause of 'unknown' bin file with text header)
+                        # Hex 5b7b... is '[{' which means we got a JSON response instead of raw bytes.
+                        try:
+                            # Heuristic: Check if starts with JSON chars
+                            if audio_bytes.strip().startswith(b'[') or audio_bytes.strip().startswith(b'{'):
+                                import json
+                                import base64
+                                print("Detected JSON response structure. Attempting to parse...")
+                                json_data = response.json()
+                                
+                                # Handle list response: [{"generated_audio": "..."}] or [{"audio": "..."}]
+                                if isinstance(json_data, list) and len(json_data) > 0:
+                                    first_item = json_data[0]
+                                    if isinstance(first_item, dict):
+                                        # Look for common keys
+                                        for key in ["generated_audio", "audio", "blob", "content"]:
+                                            if key in first_item:
+                                                print(f"Found audio data in key: '{key}'")
+                                                audio_val = first_item[key]
+                                                if isinstance(audio_val, str):
+                                                    # Assume base64
+                                                    audio_bytes = base64.b64decode(audio_val)
+                                                    print(f"Decoded Base64 audio. New Size: {len(audio_bytes)}")
+                                                else:
+                                                    print(f"Warning: Key '{key}' content is not string. Type: {type(audio_val)}")
+                                                break
+                                    # Fallback: if it's just raw bytes in a list? Unlikely for musicgen.
+                                
+                                # Handle dict response: {"generated_audio": "..."}
+                                elif isinstance(json_data, dict):
+                                     for key in ["generated_audio", "audio", "blob", "content"]:
+                                            if key in json_data:
+                                                print(f"Found audio data in key: '{key}'")
+                                                audio_val = json_data[key]
+                                                if isinstance(audio_val, str):
+                                                    # Assume base64
+                                                    audio_bytes = base64.b64decode(audio_val)
+                                                    print(f"Decoded Base64 audio. New Size: {len(audio_bytes)}")
+                                                break
+                        except Exception as json_e:
+                            print(f"JSON parsing failed (might be raw audio after all): {json_e}")
+                            # If parsing failed, we assume it's raw audio (or corrupted) and proceed to detection
                         
                         # Use filetype to guess the real extension
                         kind = filetype.guess(audio_bytes)
                         ext = kind.extension if kind else "bin"
                         print(f"Detected music type: {kind.mime if kind else 'unknown'} ({ext})")
+
                         
                         # Fallback for FLAC if filetype misses it (common with raw streams)
                         if kind is None:
