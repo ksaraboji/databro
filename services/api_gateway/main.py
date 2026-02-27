@@ -54,8 +54,10 @@ app = FastAPI(title="Professor API Gateway")
 
 @app.get("/marketing/status/{job_id}", response_model=MarketingResponse)
 async def get_marketing_status(job_id: str):
+    print(f"Checking status for job: {job_id}")
     job = marketing_jobs.get(job_id)
     if not job:
+        print(f"Job {job_id} NOT FOUND. Current jobs: {list(marketing_jobs.keys())}")
         raise HTTPException(status_code=404, detail="Job not found")
         
     result = job.get("result", {})
@@ -75,6 +77,7 @@ async def generate_marketing_campaign(req: MarketingRequest, background_tasks: B
         raise HTTPException(status_code=403, detail="Unauthorized")
         
     job_id = str(uuid.uuid4())
+    print(f"Created new marketing job: {job_id}")
     marketing_jobs[job_id] = {"status": "queued"}
     
     # Run in background
