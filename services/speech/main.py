@@ -51,17 +51,15 @@ async def lifespan(app: FastAPI):
     print(f"Loading MusicGen model: {MUSIC_MODEL_NAME}...")
     try:
         music_processor = AutoProcessor.from_pretrained(MUSIC_MODEL_NAME)
-        # Force strict=False to suppress the UNEXPECTED weights error if it's just a head mismatch
-        # But for MusicGen, we want to ensure we're using the right class.
-        # The key mismatch 'decoder.model.decoder.embed_positions.weights' suggests
-        # we might be loading into a model that expects learned positions but got sinusoidal (or vice versa).
-        # We will try loading with ignore_mismatched_sizes=True first.
-        music_model = MusicgenForConditionalGeneration.from_pretrained(MUSIC_MODEL_NAME, ignore_mismatched_sizes=True)
-        print("MusicGen model loaded.")
+        # Standard load - the UNEXPECTED weights warning is annoying but harmless
+        music_model = MusicgenForConditionalGeneration.from_pretrained(MUSIC_MODEL_NAME)
+        print("MusicGen model loaded successfully.")
     except Exception as e:
         print(f"Failed to load MusicGen model (attempt 1): {e}")
+        import traceback
+        traceback.print_exc()
         try:
-           # Fallback: sometimes 'facebook/musicgen-small' needs to be loaded as a pipeline then extracted if direct load is finicky
+           # Fallback mostly for older Transformers versions
            print("Attempting fallback pipeline load...")
            pipe = pipeline("text-to-audio", MUSIC_MODEL_NAME)
            music_model = pipe.model
@@ -69,6 +67,7 @@ async def lifespan(app: FastAPI):
            print("MusicGen model loaded via pipeline fallback.")
         except Exception as e2:
            print(f"Failed to load MusicGen model completely: {e2}")
+           traceback.print_exc()
         
     yield
     

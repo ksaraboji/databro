@@ -92,7 +92,9 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
             print(f"Music generated successfully. Size: {len(response.content) if response.content else 0} bytes")
             return response.content
     except Exception as e:
-        print(f"Error calling Speech Service (Music): {e}")
+        print(f"Error calling Speech Service (Music): {type(e).__name__} - {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 async def seed_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:

@@ -250,16 +250,23 @@ class ArticleMetadata(BaseModel):
     tags: List[str] = Field(description="List of 5-7 relevant hashtags (e.g. #DataEngineering)")
 
 class VideoScript(BaseModel):
-    sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script (total duration ~30s)")
-    visuals: List[str] = Field(description="List of visual prompts corresponding to each sentence")
-    video_prompt: str = Field(description="A cinematic, high-end commercial prompt for a 5-second video loop. \n"
-    "Structure: [Subject] + [Motion] + [Style] + [Atmosphere]. \n"
-    "CRITICAL REQUIREMENTS:\n"
-    "1. VISUAL STYLE: Minimalist 3D render, 'Apple' commercial aesthetic, matte black and neon blue materials.\n"
-    "2. BRANDING: The text 'Databro' MUST appear in a crystal clear, san-serif font, embossed or floating white 3D letters. Centered or rule-of-thirds.\n"
-    "3. MOTION: Slow, smooth, elegant camera pan. No shaky cam. No chaotic cuts.\n"
-    "4. FOCUS: Entire scene in focus (f/8), sharp details, 8k resolution, Unreal Engine 5 render.\n"
-    "5. NEGATIVE PROMPT: blur, depth of field, bokeh, messy cable, dirty, glitch, shaky, people, faces, distortion, low resolution, jpeg artifacts.")
+    sentences: List[str] = Field(
+        description="List of 4-6 engaging sentences for the voiceover script (total duration ~30s)"
+    )
+    visuals: List[str] = Field(
+        description="List of visual concepts corresponding to each sentence to guide the video editor"
+    )
+    video_prompt: str = Field(
+        description=(
+            "A highly descriptive, natural language prompt for a 5-second cinematic background video loop. "
+            "CRITICAL REQUIREMENTS:\n"
+            "1. SCENE: An empty, minimalist 3D environment. No people, no text, no logos, no icons.\n"
+            "2. VISUAL STYLE: 'Apple' commercial aesthetic, sleek matte black surfaces with glowing neon blue accents.\n"
+            "3. MOTION: A slow, continuous, elegant camera pan. Smooth and fluid.\n"
+            "4. QUALITY: Photorealistic, Unreal Engine 5 render style, 8k resolution, entirely in sharp focus (f/8), pristine and clean.\n"
+            "5. FORMAT: Write as a flowing, descriptive paragraph, not a list of keywords."
+        )
+    )
 
 # --- Nodes ---
 
@@ -346,11 +353,25 @@ async def visual_director_node(state: MarketingState):
     
     parser = JsonOutputParser(pydantic_object=VideoScript)
     
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a Visual Director for Tech Videos. Ensure all text in video prompts is in English and spelled correctly."),
-        ("human", "Create a 30s YouTube Short script (voiceover) about: '{headline}'. \nContext/Summary: {summary}\nReturns JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt' for generating a 5s abstract background video loop. \nVideo Prompt must include: Kinetic Typography of Headline, Databro Logo, Topic Icons, Social Media Icons (Twitter/YT/IG) at end. NO PEOPLE.\n{format_instructions}")
-    ])
+    # prompt = ChatPromptTemplate.from_messages([
+    #     ("system", "You are a Visual Director for Tech Videos. Ensure all text in video prompts is in English and spelled correctly."),
+    #     ("human", "Create a 30s YouTube Short script (voiceover) about: '{headline}'. \nContext/Summary: {summary}\nReturns JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt' for generating a 5s abstract background video loop. \nVideo Prompt must include: Kinetic Typography of Headline, Databro Logo, Topic Icons, Social Media Icons (Twitter/YT/IG) at end. NO PEOPLE.\n{format_instructions}")
+    # ])
     
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an elite Visual Director for high-end Tech Commercials. Your job is to design stunning, text-free abstract background loops that text and UI elements will be overlaid onto later."),
+        ("human", """Create a 30s YouTube Short script (voiceover) about: '{headline}'. 
+    Context/Summary: {summary}
+
+    Return JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt'.
+
+    The 'video_prompt' MUST be for a clean, abstract, text-free background loop. 
+    DO NOT ask the video model to generate typography, logos, or social media icons. The background must be sleek, matte black and neon blue, leaving negative space in the center or rule-of-thirds for us to add the 'Databro' text in post-production.
+
+    {format_instructions}""")
+    ])
+
     chain = prompt | llm | parser
     
     script = []
