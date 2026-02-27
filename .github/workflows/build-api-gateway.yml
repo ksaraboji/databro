@@ -55,7 +55,7 @@ jobs:
           ingress: external
           containerAppName: api-gateway
           resourceGroup: databro-${{ env.ENV_NAME }}-rg
-          environmentVariables: |
+          environmentVariables: >-
             HF_API_KEY=${{ secrets.HF_API_KEY }}
             GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
             AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
