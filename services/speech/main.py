@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from faster_whisper import WhisperModel
 from TTS.api import TTS
-from transformers import AutoProcessor, MusicgenForConditionalGeneration
+from transformers import AutoProcessor, MusicgenForConditionalGeneration, pipeline
 
 import scipy.io.wavfile
 import numpy as np
