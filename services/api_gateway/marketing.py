@@ -73,10 +73,11 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID") # Business Account ID
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
-# Switching to HunyuanVideo as requested. 
-# Provides high-quality video generation capabilities.
-HF_VIDEO_MODEL = "tencent/HunyuanVideo"
-HF_AUDIO_MODEL = "facebook/musicgen-small" 
+# Switching to Image-to-Video workflow.
+# We will generate frames using Flux, then animate them using Wan2.1-I2V.
+# Fal.ai / HF routing usually exposes "Wan-AI/Wan2.1-I2V-14B-480P" or similar for I2V.
+HF_I2V_MODEL = "Wan-AI/Wan2.2-Animate-14B" 
+HF_AUDIO_MODEL = "facebook/musicgen-small"  
 
 # --- LangChain Models ---
 llm = ChatGroq(
@@ -180,44 +181,98 @@ def combine_audio_video(video_bytes: bytes, audio_bytes: bytes, target_duration:
         print(f"FFmpeg Error: {e}")
         return video_bytes
 
-async def generate_video_hf(prompt: str) -> Optional[bytes]:
-    """
-    Generates a video using Hugging Face Inference API for Wan2.1-T2V-1.3B.
-    This model generates a short video clip from a text prompt.
-    """
+async def generate_video_from_image(image_bytes: bytes, prompt: str) -> Optional[bytes]:
+    """Generates a video from an image using Wan2.1-I2V (Fal AI via HF)."""
     if not AsyncInferenceClient or not HF_API_KEY:
-        print("Error: HF_API_KEY not set or huggingface_hub not installed.")
+        print("Error: HF_API_KEY missing.")
         return None
+
+    try:
+        # Save image to temp file because HF client usually expects path or URL for I2V, or PIL image
+        import io
+        from PIL import Image
+        pil_image = Image.open(io.BytesIO(image_bytes))
+
+        # Use synchronous client for stability with large media tasks
+        client = InferenceClient(api_key=HF_API_KEY, provider="fal-ai")
         
-    print(f"Generating video for: '{prompt[:50]}...' using {HF_VIDEO_MODEL}")
-    
-    # Increase timeout to 300s (5 mins) as video generation is very slow
-    # Configure client specifically for text-to-video using fal-ai via HF Routing
-    # This requires huggingface_hub >= 0.28.0
-    try:
-        # Switching to Sync Client for Video to avoid 'video' key errors in async output parsing
-        client = InferenceClient(
-            api_key=HF_API_KEY, 
-            provider="fal-ai" 
-        )
-    except Exception as client_init_error:
-        print(f"Error initializing InferenceClient with provider='fal-ai': {client_init_error}")
-        return None
-    
-    try:
-        # returns bytes for video
-        # Pass model explicitly here as per documentation/snippet
-        # BLOCKING CALL: Must run in thread to avoid freezing event loop
         loop = asyncio.get_running_loop()
-        video_bytes = await loop.run_in_executor(
-            None, 
-            lambda: client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        print(f"Animating image with prompt: {prompt[:30]}...")
+        
+        # The text_to_video method in HF library is overloaded. 
+        # For actual I2V, we often need to use specific endpoints or the 'image_to_video' method if available.
+        # However, standard HF InferenceClient might wrap it. Let's try the generic 'image_to_video'.
+        
+        video_bytes = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, 
+                lambda: client.image_to_video(image=pil_image, prompt=prompt, model=HF_I2V_MODEL)
+            ), 
+            timeout=300.0
         )
         return video_bytes
     except Exception as e:
-        # If the specific model fails, try another free one or fail gracefully
-        print(f"HF Video Gen Error with {HF_VIDEO_MODEL}: {e}")
+        print(f"I2V Generation Error ({HF_I2V_MODEL}): {e}")
         return None
+
+def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional[bytes]:
+    """Stitches multiple video clips + one audio track into a single video."""
+    if not video_clips:
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Write video clips
+            clip_paths = []
+            for i, clip in enumerate(video_clips):
+                path = os.path.join(tmpdir, f"clip_{i}.mp4")
+                with open(path, "wb") as f:
+                    f.write(clip)
+                clip_paths.append(path)
+            
+            # Write audio
+            audio_path = os.path.join(tmpdir, "audio.wav")
+            with open(audio_path, "wb") as f:
+                f.write(audio_bytes)
+                
+            # Create list file for concatenation
+            list_path = os.path.join(tmpdir, "files.txt")
+            with open(list_path, "w") as f:
+                for path in clip_paths:
+                    f.write(f"file '{path}'\n")
+
+            output_path = os.path.join(tmpdir, "final_output.mp4")
+            
+            # 1. Concatenate videos
+            concat_cmd = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path,
+                "-c", "copy", os.path.join(tmpdir, "merged_video.mp4")
+            ]
+            subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            
+            # 2. Add Audio (loop audio if shorter, cut video if longer)
+            # We want the video length to dictate, but audio usually needs to loop. 
+            # Or we just map them. Let's map audio to merged video.
+            
+            final_cmd = [
+                "ffmpeg", "-y",
+                "-i", os.path.join(tmpdir, "merged_video.mp4"),
+                "-stream_loop", "-1", "-i", audio_path, # Loop audio
+                "-map", "0:v", "-map", "1:a",
+                "-c:v", "copy", "-c:a", "aac",
+                "-shortest", # End when the shortest stream ends (which is Video, since audio is looped)
+                output_path
+            ]
+            
+            subprocess.run(final_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            
+            with open(output_path, "rb") as f:
+                return f.read()
+                
+    except Exception as e:
+        print(f"Stitch Error: {e}")
+        return None
+
 
 # --- State Definition & Pydantic Config ---
 
@@ -449,98 +504,102 @@ async def production_studio_node(state: MarketingState):
     else:
         logs.append("Warning: No image prompts found. Skipping image generation.")
     
-    # 2. Generate Video using Wan2.1
+    # 2. Generate Video Sequence (Image-to-Video Workflow)
     headline = state.get("headline", "Tech Update")
-    script = state.get("script", [])
-    # Prefer the dedicated video prompt from Visual Director
-    video_gen_prompt = state.get("video_gen_prompt")
-    if not video_gen_prompt:
-        # High quality fallback
-        headline_text = state.get("headline", "Tech Update")
-        video_prompt = (
-            f"High-quality 3D motion graphics, futuristic glassmorphism, neon blue/orange data streams. "
-            f"Display text: '{headline_text}'. Branding: 'Databro' logo in top-right corner. "
-            "Correct English spelling. NO PEOPLE, NO FACES, NO BLURRY TEXT."
-        )
-    else:
-        # Enforce strict prompt engineering for quality control
-        # We restructure the prompt entirely to ensure the model focuses on the correct elements.
+    
+    # Generate 15 Keyframes using Flux first
+    scripts = state.get("script", [])
+    # We construct specific prompts for visual variety
+    # Base structure for 15 frames to ensure storytelling flow
+    keyframe_prompts = [
+        f"Cinematic wide shot, matte black and neon blue tech environment. Large glowing text overlay: '{headline}'. {state.get('video_gen_prompt', '')}",
+        "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
+        "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
+        "Databro logo appearing in center, clean white 3D text against dark background, lens flare.",
         
-        # 1. Clean up base prompt from 'chatty' instructions if any remain
-        clean_base = video_gen_prompt.replace("Generate a video", "").replace("Create a loop", "").strip()
+        # Additional 11 frames for 15 total
+        "Futuristic server room aisle, infinite regress, cyan neon lighting, 8k resolution.",
+        "Abstract representation of neural network nodes connecting, glowing lines, dark background.",
+        "Digital waveform visualization, rhythmic motion, sharp focus, vibrant blue and purple.",
+        "Cyberpunk city skyline silhouetted against data clouds, extremely detailed, matte painting style.",
+        "Holographic interface projection in mid-air, complex data charts and graphs, clean UI.",
+        "Microchip macro photography, gold and silicon textures, dramatic side lighting.",
+        "Fiber optic cables bundle end-on view, light transmitting, bokeh effect.",
+        "Liquid metal flowing in zero gravity, reflective surfaces, chrome and neon blue.",
+        "Ascending bar chart made of glowing crystal blocks, upward trend, success visualization.",
+        "Global data network map on a dark rotating earth globe, connection lines spanning continents.",
+        "Final closing shot, fade to black with simple glowing 'Databro' text in center."
+    ]
+    
+    video_clips = []
+    logs.append("Starting Multi-Shot Video Generation...")
+    
+    # Generate clips sequentially
+    for i, p in enumerate(keyframe_prompts):
+        logs.append(f"Generating Keyframe {i+1}: {p[:30]}...")
+        # Reuse existing image gen function
+        img_bytes = await generate_image_hf(p)
         
-        # 2. Construct the final prompt with explicit priority
-        # PRIORITY: Branding > Text Clarity > Visual Style > Negative Constraints
-        
-        style_prefix = "High-quality 3D motion graphics, futuristic glassmorphism, neon blue and orange data streams"
-        branding_instruction = "Overlay text: 'Databro' logo in top-right corner. Headline text in center with correct spelling"
-        negative_constraints = "NO PEOPLE, NO FACES, NO BLURRY TEXT, NO GIBBERISH, NO SPELLING MISTAKES, NO EXTRA WORDS"
-        
-        video_prompt = f"{style_prefix}. {clean_base}. {branding_instruction}. {negative_constraints}"
+        if img_bytes:
+            # Animate it
+            logs.append(f"Animating Keyframe {i+1}...")
+            # Simple motion prompt for I2V
+            motion_prompt = "Slow smooth camera pan, cinematic lighting, 4k, high quality, slow motion"
+            
+            # Using the new I2V function
+            clip_bytes = await generate_video_from_image(img_bytes, motion_prompt)
+            if clip_bytes:
+                video_clips.append(clip_bytes)
+                logs.append(f"Clip {i+1} generated successfully ({len(clip_bytes)} bytes).")
+            else:
+                 logs.append(f"Failed to animate Keyframe {i+1}")
+        else:
+             logs.append(f"Failed to generate Keyframe {i+1} image")
 
-    logs.append(f"Generating video with prompt: {video_prompt[:100]}...")
+    video_url = None
     
-    video_bytes = await generate_video_hf(video_prompt)
-    
-    if video_bytes:
+    if video_clips:
         # --- Audio Generation & Stitching ---
-        logs.append("Generating matching audio track using internal Music service...")
+        logs.append(f"Generating matching audio. We have {len(video_clips)} clips.")
         audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
         try:
-            # Generate 30s of audio first
+            # Generate 30s of audio 
             print("Invoking generate_music_track...") 
             audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
             
             if audio_bytes:
-                print(f"Audio received: {len(audio_bytes)} bytes. Saving to Az Blob for debug...")
-                try:
-                    # Debug: Upload raw audio to check if it's silent or corrupt
-                    debug_audio_name = f"debug_audio_{int(asyncio.get_running_loop().time())}.wav"
-                    debug_url = upload_to_azure(audio_bytes, debug_audio_name, "audio/wav")
-                    logs.append(f"Debug: Raw audio uploaded to {debug_url}")
-                except Exception as upload_e:
-                    print(f"Debug upload failed: {upload_e}")
-
-                logs.append("Audio generated. Creating 30s video loop...")
-                # Run ffmpeg in executor to avoid blocking
+                logs.append("Audio generated. Stitching clips...")
+                
+                # Run stitching in executor to avoid blocking main thread with ffmpeg
                 loop = asyncio.get_running_loop()
                 combined_bytes = await loop.run_in_executor(
                     None, 
-                    lambda: combine_audio_video(video_bytes, audio_bytes, target_duration=30)
+                    lambda: stitch_video_clips(video_clips, audio_bytes)
                 )
+                  
                 if combined_bytes:
                     video_bytes = combined_bytes
-                    logs.append("Video expanded to 30s loop with audio.")
+                    logs.append("Final video stitched successfully.")
+                    
+                    # Upload
+                    import hashlib
+                    start_hash = hashlib.md5(headline.encode()).hexdigest()
+                    filename = f"video_final_{start_hash}.mp4"
+                    
+                    video_url = upload_to_azure(video_bytes, filename, "video/mp4")
+                    if video_url:
+                        logs.append(f"Video uploaded successfully: {video_url}")
+                    else:
+                        logs.append("Error: Azure Upload Failed for Final Video.")
                 else:
-                    logs.append("Warning: Stitching failed, using original 5s clip.")
+                    logs.append("Stitching process returned None.")
             else:
-                print("generate_music_track returned None")
-                logs.append("Warning: Audio generation failed (None returned), returning silent 5s clip.")
+                logs.append("Audio generation failed.")
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
-
-        # --- Upload ---
-        video_url = ""
-    
-        try:
-            # Hash might be negative, sanitize filename
-            import hashlib
-            prompt_hash = hashlib.md5(video_prompt.encode()).hexdigest()
-            filename = f"video_{prompt_hash}.mp4"
-            
-            video_url = upload_to_azure(video_bytes, filename, "video/mp4")
-            if video_url:
-                logs.append(f"Video uploaded successfully: {video_url}")
-            else:
-                logs.append("Error: Azure Upload Failed for Video.")
-                video_url = None
-        except Exception as e:
-            logs.append(f"Error: Exception uploading video to Azure: {e}")
-            video_url = None
     else:
-        logs.append(f"Error: Video generation failed or returned empty bytes. Model: {HF_VIDEO_MODEL}")
-        video_url = None
-    
+        logs.append("Error: No video clips were generated successfully.")
+
     logs.append(f"Generated Image URLs: {image_urls}")
     logs.append(f"Generated Video URL: {video_url}")
 
