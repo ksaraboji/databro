@@ -46,6 +46,14 @@ jobs:
             databro${{ env.ENV_NAME }}acr.azurecr.io/api-gateway:latest
             databro${{ env.ENV_NAME }}acr.azurecr.io/api-gateway:${{ github.sha }}
 
+      - name: Get Storage Connection String
+        id: get-storage-key
+        run: |
+          STORAGE_ACCOUNT_NAME=$(az storage account list -g databro-${{ env.ENV_NAME }}-rg --query "[0].name" -o tsv)
+          CONN_STR=$(az storage account show-connection-string -n $STORAGE_ACCOUNT_NAME -g databro-${{ env.ENV_NAME }}-rg --query connectionString -o tsv)
+          echo "::add-mask::$CONN_STR"
+          echo "AZURE_STORAGE_CONNECTION_STRING=$CONN_STR" >> $GITHUB_ENV
+
       - name: Deploy to Azure Container App
         uses: azure/container-apps-deploy-action@v1
         with:
@@ -62,3 +70,4 @@ jobs:
             INSTAGRAM_ACCESS_TOKEN=${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
             INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
             DEVTO_API_KEY=${{ secrets.DEVTO_API_KEY }}
+            AZURE_STORAGE_CONNECTION_STRING='${{ env.AZURE_STORAGE_CONNECTION_STRING }}'
