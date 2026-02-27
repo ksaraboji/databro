@@ -345,7 +345,11 @@ async def production_studio_node(state: MarketingState):
     
     if video_bytes:
         try:
-            filename = f"video_{hash(video_prompt)}.mp4"
+            # Hash might be negative, sanitize filename
+            import hashlib
+            prompt_hash = hashlib.md5(video_prompt.encode()).hexdigest()
+            filename = f"video_{prompt_hash}.mp4"
+            
             video_url = upload_to_azure(video_bytes, filename, "video/mp4")
             if video_url:
                 logs.append(f"Video uploaded: {video_url}")
@@ -395,7 +399,13 @@ async def social_media_manager_node(state: MarketingState):
     article_md = state.get('article_content', '# Data Engineering Update\nComing soon.')
     
     if DEVTO_API_KEY:
+        logs.append(f"Attempting to publish to Dev.to with API Key: {DEVTO_API_KEY[:4]}...")
         try:
+             # Dev.to requires tags to be alphanumerical only (no #), and comma separated or list
+             # Clean tags: remove #, replace spaces, take top 4 (limit is usually 4)
+             cleaned_tags = [t.replace("#", "").replace(" ", "").lower() for t in tags_list][:4]
+             logs.append(f"Formatted Tags for Dev.to: {cleaned_tags}")
+
              async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "https://dev.to/api/articles",
@@ -406,7 +416,7 @@ async def social_media_manager_node(state: MarketingState):
                             "body_markdown": article_md,
                             "published": True, # Publish immediately
                             "main_image": cover_url, # Sets the official cover/hero image
-                            "tags": tags_list
+                            "tags": cleaned_tags
                         }
                     }
                 )
