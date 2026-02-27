@@ -34,9 +34,10 @@ except ImportError:
 
 # --- Custom Imports ---
 try: 
-    from huggingface_hub import AsyncInferenceClient 
+    from huggingface_hub import AsyncInferenceClient, InferenceClient
 except ImportError: 
     AsyncInferenceClient = None 
+    InferenceClient = None
     print("Warning: huggingface_hub not installed")
 import io
 
@@ -124,19 +125,19 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     # Configure client specifically for text-to-video using fal-ai via HF Routing
     # This requires huggingface_hub >= 0.28.0
     try:
-        # Initialize client with provider, but pass model in the method call as per docs
-        client = AsyncInferenceClient(
+        # Switching to Sync Client for Video to avoid 'video' key errors in async output parsing
+        client = InferenceClient(
             api_key=HF_API_KEY, 
             provider="fal-ai" 
         )
     except Exception as client_init_error:
-        print(f"Error initializing AsyncInferenceClient with provider='fal-ai': {client_init_error}")
+        print(f"Error initializing InferenceClient with provider='fal-ai': {client_init_error}")
         return None
     
     try:
         # returns bytes for video
         # Pass model explicitly here as per documentation/snippet
-        video_bytes = await client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        video_bytes = client.text_to_video(prompt, model=HF_VIDEO_MODEL)
         return video_bytes
     except Exception as e:
         # If the specific model fails, try another free one or fail gracefully
