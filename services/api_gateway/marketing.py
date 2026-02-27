@@ -76,10 +76,9 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID") # Business Account ID
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
-# Switching to Image-to-Video workflow.
-# We will generate frames using Flux, then animate them using Wan2.1-I2V.
-# Fal.ai / HF routing usually exposes "Wan-AI/Wan2.1-I2V-14B-480P" or similar for I2V.
-HF_I2V_MODEL = "Wan-AI/Wan2.2-I2V-A14B" 
+# Using a smaller/faster model for extreme cost reduction during Image-to-Video generation.
+# 'Lightricks/LTX-Video' and 'stabilityai/stable-video-diffusion-img2vid-xt-1-1' are excellent, cheap alternatives to massive 14B models.
+HF_I2V_MODEL = "Lightricks/LTX-Video" 
 HF_AUDIO_MODEL = "facebook/musicgen-small"  
 
 # --- LangChain Models ---
