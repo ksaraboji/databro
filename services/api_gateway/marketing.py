@@ -263,39 +263,30 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = 
                 filter_complex = ""
                 transition_duration = 1.0 # 1 second crossfade
                 
-                # Build input list
-                for path in clip_paths:
+                for i, path in enumerate(clip_paths):
                     inputs.extend(["-i", path])
-                
-                # Build filter graph
-                # stream 0 and 1 -> xfade -> v0
-                # v0 and 2 -> xfade -> v1 ...
+                    # We must normalize frame rate and size for xfade to work reliably
+                    # Example: scale to 1080x1920 (shorts), fps=30
+                    filter_complex += f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,format=yuv420p[v_norm{i}];"
                 
                 offset = 0.0
-                prev_stream = "0:v"
+                prev_stream = "v_norm0"
+                
+                # Make sure transition duration isn't longer than our shortest clip
+                min_dur = min(durations) if durations else 2.0
+                transition_duration = min(1.0, min_dur / 2.0)
                 
                 for i in range(1, len(clip_paths)):
-                    # Calculate offset for this transition
-                    # Offset is the cumulative duration of previous clips minus the overlap accumulation
-                    # Actually, easier: Offset = end of previous clip - transition duration.
-                    # Duration of first clip is D0. Offset = D0 - 1.
-                    # Result duration = D0 + D1 - 1.
-                    # Next offset = (D0 + D1 - 1) + D2 - 1 ... no wait.
-                    
-                    # Correct logic for N inputs:
-                    # Input 1 (duration D0) starts at 0.
-                    # Input 2 (duration D1) starts at D0 - T.
-                    # Input 3 indicates start at (D0 - T) + (D1 - T) = D0 + D1 - 2T? No.
-                    
-                    # Let's track the "current end time" of the growing stream.
                     if i == 1:
                         offset = durations[0] - transition_duration
                     else:
-                        # Add duration of the PREVIOUS clip to the offset, minus transition overlap
                         offset += durations[i-1] - transition_duration
                     
-                    next_stream = f"{i}:v"
-                    target_stream = f"v{i}" if i < len(clip_paths) - 1 else "outv"
+                    # Ensure offset is always positive
+                    offset = max(0.1, offset)
+                    
+                    next_stream = f"v_norm{i}"
+                    target_stream = f"v_xfade{i}" if i < len(clip_paths) - 1 else "outv"
                     
                     filter_complex += f"[{prev_stream}][{next_stream}]xfade=transition=fade:duration={transition_duration}:offset={offset}[{target_stream}];"
                     prev_stream = target_stream
