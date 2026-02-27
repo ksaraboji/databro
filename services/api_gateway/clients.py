@@ -74,6 +74,25 @@ async def synthesize_speech(text: str) -> dict:
         print(f"Error calling Speech Service (TTS): {e}")
         return {"error": str(e)} 
 
+async def generate_music_track(prompt: str, duration: int = 10) -> Optional[bytes]:
+    """Calls the Speech service to generate music."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{SPEECH_SERVICE_URL}/music",
+                json={"prompt": prompt, "duration": duration},
+                timeout=120.0 # MusicGen is slow regarding CPU
+            )
+            
+            if response.status_code != 200:
+                print(f"Speech Service Music Error ({response.status_code}): {response.text}")
+                return None
+                
+            return response.content
+    except Exception as e:
+        print(f"Error calling Speech Service (Music): {e}")
+        return None
+
 async def seed_rag_data(text: str, filename: str, topic: Optional[str] = None) -> dict:
     """Calls the RAG service to seed data."""
     try:

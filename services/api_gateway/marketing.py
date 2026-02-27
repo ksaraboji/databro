@@ -39,6 +39,17 @@ except ImportError:
     AsyncInferenceClient = None 
     InferenceClient = None
     print("Warning: huggingface_hub not installed")
+
+# Internal Service Clients
+try:
+    from clients import generate_music_track
+except ImportError:
+    try:
+        from .clients import generate_music_track
+    except ImportError:
+        # Re-raise so we know config is wrong, instead of silently failing features
+        raise ImportError("Could not import generate_music_track from clients. Check PYTHONPATH or directory structure.")
+
 import io
 import tempfile
 import subprocess
@@ -112,39 +123,6 @@ async def generate_image_hf(prompt: str) -> Optional[bytes]:
         return img_byte_arr.getvalue()
     except Exception as e:
         print(f"HF Gen Error: {e}")
-        return None
-
-async def generate_audio_hf(prompt: str) -> Optional[bytes]:
-    """Generates audio using Hugging Face Inference API."""
-    if not AsyncInferenceClient or not HF_API_KEY:
-        print("Error: HF_API_KEY missing for audio gen")
-        return None
-
-    print(f"Generating audio for: '{prompt[:30]}...' using {HF_AUDIO_MODEL}")
-    try:
-        # Using sync client in executor for safety
-        client = InferenceClient(token=HF_API_KEY)
-        loop = asyncio.get_running_loop()
-        
-        # Audio generation API returns raw bytes directly for text-to-audio
-        audio_bytes = await loop.run_in_executor(
-            None,
-            lambda: client.post(json={"inputs": prompt}, model=HF_AUDIO_MODEL)
-        )
-        
-        # If response is somehow wrapped in JSON (rare for this endpoint but possible on some fallbacks)
-        if isinstance(audio_bytes, dict) and "audio" in audio_bytes:
-             # Base64 decode or array process if needed. But usually it's raw.
-             # This is just a safeguard. 
-             pass 
-
-        if not isinstance(audio_bytes, bytes):
-            print(f"Warning: Unexpected audio response type: {type(audio_bytes)}")
-            return None
-            
-        return audio_bytes
-    except Exception as e:
-        print(f"HF Audio Gen Error: {e}")
         return None
 
 def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[bytes]:
@@ -470,10 +448,12 @@ async def production_studio_node(state: MarketingState):
     
     if video_bytes:
         # --- Audio Generation & Stitching ---
-        logs.append("Generating matching audio track...")
+        logs.append("Generating matching audio track using internal Music service...")
         audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
         try:
-            audio_bytes = await generate_audio_hf(audio_prompt)
+            # Call internal microservice instead of HF API directly
+            audio_bytes = await generate_music_track(prompt=audio_prompt, duration=6)
+            
             if audio_bytes:
                 logs.append("Audio generated. Stitching video and audio...")
                 # Run ffmpeg in executor to avoid blocking
@@ -488,7 +468,7 @@ async def production_studio_node(state: MarketingState):
                 else:
                     logs.append("Warning: Audio stitching returned None, using original video.")
             else:
-                logs.append("Warning: Audio generation failed, proceeding with silent video.")
+                logs.append("Warning: Audio generation failed (None returned), proceeding with silent video.")
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
 
