@@ -126,8 +126,7 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     try:
         # Initialize client with provider, but pass model in the method call as per docs
         client = AsyncInferenceClient(
-            token=HF_API_KEY, 
-            timeout=300.0,
+            api_key=HF_API_KEY, 
             provider="fal-ai" 
         )
     except Exception as client_init_error:
@@ -184,7 +183,7 @@ async def content_strategist_node(state: MarketingState):
     Uses ChatGroq to draft article and extract metadata via LCEL.
     """
     logs = []
-    topic = state["topic"]
+    topic = state.get("topic", "Data Engineering")
     logs.append(f"--- [Strategist] Drafting content for: {topic} ---")
     
     # 1. Write Article
@@ -234,6 +233,11 @@ async def content_strategist_node(state: MarketingState):
             
     except Exception as e:
         logs.append(f"Metadata Gen Error: {e}")
+
+    logs.append(f"Generated Headline: {headline}")
+    logs.append(f"Generated Summary: {summary}")
+    logs.append(f"Generated Tags: {tags}")
+    logs.append(f"Generated Image Prompts: {image_prompts}")
 
     return {
         "article_content": article,
@@ -289,6 +293,9 @@ async def visual_director_node(state: MarketingState):
         current_prompts = []
     all_prompts = current_prompts + new_prompts
     
+    logs.append(f"Generated Script: {script}")
+    logs.append(f"All Image Prompts: {all_prompts}")
+
     return {
         "script": script,
         "image_prompts": all_prompts,
@@ -327,7 +334,11 @@ async def production_studio_node(state: MarketingState):
             logs.append(f"Image Gen/Upload Error: {e}")
     
     # 2. Generate Video using Wan2.1
-    video_prompt = "Cinematic " + state["headline"] + ", " + (state["script"][0] if state["script"] else "Data visualization")
+    headline = state.get("headline", "Tech Update")
+    script = state.get("script", [])
+    first_line = script[0] if script else "Data visualization"
+    
+    video_prompt = f"Cinematic {headline}, {first_line}"
     video_bytes = await generate_video_hf(video_prompt)
     
     video_url = ""
@@ -348,6 +359,9 @@ async def production_studio_node(state: MarketingState):
         logs.append(f"Model {HF_VIDEO_MODEL} busy/unavailable or generation failed.")
         video_url = None
     
+    logs.append(f"Generated Image URLs: {image_urls}")
+    logs.append(f"Generated Video URL: {video_url}")
+
     return {
         "image_urls": image_urls, 
         "audio_segments": [], 
@@ -364,18 +378,21 @@ async def social_media_manager_node(state: MarketingState):
     print("--- [SMM] Publishing content ---")
     
     logs = []
-    headline = state['headline']
-    summary = state['summary']
+    headline = state.get('headline', 'New Tech Post')
+    summary = state.get('summary', 'Check out our latest update!')
     tags_list = state.get("tags", ["#DataEngineering", "#Tech"])
     tags_str = " ".join(tags_list)
     
     # Get Public URLs
-    cover_url = state['image_urls'][0] if state.get('image_urls') else "https://via.placeholder.com/800x400"
-    video_url = state.get('video_url', "https://example.com/video.mp4")
+    # state.get returns None if key exists but value is None, so we must check for None explicitly or Use logic
+    cover_url = state.get('image_urls', [])[0] if state.get('image_urls') else "https://via.placeholder.com/800x400"
+    
+    video_val = state.get('video_url')
+    video_url = video_val if video_val else "https://example.com/video.mp4"
     
     # 1. Dev.to (Blog)
     # Use the dedicated 'cover_image' field for the hero image
-    article_md = state['article_content']
+    article_md = state.get('article_content', '# Data Engineering Update\nComing soon.')
     
     if DEVTO_API_KEY:
         try:
@@ -461,8 +478,11 @@ async def social_media_manager_node(state: MarketingState):
     # else:
     logs.append(f"Uploaded YouTube Short from URL (Mock/Disabled): {video_url}")
     
+    status = "finished"
+    logs.append(f"Final Status: {status}")
+
     return {
-        "status": "finished",
+        "status": status,
         "logs": logs
     }
 
@@ -483,4 +503,3 @@ marketing_graph.add_edge("production_studio", "social_manager")
 marketing_graph.add_edge("social_manager", END)
 
 marketing_app = marketing_graph.compile()
-
