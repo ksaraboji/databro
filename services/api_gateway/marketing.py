@@ -66,9 +66,9 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID") # Business Account ID
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
-# Reverting to Wan2.1 since user has Pro subscription. 
-# Note: If 402 persists, check if this model requires a Dedicated Endpoint.
-HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B"
+# Wan2.2-T2V-A14B offers the latest MoE architecture, better quality than 2.1.
+# Native duration is still ~5s. 
+HF_VIDEO_MODEL = "Wan-AI/Wan2.2-T2V-A14B"
 HF_AUDIO_MODEL = "facebook/musicgen-small" 
 
 # --- LangChain Models ---
@@ -125,8 +125,11 @@ async def generate_image_hf(prompt: str) -> Optional[bytes]:
         print(f"HF Gen Error: {e}")
         return None
 
-def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[bytes]:
-    """Combines video and audio bytes using ffmpeg."""
+def combine_audio_video(video_bytes: bytes, audio_bytes: bytes, target_duration: int = 30) -> Optional[bytes]:
+    """
+    Combines video and audio bytes using ffmpeg.
+    Loops the 5s video input to match the target duration (30s).
+    """
     try:
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
             temp_video.write(video_bytes)
@@ -138,20 +141,19 @@ def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[byte
             
         output_path = video_path.replace(".mp4", "_final.mp4")
         
-        # ffmpeg command: loop audio if shorter, or cut if longer? 
-        # -stream_loop -1 for audio might not work if input is pipe, but here it is file.
-        # simpler: just merge. If audio is shorter, silence at end. If longer, cut.
-        # -shortest: finish when shortest stream finishes (usually video)
+        # ffmpeg complex filter to loop video
+        # stream_loop -1 loops infinitely
+        # -t 30 cuts it at 30 seconds
         
         command = [
             "ffmpeg", "-y",
-            "-i", video_path,
-            "-stream_loop", "-1", "-i", audio_path,
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-map", "0:v:0",
-            "-map", "1:a:0",
-            "-shortest", # Clip audio to video length
+            "-stream_loop", "-1", "-i", video_path, # Loop video input
+            "-i", audio_path,                       # Audio input
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "copy",                         # Copy video codec (efficient)
+            "-c:a", "aac",                          # Encode audio if needed
+            "-t", str(target_duration),             # Enforce total duration
+            "-shortest",                            # Stop if audio is shorter (though we set audio for 30s)
             output_path
         ]
         
@@ -169,7 +171,6 @@ def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[byte
         return combined_bytes
     except Exception as e:
         print(f"FFmpeg Error: {e}")
-        # Return original video if merge fails
         return video_bytes
 
 async def generate_video_hf(prompt: str) -> Optional[bytes]:
@@ -451,24 +452,24 @@ async def production_studio_node(state: MarketingState):
         logs.append("Generating matching audio track using internal Music service...")
         audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
         try:
-            # Call internal microservice instead of HF API directly
-            audio_bytes = await generate_music_track(prompt=audio_prompt, duration=6)
+            # Generate 30s of audio first
+            audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
             
             if audio_bytes:
-                logs.append("Audio generated. Stitching video and audio...")
+                logs.append("Audio generated. Creating 30s video loop...")
                 # Run ffmpeg in executor to avoid blocking
                 loop = asyncio.get_running_loop()
                 combined_bytes = await loop.run_in_executor(
                     None, 
-                    lambda: combine_audio_video(video_bytes, audio_bytes)
+                    lambda: combine_audio_video(video_bytes, audio_bytes, target_duration=30)
                 )
                 if combined_bytes:
                     video_bytes = combined_bytes
-                    logs.append("Audio stitching successful.")
+                    logs.append("Video expanded to 30s loop with audio.")
                 else:
-                    logs.append("Warning: Audio stitching returned None, using original video.")
+                    logs.append("Warning: Stitching failed, using original 5s clip.")
             else:
-                logs.append("Warning: Audio generation failed (None returned), proceeding with silent video.")
+                logs.append("Warning: Audio generation failed, returning silent 5s clip.")
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
 
