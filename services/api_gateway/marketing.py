@@ -54,7 +54,7 @@ DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
 # Reverting to Wan2.1 since user has Pro subscription. 
 # Note: If 402 persists, check if this model requires a Dedicated Endpoint.
-HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-1.3B" 
+HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B" 
 
 # --- LangChain Models ---
 llm = ChatGroq(
