@@ -252,7 +252,14 @@ class ArticleMetadata(BaseModel):
 class VideoScript(BaseModel):
     sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script (total duration ~30s)")
     visuals: List[str] = Field(description="List of visual prompts corresponding to each sentence")
-    video_prompt: str = Field(description="A strict, high-quality prompt for a 5-second video loop. \nStructure: [Main Subject] + [Visual Style] + [Exact Text Overlay] + [Branding]. \nKey Requirement: Display ONLY the headline '{headline}' and 'Databro' logo. \n- BRANDING: 'Databro' text logo clearly visible in top-right corner. \n- TEXT: Large, legible, kinetic typography for headline. Correct English spelling. \n- STYLE: Abstract tech, neon blue/orange lines, glassmorphism, high contrast. \n- NEGATIVE: No blurry text, no gibberish, no people, no distorted faces.")
+    video_prompt: str = Field(description="A cinematic, high-end commercial prompt for a 5-second video loop. \n"
+    "Structure: [Subject] + [Motion] + [Style] + [Atmosphere]. \n"
+    "CRITICAL REQUIREMENTS:\n"
+    "1. VISUAL STYLE: Minimalist 3D render, 'Apple' commercial aesthetic, matte black and neon blue materials.\n"
+    "2. BRANDING: The text 'Databro' MUST appear in a crystal clear, san-serif font, embossed or floating white 3D letters. Centered or rule-of-thirds.\n"
+    "3. MOTION: Slow, smooth, elegant camera pan. No shaky cam. No chaotic cuts.\n"
+    "4. FOCUS: Entire scene in focus (f/8), sharp details, 8k resolution, Unreal Engine 5 render.\n"
+    "5. NEGATIVE PROMPT: blur, depth of field, bokeh, messy cable, dirty, glitch, shaky, people, faces, distortion, low resolution, jpeg artifacts.")
 
 # --- Nodes ---
 
