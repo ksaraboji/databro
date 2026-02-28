@@ -137,7 +137,12 @@ async def generate_video_hf(prompt: str) -> Optional[bytes]:
     try:
         # returns bytes for video
         # Pass model explicitly here as per documentation/snippet
-        video_bytes = client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        # BLOCKING CALL: Must run in thread to avoid freezing event loop
+        loop = asyncio.get_running_loop()
+        video_bytes = await loop.run_in_executor(
+            None, 
+            lambda: client.text_to_video(prompt, model=HF_VIDEO_MODEL)
+        )
         return video_bytes
     except Exception as e:
         # If the specific model fails, try another free one or fail gracefully
