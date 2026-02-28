@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { 
-    Loader2, Send, CheckCircle, AlertCircle, FileText, Video, 
-    Twitter, Instagram, LayoutTemplate, Sparkles, RefreshCw, 
-    Smartphone, Monitor, Tablet, Copy
+    Loader2, FileText, Video, 
+    Twitter, Instagram, Sparkles, 
+    Smartphone, Monitor, ChevronLeft
 } from "lucide-react";
+import FloatingHomeButton from "@/components/floating-home-button";
 
 type LogEntry = {
     timestamp: string;
@@ -31,6 +33,11 @@ export default function MarketingAdminPage() {
     useEffect(() => {
         logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
+
+    // Scroll to top on mount/refresh
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
         setLogs(prev => [...prev, {
@@ -107,7 +114,7 @@ export default function MarketingAdminPage() {
                    setLogs(prev => {
                         // Avoid duplicates if polling is fast
                         const existingMsgs = new Set(prev.map(l => l.message));
-                        const uniqueNewLogs = newLogs.filter(l => !existingMsgs.has(l.message));
+                        const uniqueNewLogs = newLogs.filter((l: LogEntry) => !existingMsgs.has(l.message));
                         return [...prev, ...uniqueNewLogs];
                    });
                 }
@@ -133,8 +140,29 @@ export default function MarketingAdminPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8">
-            <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col min-h-screen bg-slate-50/50">
+            {/* Navigation Bar */}
+            <nav className="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-10 px-6 py-4">
+                <div className="max-w-7xl mx-auto flex items-center justify-between">
+                    <div className="flex items-center gap-8">
+                        <Link href="/" className="font-black tracking-tighter text-xl group transition-all">
+                             Data<span className="text-indigo-600 group-hover:text-amber-500 transition-colors">bro</span>. <span className="text-slate-400 font-normal">Admin</span>
+                        </Link>
+                    </div>
+                    
+                    <Link 
+                        href="/admin" 
+                        className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors flex items-center gap-1"
+                    >
+                        <ChevronLeft className="w-4 h-4" /> Back to Dashboard
+                    </Link>
+                </div>
+            </nav>
+
+            <FloatingHomeButton />
+
+            <div className="flex-1 px-6 py-12">
+                <div className="max-w-7xl mx-auto space-y-6">
                 
                 {/* Header */}
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -293,29 +321,6 @@ export default function MarketingAdminPage() {
                             {result ? (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     
-                                    {/* Main Article Card */}
-                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                        <div className="bg-indigo-50/50 p-4 border-b border-indigo-100 flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-indigo-700 font-semibold">
-                                                <FileText className="w-5 h-5" /> Generated Article Strategy
-                                            </div>
-                                            <button className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600">
-                                                <Copy className="w-3 h-3" /> Copy
-                                            </button>
-                                        </div>
-                                        <div className="p-6">
-                                            <h2 className="text-2xl font-bold text-slate-900 mb-3">{result.headline || "Untitled Campaign"}</h2>
-                                            <div className="prose prose-slate max-w-none text-slate-600">
-                                                <p>{result.summary || "No summary available."}</p>
-                                            </div>
-                                            <div className="mt-6 flex flex-wrap gap-2">
-                                                <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full border border-slate-200">#AI</span>
-                                                <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full border border-slate-200">#Marketing</span>
-                                                <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full border border-slate-200">#Strategy</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
                                     {/* Social Assets Grid */}
                                     <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mt-8">
                                         <Video className="w-5 h-5 text-pink-500" /> 
@@ -367,19 +372,12 @@ export default function MarketingAdminPage() {
                                     </div>
 
                                 </div>
-                            ) : (
-                                <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200/60 rounded-xl bg-slate-50/30 p-8 text-center">
-                                    <div className="w-16 h-16 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center mb-4">
-                                        <LayoutTemplate className="w-8 h-8 text-slate-300" />
-                                    </div>
-                                    <h3 className="text-lg font-medium text-slate-900 mb-2">Ready to Design</h3>
-                                    <p className="max-w-xs mx-auto mb-6">Enter a topic on the left to activate the Strategist Agent and begin your campaign.</p>
-                                </div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     );
 }

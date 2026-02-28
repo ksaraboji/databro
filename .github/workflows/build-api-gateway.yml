@@ -53,6 +53,14 @@ jobs:
           CONN_STR=$(az storage account show-connection-string -n $STORAGE_ACCOUNT_NAME -g databro-${{ env.ENV_NAME }}-rg --query connectionString -o tsv)
           echo "::add-mask::$CONN_STR"
           echo "AZURE_STORAGE_CONNECTION_STRING=$CONN_STR" >> $GITHUB_ENV
+          
+          # Get Cosmos DB credentials
+          COSMOS_ACCOUNT_NAME=$(az cosmosdb list -g databro-${{ env.ENV_NAME }}-rg --query "[0].name" -o tsv)
+          COSMOS_ENDPOINT=$(az cosmosdb show -n $COSMOS_ACCOUNT_NAME -g databro-${{ env.ENV_NAME }}-rg --query documentEndpoint -o tsv)
+          COSMOS_KEY=$(az cosmosdb keys list -n $COSMOS_ACCOUNT_NAME -g databro-${{ env.ENV_NAME }}-rg --query primaryMasterKey -o tsv)
+          echo "::add-mask::$COSMOS_KEY"
+          echo "COSMOS_ENDPOINT=$COSMOS_ENDPOINT" >> $GITHUB_ENV
+          echo "COSMOS_KEY=$COSMOS_KEY" >> $GITHUB_ENV
 
       - name: Deploy to Azure Container App
         uses: azure/container-apps-deploy-action@v1
@@ -71,3 +79,5 @@ jobs:
             INSTAGRAM_ACCOUNT_ID=${{ secrets.INSTAGRAM_ACCOUNT_ID }}
             DEVTO_API_KEY=${{ secrets.DEVTO_API_KEY }}
             AZURE_STORAGE_CONNECTION_STRING='${{ env.AZURE_STORAGE_CONNECTION_STRING }}'
+            COSMOS_ENDPOINT='${{ env.COSMOS_ENDPOINT }}'
+            COSMOS_KEY='${{ env.COSMOS_KEY }}'
