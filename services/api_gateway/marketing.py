@@ -54,7 +54,7 @@ DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
 # Reverting to Wan2.1 since user has Pro subscription. 
 # Note: If 402 persists, check if this model requires a Dedicated Endpoint.
-HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-1.3B" 
+HF_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B" 
 
 # --- LangChain Models ---
 llm = ChatGroq(
@@ -164,6 +164,7 @@ class MarketingState(TypedDict):
     status: str 
     logs: Annotated[List[str], operator.add]
     errors: List[str]
+    publish_config: Dict[str, bool]
 
 # Data Models for Structured Output
 class ArticleMetadata(BaseModel):
@@ -326,13 +327,15 @@ async def production_studio_node(state: MarketingState):
                 img_url = upload_to_azure(img_bytes, filename, "image/jpeg")
                 if img_url:
                      image_urls.append(img_url) 
-                     logs.append(f"Cover image uploaded: {img_url}")
+                     logs.append(f"Cover image uploaded successfully: {img_url}")
                 else:
-                     logs.append("Azure Upload Failed for Image.")
+                     logs.append("Error: Azure Upload Failed for Image. Cover image generation failed.")
             else:
-                logs.append("Failed to generate cover image.")
+                logs.append("Error: Failed to generate cover image bytes from HF.")
         except Exception as e:
-            logs.append(f"Image Gen/Upload Error: {e}")
+            logs.append(f"Error: Image Gen/Upload Exception: {e}")
+    else:
+        logs.append("Warning: No image prompts found. Skipping image generation.")
     
     # 2. Generate Video using Wan2.1
     headline = state.get("headline", "Tech Update")
@@ -340,6 +343,8 @@ async def production_studio_node(state: MarketingState):
     first_line = script[0] if script else "Data visualization"
     
     video_prompt = f"Cinematic {headline}, {first_line}"
+    logs.append(f"Generating video with prompt: {video_prompt[:50]}...")
+    
     video_bytes = await generate_video_hf(video_prompt)
     
     video_url = ""
@@ -353,15 +358,15 @@ async def production_studio_node(state: MarketingState):
             
             video_url = upload_to_azure(video_bytes, filename, "video/mp4")
             if video_url:
-                logs.append(f"Video uploaded: {video_url}")
+                logs.append(f"Video uploaded successfully: {video_url}")
             else:
-                logs.append("Azure Upload Failed for Video.")
+                logs.append("Error: Azure Upload Failed for Video.")
                 video_url = None
         except Exception as e:
-            logs.append(f"Error uploading video: {e}")
+            logs.append(f"Error: Exception uploading video to Azure: {e}")
             video_url = None
     else:
-        logs.append(f"Model {HF_VIDEO_MODEL} busy/unavailable or generation failed.")
+        logs.append(f"Error: Video generation failed or returned empty bytes. Model: {HF_VIDEO_MODEL}")
         video_url = None
     
     logs.append(f"Generated Image URLs: {image_urls}")
@@ -388,6 +393,12 @@ async def social_media_manager_node(state: MarketingState):
     tags_list = state.get("tags", ["#DataEngineering", "#Tech"])
     tags_str = " ".join(tags_list)
     
+    # Get configuration, default to False for safety if not provided
+    config = state.get("publish_config", {})
+    if not config:
+        config = {"devto": False, "twitter": False, "instagram": False, "youtube": False}
+        logs.append("No publish config found. defaulting to FALSE for all.")
+
     # Get Public URLs
     # state.get returns None if key exists but value is None, so we must check for None explicitly or Use logic
     cover_url = state.get('image_urls', [])[0] if state.get('image_urls') else "https://via.placeholder.com/800x400"
@@ -399,95 +410,107 @@ async def social_media_manager_node(state: MarketingState):
     # Use the dedicated 'cover_image' field for the hero image
     article_md = state.get('article_content', '# Data Engineering Update\nComing soon.')
     
-    if DEVTO_API_KEY:
-        logs.append(f"Attempting to publish to Dev.to with API Key: {DEVTO_API_KEY[:4]}...")
-        try:
-             # Dev.to requires tags to be alphanumerical only (no #), and comma separated or list
-             # Clean tags: remove #, replace spaces, take top 4 (limit is usually 4)
-             cleaned_tags = [t.replace("#", "").replace(" ", "").lower() for t in tags_list][:4]
-             logs.append(f"Formatted Tags for Dev.to: {cleaned_tags}")
+    if config.get("devto", False):
+        if DEVTO_API_KEY:
+            logs.append(f"Attempting to publish to Dev.to with API Key: {DEVTO_API_KEY[:4]}...")
+            try:
+                 # Dev.to requires tags to be alphanumerical only (no #), and comma separated or list
+                 # Clean tags: remove #, replace spaces, take top 4 (limit is usually 4)
+                 cleaned_tags = [t.replace("#", "").replace(" ", "").lower() for t in tags_list][:4]
+                 logs.append(f"Formatted Tags for Dev.to: {cleaned_tags}")
 
-             async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://dev.to/api/articles",
-                    headers={"api-key": DEVTO_API_KEY, "Content-Type": "application/json"},
-                    json={
-                        "article": {
-                            "title": headline,
-                            "body_markdown": article_md,
-                            "published": True, # Publish immediately
-                            "main_image": cover_url, # Sets the official cover/hero image
-                            "tags": cleaned_tags
+                 async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://dev.to/api/articles",
+                        headers={"api-key": DEVTO_API_KEY, "Content-Type": "application/json"},
+                        json={
+                            "article": {
+                                "title": headline,
+                                "body_markdown": article_md,
+                                "published": True, # Publish immediately
+                                "main_image": cover_url, # Sets the official cover/hero image
+                                "tags": cleaned_tags
+                            }
                         }
-                    }
-                )
-                if resp.status_code in [200, 201]:
-                    logs.append(f"Published article to Dev.to: {resp.json().get('url')}")
-                else:
-                    logs.append(f"Dev.to Error {resp.status_code}: {resp.text}")
-        except Exception as e:
-            logs.append(f"Dev.to Exception: {e}")
+                    )
+                    if resp.status_code in [200, 201]:
+                        logs.append(f"Success: Published article to Dev.to: {resp.json().get('url')}")
+                    else:
+                        logs.append(f"Error: Dev.to Failed {resp.status_code}: {resp.text}")
+            except Exception as e:
+                logs.append(f"Error: Dev.to Exception: {e}")
+        else:
+            logs.append(f"Error: Dev.to API Key missing. Skipping.")
     else:
-        logs.append(f"Published article to Dev.to with cover image (Mock): {cover_url[:30]}...")
+        logs.append("Info: Skipping Dev.to (User Disabled)")
     
     # 2. Twitter (Summary)
     tweet = f"{headline}\n\n{summary}\n\n{tags_str}\n\nWatch here: {video_url}"
     
-    # Temporarily commented out for testing
-    # if tweepy and os.getenv("TWITTER_API_KEY"):
-    #     try:
-    #         # client = tweepy.Client(...)
-    #         # client.create_tweet(text=tweet)
-    #         logs.append("Posted REAL tweet via Tweepy.")
-    #     except Exception as e:
-    #         logs.append(f"Tweepy Error: {e}")
-    # else:
-    logs.append(f"Posted to Twitter (Mock/Disabled): {tweet[:50]}...")
+    if config.get("twitter", False):
+        # Temporarily commented out for testing
+        # if tweepy and os.getenv("TWITTER_API_KEY"):
+        #     try:
+        #         # client = tweepy.Client(...)
+        #         # client.create_tweet(text=tweet)
+        #         logs.append("Success: Posted REAL tweet via Tweepy.")
+        #     except Exception as e:
+        #         logs.append(f"Error: Tweepy Error: {e}")
+        # else:
+        logs.append(f"Success: Posted to Twitter (Mock/Disabled): {tweet[:50]}...")
+    else:
+        logs.append("Info: Skipping Twitter (User Disabled)")
     
     # 3. Instagram (Reel + Image)
     # Instagram Graph API requires a public VIDEO URL for reels, which we now have.
     # No standard python client, using direct Graph API calls via httpx
-    # if INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID:
-    #     try:
-    #         # Step 1: Initialize Upload
-    #         media_url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media"
-    #         container_payload = {
-    #             "media_type": "REELS",
-    #             "video_url": video_url,
-    #             "caption": caption, # access 'caption' variable if defined, currently 'caption' is undefined in SMM node scope?
-    #             "access_token": INSTAGRAM_ACCESS_TOKEN
-    #         }
-    #         # Depending on video size, this might need resumable upload, but for shorts URL is fine
-    #         async with httpx.AsyncClient() as client:
-    #             res = await client.post(media_url, json=container_payload)
-    #             if res.status_code == 200:
-    #                 creation_id = res.json().get("id")
-    #                 # Step 2: Publish
-    #                 publish_url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish"
-    #                 pub_res = await client.post(publish_url, json={"creation_id": creation_id, "access_token": INSTAGRAM_ACCESS_TOKEN})
-    #                 if pub_res.status_code == 200:
-    #                     logs.append("Posted Reel to Instagram successfully.")
-    #                 else:
-    #                     logs.append(f"IG Publish Error: {pub_res.text}")
-    #             else:
-    #                 logs.append(f"IG Upload Error: {res.text}")
-    #     except Exception as e:
-    #         logs.append(f"Instagram API Error: {e}")
-    # else:
-    logs.append(f"Posted Reel to Instagram (Mock/Disabled): {video_url[:30]}...")
+    if config.get("instagram", False):
+        # if INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID:
+        #     try:
+        #         # Step 1: Initialize Upload
+        #         media_url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media"
+        #         container_payload = {
+        #             "media_type": "REELS",
+        #             "video_url": video_url,
+        #             "caption": caption, # access 'caption' variable if defined, currently 'caption' is undefined in SMM node scope?
+        #             "access_token": INSTAGRAM_ACCESS_TOKEN
+        #         }
+        #         # Depending on video size, this might need resumable upload, but for shorts URL is fine
+        #         async with httpx.AsyncClient() as client:
+        #             res = await client.post(media_url, json=container_payload)
+        #             if res.status_code == 200:
+        #                 creation_id = res.json().get("id")
+        #                 # Step 2: Publish
+        #                 publish_url = f"https://graph.facebook.com/v19.0/{INSTAGRAM_ACCOUNT_ID}/media_publish"
+        #                 pub_res = await client.post(publish_url, json={"creation_id": creation_id, "access_token": INSTAGRAM_ACCESS_TOKEN})
+        #                 if pub_res.status_code == 200:
+        #                     logs.append("Success: Posted Reel to Instagram successfully.")
+        #                 else:
+        #                     logs.append(f"Error: IG Publish Error: {pub_res.text}")
+        #             else:
+        #                 logs.append(f"Error: IG Upload Error: {res.text}")
+        #     except Exception as e:
+        #         logs.append(f"Error: Instagram API Error: {e}")
+        # else:
+        logs.append(f"Success: Posted Reel to Instagram (Mock/Disabled): {video_url[:30]}...")
+    else:
+         logs.append("Info: Skipping Instagram (User Disabled)")
     
     # 4. YouTube Shorts
     # Using google-api-python-client
-    # if build and YOUTUBE_API_KEY:
-    #     try:
-    #         # In production, this requires OAuth flow (pickle/json creds), not just API Key for uploads
-    #         # Assuming 'youtube_creds.json' exists or environment variables for OAuth
-    #         # youtube = build("youtube", "v3", credentials=...)
-    #         logs.append("YouTube Upload Skipped: OAuth credentials required for upload.")
-    #     except Exception as e:
-    #          logs.append(f"YouTube Error: {e}")
-    # else:
-    logs.append(f"Uploaded YouTube Short from URL (Mock/Disabled): {video_url}")
+    if config.get("youtube", False):
+        # if build and YOUTUBE_API_KEY:
+        #     try:
+        #         # In production, this requires OAuth flow (pickle/json creds), not just API Key for uploads
+        #         # Assuming 'youtube_creds.json' exists or environment variables for OAuth
+        #         # youtube = build("youtube", "v3", credentials=...)
+        #         logs.append("Warning: YouTube Upload Skipped: OAuth credentials required for upload.")
+        #     except Exception as e:
+        #          logs.append(f"Error: YouTube Error: {e}")
+        # else:
+        logs.append(f"Success: Uploaded YouTube Short from URL (Mock/Disabled): {video_url}")
+    else:
+        logs.append("Info: Skipping YouTube (User Disabled)")
     
     status = "finished"
     logs.append(f"Final Status: {status}")
