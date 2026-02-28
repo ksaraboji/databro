@@ -123,20 +123,25 @@ async def generate_audio_hf(prompt: str) -> Optional[bytes]:
     print(f"Generating audio for: '{prompt[:30]}...' using {HF_AUDIO_MODEL}")
     try:
         # Using sync client in executor for safety
-        client = InferenceClient(api_key=HF_API_KEY)
+        client = InferenceClient(token=HF_API_KEY)
         loop = asyncio.get_running_loop()
+        
+        # Audio generation API returns raw bytes directly for text-to-audio
         audio_bytes = await loop.run_in_executor(
             None,
-            lambda: client.text_to_audio(prompt, model=HF_AUDIO_MODEL)
+            lambda: client.post(json={"inputs": prompt}, model=HF_AUDIO_MODEL)
         )
-        # musicgen-small returns a dictionary with 'audio' key (numpy array) OR bytes depending on return_full_text
-        # Actually InferenceClient.text_to_audio returns bytes (flac/wav) directly usually? 
-        # API docs say it returns audio bytes.
         
-        # However, sometimes it returns a tuple (sampling_rate, data).
-        # Let's verify return type handling if needed, but standard InferenceClient usually handles the bytes.
-        # If it returns a numpy array we might need to encode it, but text_to_audio usually returns bytes of a wav/flac file.
-        
+        # If response is somehow wrapped in JSON (rare for this endpoint but possible on some fallbacks)
+        if isinstance(audio_bytes, dict) and "audio" in audio_bytes:
+             # Base64 decode or array process if needed. But usually it's raw.
+             # This is just a safeguard. 
+             pass 
+
+        if not isinstance(audio_bytes, bytes):
+            print(f"Warning: Unexpected audio response type: {type(audio_bytes)}")
+            return None
+            
         return audio_bytes
     except Exception as e:
         print(f"HF Audio Gen Error: {e}")
@@ -163,7 +168,7 @@ def combine_audio_video(video_bytes: bytes, audio_bytes: bytes) -> Optional[byte
         command = [
             "ffmpeg", "-y",
             "-i", video_path,
-            "-i", audio_path,
+            "-stream_loop", "-1", "-i", audio_path,
             "-c:v", "copy",
             "-c:a", "aac",
             "-map", "0:v:0",
@@ -261,7 +266,7 @@ class ArticleMetadata(BaseModel):
 class VideoScript(BaseModel):
     sentences: List[str] = Field(description="List of 4-6 engaging sentences for the video script (total duration ~30s)")
     visuals: List[str] = Field(description="List of visual prompts corresponding to each sentence")
-    video_prompt: str = Field(description="A comprehensive, detailed prompt for generating a single high-quality 5-second background video loop. Requirements: \n1. VISUAL STYLE: Futuristic, clean, high-tech motion graphics. \n2. TEXT: Show the headline '{headline}' clearly with correct English spelling. Kinetic typography. \n3. IMAGERY: Animated 3D logos/icons relevant to the topic (e.g., if 'DuckDB', show a stylized duck/database). \n4. BRANDING: 'Databro' logo watermark in corner. \n5. SUBJECT: Abstract tech concepts, code snippets, data streams. NO PEOPLE. \n6. AUDIO: Upbeat, engaging tech background music. \n7. ENDING: Subtle icons for Twitter, YouTube, Instagram.")
+    video_prompt: str = Field(description="A strict, high-quality prompt for a 5-second video loop. \nStructure: [Main Subject] + [Visual Style] + [Exact Text Overlay] + [Branding]. \nKey Requirement: Display ONLY the headline '{headline}' and 'Databro' logo. \n- BRANDING: 'Databro' text logo clearly visible in top-right corner. \n- TEXT: Large, legible, kinetic typography for headline. Correct English spelling. \n- STYLE: Abstract tech, neon blue/orange lines, glassmorphism, high contrast. \n- NEGATIVE: No blurry text, no gibberish, no people, no distorted faces.")
 
 # --- Nodes ---
 
@@ -436,23 +441,28 @@ async def production_studio_node(state: MarketingState):
     # Prefer the dedicated video prompt from Visual Director
     video_gen_prompt = state.get("video_gen_prompt")
     if not video_gen_prompt:
-        first_line = script[0] if script else "Data visualization"
-        summary_text = state.get("summary", "")
-        # Fallback now includes summary for better context
-        video_prompt = f"Cinematic {headline}, {summary_text[:50]}, {first_line}, kinetic english typography, Databro logo overlay, high quality, 4k, no people, animated icons, energetic tech sound"
+        # High quality fallback
+        headline_text = state.get("headline", "Tech Update")
+        video_prompt = (
+            f"High-quality 3D motion graphics, futuristic glassmorphism, neon blue/orange data streams. "
+            f"Display text: '{headline_text}'. Branding: 'Databro' logo in top-right corner. "
+            "Correct English spelling. NO PEOPLE, NO FACES, NO BLURRY TEXT."
+        )
     else:
-        # Augment the generated prompt with strict constraints if not already present
-        video_prompt = video_gen_prompt
-        if "english" not in video_prompt.lower():
-            video_prompt += ", explicit english text"
-        if "no people" not in video_prompt.lower():
-            video_prompt += ", NO PEOPLE, abstract tech visualization"
-        if "databro" not in video_prompt.lower():
-            video_prompt += ", with 'Databro' logo watermark"
-        if "social" not in video_prompt.lower():
-             video_prompt += ", with animated social media icons (Twitter, YouTube, Instagram) at end"
-        if "audio" not in video_prompt.lower() and "sound" not in video_prompt.lower():
-             video_prompt += ", energetic tech background music"
+        # Enforce strict prompt engineering for quality control
+        # We restructure the prompt entirely to ensure the model focuses on the correct elements.
+        
+        # 1. Clean up base prompt from 'chatty' instructions if any remain
+        clean_base = video_gen_prompt.replace("Generate a video", "").replace("Create a loop", "").strip()
+        
+        # 2. Construct the final prompt with explicit priority
+        # PRIORITY: Branding > Text Clarity > Visual Style > Negative Constraints
+        
+        style_prefix = "High-quality 3D motion graphics, futuristic glassmorphism, neon blue and orange data streams"
+        branding_instruction = "Overlay text: 'Databro' logo in top-right corner. Headline text in center with correct spelling"
+        negative_constraints = "NO PEOPLE, NO FACES, NO BLURRY TEXT, NO GIBBERISH, NO SPELLING MISTAKES, NO EXTRA WORDS"
+        
+        video_prompt = f"{style_prefix}. {clean_base}. {branding_instruction}. {negative_constraints}"
 
     logs.append(f"Generating video with prompt: {video_prompt[:100]}...")
     
