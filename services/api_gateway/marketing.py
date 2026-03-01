@@ -41,14 +41,21 @@ except ImportError:
     print("Warning: huggingface_hub not installed")
 
 # Internal Service Clients
+# Internal Service Clients
 try:
-    from clients import generate_music_track
+    # Try relative import first (for package execution)
+    from .clients import generate_music_track
 except ImportError:
     try:
-        from .clients import generate_music_track
+        # Try absolute/direct import (for script execution)
+        from clients import generate_music_track
     except ImportError:
-        # Re-raise so we know config is wrong, instead of silently failing features
-        raise ImportError("Could not import generate_music_track from clients. Check PYTHONPATH or directory structure.")
+        # Still failing? Check if we are running from root
+        try:
+            from services.api_gateway.clients import generate_music_track
+        except ImportError:
+            print("CRITICAL: Could not import generate_music_track.")
+            raise
 
 import io
 import tempfile
@@ -453,9 +460,19 @@ async def production_studio_node(state: MarketingState):
         audio_prompt = "Upbeat, futuristic tech background music, looping, synthesizer, high quality"
         try:
             # Generate 30s of audio first
+            print("Invoking generate_music_track...") 
             audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
             
             if audio_bytes:
+                print(f"Audio received: {len(audio_bytes)} bytes. Saving to Az Blob for debug...")
+                try:
+                    # Debug: Upload raw audio to check if it's silent or corrupt
+                    debug_audio_name = f"debug_audio_{int(asyncio.get_running_loop().time())}.wav"
+                    debug_url = upload_to_azure(audio_bytes, debug_audio_name, "audio/wav")
+                    logs.append(f"Debug: Raw audio uploaded to {debug_url}")
+                except Exception as upload_e:
+                    print(f"Debug upload failed: {upload_e}")
+
                 logs.append("Audio generated. Creating 30s video loop...")
                 # Run ffmpeg in executor to avoid blocking
                 loop = asyncio.get_running_loop()
@@ -469,7 +486,8 @@ async def production_studio_node(state: MarketingState):
                 else:
                     logs.append("Warning: Stitching failed, using original 5s clip.")
             else:
-                logs.append("Warning: Audio generation failed, returning silent 5s clip.")
+                print("generate_music_track returned None")
+                logs.append("Warning: Audio generation failed (None returned), returning silent 5s clip.")
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
 

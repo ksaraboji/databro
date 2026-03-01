@@ -76,18 +76,20 @@ async def synthesize_speech(text: str) -> dict:
 
 async def generate_music_track(prompt: str, duration: int = 10) -> Optional[bytes]:
     """Calls the Speech service to generate music."""
+    print(f"Calling Speech Service (Music) with prompt: '{prompt[:30]}...' duration: {duration}s")
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{SPEECH_SERVICE_URL}/music",
                 json={"prompt": prompt, "duration": duration},
-                timeout=120.0 # MusicGen is slow regarding CPU
+                timeout=180.0 # MusicGen is slow regarding CPU
             )
             
             if response.status_code != 200:
                 print(f"Speech Service Music Error ({response.status_code}): {response.text}")
                 return None
-                
+            
+            print(f"Music generated successfully. Size: {len(response.content) if response.content else 0} bytes")
             return response.content
     except Exception as e:
         print(f"Error calling Speech Service (Music): {e}")
