@@ -62,7 +62,7 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
             </h1>
             <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
               Field notes on building systems, debugging code, and architecture decisions.
-              A collection of my latest articles from Medium.
+              A collection of my latest articles from Medium and Dev.to.
             </p>
           </motion.div>
         </header>

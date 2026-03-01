@@ -107,7 +107,27 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                     )
                     
                     if response.status_code == 200:
-                        print(f"Music generated successfully. Size: {len(response.content)} bytes")
+                        content_type = response.headers.get("content-type", "")
+                        print(f"Music generated successfully. Type: {content_type}, Size: {len(response.content)} bytes")
+                        
+                        # Check if response is JSON (common for HF Endpoints if not using specific Accept header)
+                        if "application/json" in content_type:
+                            try:
+                                data = response.json()
+                                # Handle common HF Inference formats
+                                # 1. [{"generated_audio": [floats...], "sample_rate": 32000}]
+                                # 2. {"audio": "base64..."}
+                                if isinstance(data, list) and len(data) > 0 and "generated_audio" in data[0]:
+                                    # This is raw float data, would need numpy/scipy to save as wav
+                                    # BUT usually endpoints support saving as binary if we ask.
+                                    pass # Fallthrough to return content, but warn
+                                    print("Warning: Received raw float data, audio file might be unplayable directly.")
+                                    
+                                # If it's a blob/file response that was mislabeled or just raw bytes
+                                return response.content
+                            except:
+                                return response.content
+                        
                         return response.content
                     
                     if response.status_code == 503:

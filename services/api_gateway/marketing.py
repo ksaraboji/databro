@@ -231,7 +231,14 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                 clip_paths.append(path)
             
             # Write audio
-            audio_path = os.path.join(tmpdir, "audio.wav")
+            # Detect format by magic bytes again or safe default
+            ext = ".wav"
+            if len(audio_bytes) > 4:
+                if audio_bytes.startswith(b'fLaC'): ext = ".flac"
+                elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'): ext = ".mp3"
+                elif audio_bytes.startswith(b'OggS'): ext = ".ogg"
+            
+            audio_path = os.path.join(tmpdir, f"audio{ext}")
             with open(audio_path, "wb") as f:
                 f.write(audio_bytes)
                 
@@ -242,21 +249,21 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                     f.write(f"file '{path}'\n")
 
             output_path = os.path.join(tmpdir, "final_output.mp4")
+            merged_video_path = os.path.join(tmpdir, "merged_video.mp4")
             
             # 1. Concatenate videos
             concat_cmd = [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path,
-                "-c", "copy", os.path.join(tmpdir, "merged_video.mp4")
+                "-c", "copy", merged_video_path
             ]
             subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             
             # 2. Add Audio (loop audio if shorter, cut video if longer)
-            # We want the video length to dictate, but audio usually needs to loop. 
-            # Or we just map them. Let's map audio to merged video.
+            # Use strict mapping ? to ignore missing streams if any
             
             final_cmd = [
                 "ffmpeg", "-y",
-                "-i", os.path.join(tmpdir, "merged_video.mp4"),
+                "-i", merged_video_path,
                 "-stream_loop", "-1", "-i", audio_path, # Loop audio
                 "-map", "0:v", "-map", "1:a",
                 "-c:v", "copy", "-c:a", "aac",
@@ -272,8 +279,15 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                 with open(output_path, "rb") as f:
                     return f.read()
             else:
+                 # Check for specific "Stream map matches no streams" error which implies audio file was invalid/empty
+                 stderr_out = result.stderr.decode('utf-8')
+                 if "matches no streams" in stderr_out:
+                     print("Stitching Warning: Audio stream invalid or missing. Returning silent video.")
+                     with open(merged_video_path, "rb") as f:
+                         return f.read()
+                 
                  # Only raise if output is missing
-                 raise Exception(f"FFmpeg failed (Exit {result.returncode}): {result.stderr.decode('utf-8')}")
+                 raise Exception(f"FFmpeg failed (Exit {result.returncode}): {stderr_out}")
                 
     except Exception as e:
         print(f"Stitch Error: {e}")
@@ -581,10 +595,24 @@ async def production_studio_node(state: MarketingState):
 
             # Upload Audio immediately if successful
             if audio_bytes:
-                audio_filename = f"audio_{uuid.uuid4().hex[:8]}.wav"
-                audio_url = upload_to_azure(audio_bytes, audio_filename, "audio/wav")
+                # Detect format from magic bytes
+                ext = ".wav"
+                mime = "audio/wav"
+                if len(audio_bytes) > 4:
+                    if audio_bytes.startswith(b'fLaC'):
+                        ext = ".flac"
+                        mime = "audio/flac"
+                    elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'):
+                        ext = ".mp3"
+                        mime = "audio/mpeg"
+                    elif audio_bytes.startswith(b'OggS'):
+                        ext = ".ogg"
+                        mime = "audio/ogg"
+
+                audio_filename = f"audio_{uuid.uuid4().hex[:8]}{ext}"
+                audio_url = upload_to_azure(audio_bytes, audio_filename, mime)
                 if audio_url:
-                    logs.append(f"Audio track uploaded: {audio_url}")
+                    logs.append(f"Audio track uploaded ({ext}): {audio_url}")
                     generated_asset_urls.append(audio_url)
                     
         except Exception as audio_e:
