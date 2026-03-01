@@ -73,9 +73,9 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID") # Business Account ID
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 
 HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell" 
-# Wan2.2-T2V-A14B offers the latest MoE architecture, better quality than 2.1.
-# Native duration is still ~5s. 
-HF_VIDEO_MODEL = "Wan-AI/Wan2.2-T2V-A14B"
+# Switching to HunyuanVideo as requested. 
+# Provides high-quality video generation capabilities.
+HF_VIDEO_MODEL = "tencent/HunyuanVideo"
 HF_AUDIO_MODEL = "facebook/musicgen-small" 
 
 # --- LangChain Models ---

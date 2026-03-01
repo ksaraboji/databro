@@ -82,7 +82,11 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
             response = await client.post(
                 f"{SPEECH_SERVICE_URL}/music",
                 json={"prompt": prompt, "duration": duration},
-                timeout=180.0 # MusicGen is slow regarding CPU
+                # Increased timeout to 600s (10 minutes)
+                # MusicGen on CPU can take ~2-3 mins for 30s audio.
+                # If we are looping inside the service, it might be faster, 
+                # but initial model load + generation is slow.
+                timeout=600.0 
             )
             
             if response.status_code != 200:
