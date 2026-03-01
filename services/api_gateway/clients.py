@@ -133,8 +133,37 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                                                 audio_val = first_item[key]
                                                 if isinstance(audio_val, str):
                                                     # Assume base64
+                                                    import base64
                                                     audio_bytes = base64.b64decode(audio_val)
                                                     print(f"Decoded Base64 audio. New Size: {len(audio_bytes)}")
+                                                elif isinstance(audio_val, list):
+                                                    # Handle PCM float list ([-0.1, 0.4, ...]) or [[...]]
+                                                    import struct
+                                                    print(f"Detected PCM float list of length {len(audio_val)}. Converting to WAV...")
+                                                    try:
+                                                        # Flatten list if it's nested (e.g., stereo channels or batches)
+                                                        flat_audio = []
+                                                        for item in audio_val:
+                                                            if isinstance(item, list):
+                                                                flat_audio.extend(item)
+                                                            else:
+                                                                flat_audio.append(item)
+
+                                                        # Assume 32kHz Mono (standard MusicGen output)
+                                                        sample_rate = 32000
+                                                        scaled_samples = [int(max(min(float(s), 1.0), -1.0) * 32767) for s in flat_audio]
+                                                        raw_data = struct.pack(f'<{len(scaled_samples)}h', *scaled_samples)
+                                                        
+                                                        # WAV Header Construction
+                                                        header = struct.pack(
+                                                            '<4sI4s4sIHHIIHH4sI',
+                                                            b'RIFF', 36 + len(raw_data), b'WAVE', b'fmt ', 16, 1, 1, sample_rate,
+                                                            sample_rate * 2, 2, 16, b'data', len(raw_data)
+                                                        )
+                                                        audio_bytes = header + raw_data
+                                                        print(f"Successfully converted {len(flat_audio)} samples to WAV ({len(audio_bytes)} bytes).")
+                                                    except Exception as e:
+                                                        print(f"Failed to convert PCM list: {e}")
                                                 else:
                                                     print(f"Warning: Key '{key}' content is not string. Type: {type(audio_val)}")
                                                 break
@@ -148,8 +177,35 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                                                 audio_val = json_data[key]
                                                 if isinstance(audio_val, str):
                                                     # Assume base64
+                                                    import base64
                                                     audio_bytes = base64.b64decode(audio_val)
                                                     print(f"Decoded Base64 audio. New Size: {len(audio_bytes)}")
+                                                elif isinstance(audio_val, list):
+                                                    # Handle PCM float list ([-0.1, 0.4, ...])
+                                                    import struct
+                                                    print(f"Detected PCM float list of length {len(audio_val)}. Converting to WAV...")
+                                                    try:
+                                                        flat_audio = []
+                                                        for item in audio_val:
+                                                            if isinstance(item, list):
+                                                                flat_audio.extend(item)
+                                                            else:
+                                                                flat_audio.append(item)
+                                                                
+                                                        sample_rate = 32000
+                                                        scaled_samples = [int(max(min(float(s), 1.0), -1.0) * 32767) for s in flat_audio]
+                                                        raw_data = struct.pack(f'<{len(scaled_samples)}h', *scaled_samples)
+                                                        header = struct.pack(
+                                                            '<4sI4s4sIHHIIHH4sI',
+                                                            b'RIFF', 36 + len(raw_data), b'WAVE', b'fmt ', 16, 1, 1, sample_rate,
+                                                            sample_rate * 2, 2, 16, b'data', len(raw_data)
+                                                        )
+                                                        audio_bytes = header + raw_data
+                                                        print(f"Successfully converted {len(flat_audio)} samples to WAV ({len(audio_bytes)} bytes).")
+                                                    except Exception as e:
+                                                        print(f"Failed to convert PCM list: {e}")
+                                                else:
+                                                    print(f"Warning: Key '{key}' content is not string. Type: {type(audio_val)}")
                                                 break
                         except Exception as json_e:
                             print(f"JSON parsing failed (might be raw audio after all): {json_e}")
