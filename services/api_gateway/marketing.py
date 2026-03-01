@@ -76,7 +76,7 @@ HF_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell"
 # Switching to Image-to-Video workflow.
 # We will generate frames using Flux, then animate them using Wan2.1-I2V.
 # Fal.ai / HF routing usually exposes "Wan-AI/Wan2.1-I2V-14B-480P" or similar for I2V.
-HF_I2V_MODEL = "Wan-AI/Wan2.2-Animate-14B" 
+HF_I2V_MODEL = "Wan-AI/Wan2.2-I2V-A14B" 
 HF_AUDIO_MODEL = "facebook/musicgen-small"  
 
 # --- LangChain Models ---
