@@ -51,10 +51,24 @@ async def lifespan(app: FastAPI):
     print(f"Loading MusicGen model: {MUSIC_MODEL_NAME}...")
     try:
         music_processor = AutoProcessor.from_pretrained(MUSIC_MODEL_NAME)
-        music_model = MusicgenForConditionalGeneration.from_pretrained(MUSIC_MODEL_NAME)
+        # Force strict=False to suppress the UNEXPECTED weights error if it's just a head mismatch
+        # But for MusicGen, we want to ensure we're using the right class.
+        # The key mismatch 'decoder.model.decoder.embed_positions.weights' suggests
+        # we might be loading into a model that expects learned positions but got sinusoidal (or vice versa).
+        # We will try loading with ignore_mismatched_sizes=True first.
+        music_model = MusicgenForConditionalGeneration.from_pretrained(MUSIC_MODEL_NAME, ignore_mismatched_sizes=True)
         print("MusicGen model loaded.")
     except Exception as e:
-        print(f"Failed to load MusicGen model: {e}")
+        print(f"Failed to load MusicGen model (attempt 1): {e}")
+        try:
+           # Fallback: sometimes 'facebook/musicgen-small' needs to be loaded as a pipeline then extracted if direct load is finicky
+           print("Attempting fallback pipeline load...")
+           pipe = pipeline("text-to-audio", MUSIC_MODEL_NAME)
+           music_model = pipe.model
+           music_processor = pipe.processor if hasattr(pipe, "processor") else AutoProcessor.from_pretrained(MUSIC_MODEL_NAME)
+           print("MusicGen model loaded via pipeline fallback.")
+        except Exception as e2:
+           print(f"Failed to load MusicGen model completely: {e2}")
         
     yield
     
@@ -95,6 +109,9 @@ async def generate_music(req: MusicRequest):
         raise HTTPException(status_code=503, detail="MusicGen model not loaded")
         
     try:
+        if music_model is None:
+            raise Exception("Model not initialized")
+            
         # Check if we should generate via pipeline
         print(f"--- Music Generation Request ---")
         print(f"Prompt: {req.prompt}")
@@ -112,19 +129,25 @@ async def generate_music(req: MusicRequest):
         )
         
         # audio_values shape: (batch_size, num_channels, sequence_length)
-        audio_values = music_model.generate(**inputs, max_new_tokens=tokens)
-        
-        # Squeeze batch and channel dims -> (sequence_length,)
-        # usually it is (1, 1, T) -> get [0, 0]
-        audio_values = audio_values.cpu().numpy()
-        audio_data = audio_values[0, 0]
-        
-        # Fallback if config is missing (standard MusicGen is 32k)
-        sampling_rate = getattr(music_model.config, "audio_encoder", None)
-        if sampling_rate:
-             sampling_rate = getattr(sampling_rate, "sampling_rate", 32000)
+        # We need to reshape for MusicGen
+        if hasattr(music_model, "generate"):
+             # For direct model usage
+             audio_values = music_model.generate(**inputs, max_new_tokens=tokens)
+             audio_values = audio_values.cpu().numpy()
+             audio_data = audio_values[0, 0]
+             
+             # Get sampling rate from config, default 32k
+             sampling_rate = getattr(music_model.config, "audio_encoder", None)
+             if sampling_rate:
+                  sampling_rate = getattr(sampling_rate, "sampling_rate", 32000)
+             else:
+                  sampling_rate = 32000
         else:
-             sampling_rate = 32000
+             # Pipeline fallback
+             print("Using pipeline generation logic...")
+             output = music_model(req.prompt, forward_params={"do_sample": True, "max_new_tokens": tokens})
+             audio_data = output["audio"][0]
+             sampling_rate = output["sampling_rate"]
         print(f"Generation complete. Shape: {audio_data.shape}, Rate: {sampling_rate}")
 
         # Write to BytesIO as wav
