@@ -625,14 +625,11 @@ async def production_studio_node(state: MarketingState):
                         logs.append("Error: Azure Upload Failed for Final Video.")
              except Exception as stitch_e:
                  logs.append(f"Stitching Error: {stitch_e}")
-
-    logs.append(f"Generated Image URLs: {image_urls}")
-    logs.append(f"Generated Intermediate Assets: {generated_asset_urls}")
-    logs.append(f"Generated Video URL: {video_url}")
     else:
         logs.append("Error: No video clips were generated successfully.")
 
     logs.append(f"Generated Image URLs: {image_urls}")
+    logs.append(f"Generated Intermediate Assets: {generated_asset_urls}")
     logs.append(f"Generated Video URL: {video_url}")
 
     return {
