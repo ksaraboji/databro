@@ -2,26 +2,32 @@ import os
 import uuid
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from faster_whisper import WhisperModel
 from TTS.api import TTS
+from transformers import pipeline
+import scipy.io.wavfile
+import numpy as np
+import io
 
 # Global model variables
 stt_model = None
 tts = None
+music_gen = None
 
 # --- Configuration ---
 # Models
 STT_MODEL_SIZE = "base.en" # 'tiny', 'base', 'small', 'medium', 'large'
 TTS_MODEL_NAME = "tts_models/en/ljspeech/vits" # Fast and reasonable quality
+MUSIC_MODEL_NAME = "facebook/musicgen-small"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load models on startup
-    global stt_model, tts
+    global stt_model, tts, music_gen
     
     print(f"Loading Whisper model: {STT_MODEL_SIZE}...")
     # device="cpu" for Container Apps Consumption plan (no GPU)
@@ -39,6 +45,13 @@ async def lifespan(app: FastAPI):
         print("TTS model loaded.")
     except Exception as e:
         print(f"Failed to load TTS model: {e}")
+
+    print(f"Loading MusicGen model: {MUSIC_MODEL_NAME}...")
+    try:
+        music_gen = pipeline("text-to-audio", MUSIC_MODEL_NAME)
+        print("MusicGen model loaded.")
+    except Exception as e:
+        print(f"Failed to load MusicGen model: {e}")
         
     yield
     
@@ -46,6 +59,7 @@ async def lifespan(app: FastAPI):
     print("Shutting down models...")
     del stt_model
     del tts
+    del music_gen
 
 app = FastAPI(title="Speech Service", version="1.0", lifespan=lifespan)
 
@@ -58,9 +72,44 @@ class SpeakRequest(BaseModel):
     text: str
     speaker_id: str = None # For multi-speaker models
 
+class MusicRequest(BaseModel):
+    prompt: str
+    duration: int = 10 
+
 @app.get("/")
 def health_check():
     return {"status": "healthy", "stt_model": STT_MODEL_SIZE, "tts_model": TTS_MODEL_NAME}
+
+@app.post("/music")
+async def generate_music(req: MusicRequest):
+    """
+    Music generation from text prompt using Facebook MusicGen.
+    """
+    if music_gen is None:
+        raise HTTPException(status_code=503, detail="MusicGen model not loaded")
+        
+    try:
+        # Check if we should generate via pipeline
+        print(f"Generating music for prompt: {req.prompt}")
+        # max_new_tokens determines length. 256 tokens ~ 5 sec. 
+        # 512 ~ 10 sec.
+        tokens = min(req.duration * 50, 1500) 
+        
+        output = music_gen(req.prompt, forward_params={"do_sample": True, "max_new_tokens": tokens})
+        # output is dict: {'audio': array([[...]]), 'sampling_rate': 32000}
+        
+        audio_data = output["audio"][0] # numpy array
+        sampling_rate = output["sampling_rate"]
+
+        # Write to BytesIO as wav
+        byte_io = io.BytesIO()
+        scipy.io.wavfile.write(byte_io, rate=sampling_rate, data=audio_data)
+        
+        return Response(content=byte_io.getvalue(), media_type="audio/wav")
+
+    except Exception as e:
+        print(f"MusicGen Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):

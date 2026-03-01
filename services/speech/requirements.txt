@@ -10,4 +10,6 @@ scipy
 TTS
 # Force PyAV to match system libraries or use wheels
 av
+transformers
+torch
 
