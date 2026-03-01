@@ -114,11 +114,12 @@ def upload_to_azure(data: bytes, filename: str, content_type: str) -> Optional[s
 # --- Media Generation (Custom Wrappers) ---
 # Keeping these as async utility functions as LangChain doesn't have standard T2V tools yet
 
-async def generate_image_hf(prompt: str) -> Optional[bytes]:
+async def generate_image_hf(prompt: str, logs: list = None) -> Optional[bytes]:
     """Generates an image using Hugging Face Inference API."""
     if not AsyncInferenceClient or not HF_API_KEY:
-        print(f"Error: HF_API_KEY status: {'set' if HF_API_KEY else 'missing/empty'}")
-        print(f"Warning: huggingface_hub installed: {AsyncInferenceClient is not None}")
+        msg = f"Error: HF_API_KEY status: {'set' if HF_API_KEY else 'missing/empty'}"
+        if logs is not None: logs.append(msg)
+        print(msg)
         return None
     
     # Increase timeout to 120s as image generation can sometimes be slow
@@ -133,7 +134,24 @@ async def generate_image_hf(prompt: str) -> Optional[bytes]:
         image.save(img_byte_arr, format='JPEG')
         return img_byte_arr.getvalue()
     except Exception as e:
-        print(f"HF Gen Error: {e}")
+        error_msg = str(e)
+        if logs is not None: logs.append(f"HF Gen Error (Model: {HF_IMAGE_MODEL}): {error_msg}")
+        print(f"HF Gen Error: {error_msg}")
+        
+        # Automatic fallback to a free/stable model if FLUX requires Pro or fails
+        fallback_model = "stabilityai/stable-diffusion-xl-base-1.0"
+        if HF_IMAGE_MODEL != fallback_model:
+            if logs is not None: logs.append(f"Retrying with fallback model: {fallback_model}...")
+            print(f"Retrying with {fallback_model}...")
+            try:
+                fallback_image = await client.text_to_image(prompt, model=fallback_model)
+                fb_byte_arr = io.BytesIO()
+                fallback_image.save(fb_byte_arr, format='JPEG')
+                return fb_byte_arr.getvalue()
+            except Exception as fb_err:
+                if logs is not None: logs.append(f"Fallback Model Error: {fb_err}")
+                print(f"Fallback Error: {fb_err}")
+        
         return None
 
 def combine_audio_video(video_bytes: bytes, audio_bytes: bytes, target_duration: int = 30) -> Optional[bytes]:
@@ -592,7 +610,7 @@ async def production_studio_node(state: MarketingState):
         logs.append(f"Generating cover image: {cover_prompt[:30]}...")
         
         try:
-            img_bytes = await generate_image_hf(cover_prompt)
+            img_bytes = await generate_image_hf(cover_prompt, logs=logs)
             if img_bytes:
                 filename = f"cover_{hash(cover_prompt)}.jpg"
                 img_url = upload_to_azure(img_bytes, filename, "image/jpeg")
@@ -647,7 +665,10 @@ async def production_studio_node(state: MarketingState):
     keyframe_prompts = []
     try:
         data = await chain.ainvoke({"headline": headline, "summary": summary, "topic": state.get("topic", "Technology")})
-        keyframe_prompts = data.get("prompts", [])
+        if isinstance(data, list):
+            keyframe_prompts = data
+        else:
+            keyframe_prompts = data.get("prompts", [])
         logs.append(f"LLM Generated {len(keyframe_prompts)} prompts.")
     except Exception as e:
         logs.append(f"Prompt Gen Error: {e}. Using fallback.")
@@ -672,7 +693,7 @@ async def production_studio_node(state: MarketingState):
     for i, p in enumerate(keyframe_prompts):
         logs.append(f"Generating Keyframe {i+1}: {p[:30]}...")
         # Reuse existing image gen function
-        img_bytes = await generate_image_hf(p)
+        img_bytes = await generate_image_hf(p, logs=logs)
         
         if img_bytes:
             # Upload Keyframe Immediately
