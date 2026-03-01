@@ -232,13 +232,8 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
             
             # Write audio
             # Detect format by magic bytes again or safe default
-            ext = ".wav"
-            if len(audio_bytes) > 4:
-                if audio_bytes.startswith(b'fLaC'): ext = ".flac"
-                elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'): ext = ".mp3"
-                elif audio_bytes.startswith(b'OggS'): ext = ".ogg"
-            
-            audio_path = os.path.join(tmpdir, f"audio{ext}")
+            # Write audio - Now guaranteed to be WAV from generate_music_track
+            audio_path = os.path.join(tmpdir, "audio.wav")
             with open(audio_path, "wb") as f:
                 f.write(audio_bytes)
                 
@@ -259,32 +254,27 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
             subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             
             # 2. Add Audio (loop audio if shorter, cut video if longer)
-            # Use strict mapping ? to ignore missing streams if any
-            
             final_cmd = [
                 "ffmpeg", "-y",
                 "-i", merged_video_path,
                 "-stream_loop", "-1", "-i", audio_path, # Loop audio
                 "-map", "0:v", "-map", "1:a",
                 "-c:v", "copy", "-c:a", "aac",
-                "-shortest", # End when the shortest stream ends (which is Video, since audio is looped)
+                "-shortest", # End when the shortest stream ends
                 output_path
             ]
             
             # Use check=False to capture result and ignore non-fatal exit codes
             result = subprocess.run(final_cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
-            # If output exists and is non-zero, we consider it a success even if ffmpeg returned a warning code
+            # If output exists and is non-zero, we consider it a success
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 with open(output_path, "rb") as f:
                     return f.read()
             else:
-                 # Check for specific "Stream map matches no streams" error which implies audio file was invalid/empty
+                 # Check for specific errors
                  stderr_out = result.stderr.decode('utf-8')
-                 if "matches no streams" in stderr_out:
-                     print("Stitching Warning: Audio stream invalid or missing. Returning silent video.")
-                     with open(merged_video_path, "rb") as f:
-                         return f.read()
+                 print(f"Stitch Error Output: {stderr_out}")
                  
                  # Only raise if output is missing
                  raise Exception(f"FFmpeg failed (Exit {result.returncode}): {stderr_out}")
@@ -341,6 +331,13 @@ class VideoScript(BaseModel):
             "4. QUALITY: Photorealistic, Unreal Engine 5 render style, 8k resolution, entirely in sharp focus (f/8), pristine and clean.\n"
             "5. FORMAT: Write as a flowing, descriptive paragraph, not a list of keywords."
         )
+    )
+
+class VisualDirectives(BaseModel):
+    prompts: List[str] = Field(
+        description="A list of exactly 4 highly detailed, cinematic image generation prompts for a video sequence. "
+                    "Each prompt must be distinct (Title Card, Detail Shot, Abstract Shot, Closing Branding). "
+                    "Focus on elegance, minimalism, and high-end tech aesthetic."
     )
 
 # --- Nodes ---
@@ -526,19 +523,52 @@ async def production_studio_node(state: MarketingState):
     
     # 2. Generate Video Sequence (Image-to-Video Workflow)
     headline = state.get("headline", "Tech Update")
+    summary = state.get("summary", "")
     
-    # Generate 4 Keyframes using Flux first
-    scripts = state.get("script", [])
-    # We construct specific prompts for visual variety
-    keyframe_prompts = [
-        f"Sleek minimalistic tech background, matte black. Large, bold, glowing white text in the center reading: '{headline}'. High resolution typography, correct spelling, sharp focus.",
-        "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
-        "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
-        "Dark background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Professional logo design, sharp focus, correct spelling."
-    ]
+    # Dynamic Prompt Generation using LLM (replacing hardcoded templates)
+    logs.append(f"Generating dynamic visual directives for: {headline}")
+    
+    prompt_gen_prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are a Hollywood Art Director specializing in high-end tech commercials.
+        Your task is to write 4 distinct, highly detailed, photorealistic image generation prompts for a video sequence.
+        
+        Style Guide:
+        - Geometric, minimalistic, sleek, matte black, neon blue/cyan accents.
+        - "Apple" commercial aesthetic. 8k resolution, Unreal Engine 5 render.
+        - NO PEOPLE. NO CLUTTER.
+        
+        The 4 prompts must be:
+        1. **Title Card**: A cinematic wide shot with the text "{headline}" clearly visible in the center. Use 'large glowing white sans-serif typography'.
+        2. **Detail Shot**: A macro close-up of a relevant tech object (e.g. server rack, microchip, fiber optic, data stream) related to the summary: "{summary}". No text.
+        3. **Abstract Shot**: A beautiful, abstract 3D visualization of data flowing or processing. High contrast. No text.
+        4. **Closing Shot**: A sleek, dark background with the text "Databro" in the center AND smaller text "databro.dev" at the bottom. Clean, professional logo style.
+        
+        Return ONLY a JSON list of 4 strings."""),
+        ("human", "Generate the 4 visual prompts now.")
+    ])
+    
+    parser = JsonOutputParser(pydantic_object=VisualDirectives)
+    chain = prompt_gen_prompt | llm | parser
+    
+    keyframe_prompts = []
+    try:
+        data = await chain.ainvoke({"headline": headline, "summary": summary})
+        keyframe_prompts = data.get("prompts", [])
+        logs.append(f"LLM Generated {len(keyframe_prompts)} prompts.")
+    except Exception as e:
+        logs.append(f"Prompt Gen Error: {e}. Using fallback.")
+    
+    # Fallback if LLM fails
+    if not keyframe_prompts or len(keyframe_prompts) < 4:
+        keyframe_prompts = [
+            f"Sleek minimalistic tech background, matte black. Large, bold, glowing white text in the center reading: '{headline}'. High resolution typography, correct spelling, sharp focus.",
+            "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
+            "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
+            "Dark background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Small text 'databro.dev' at bottom. Professional logo design, sharp focus."
+        ]
     
     video_clips = []
-    logs.append("Starting Multi-Shot Video Generation...")
+    logs.append(f"Starting Multi-Shot Video Generation with {len(keyframe_prompts)} prompts...")
     
     # Generate clips sequentially
     import uuid
@@ -594,25 +624,12 @@ async def production_studio_node(state: MarketingState):
             audio_bytes = await generate_music_track(prompt=audio_prompt, duration=30)
 
             # Upload Audio immediately if successful
+            # NOTE: generate_music_track now guarantees a valid WAV file via ffmpeg conversion
             if audio_bytes:
-                # Detect format from magic bytes
-                ext = ".wav"
-                mime = "audio/wav"
-                if len(audio_bytes) > 4:
-                    if audio_bytes.startswith(b'fLaC'):
-                        ext = ".flac"
-                        mime = "audio/flac"
-                    elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'):
-                        ext = ".mp3"
-                        mime = "audio/mpeg"
-                    elif audio_bytes.startswith(b'OggS'):
-                        ext = ".ogg"
-                        mime = "audio/ogg"
-
-                audio_filename = f"audio_{uuid.uuid4().hex[:8]}{ext}"
-                audio_url = upload_to_azure(audio_bytes, audio_filename, mime)
+                audio_filename = f"audio_{uuid.uuid4().hex[:8]}.wav"
+                audio_url = upload_to_azure(audio_bytes, audio_filename, "audio/wav")
                 if audio_url:
-                    logs.append(f"Audio track uploaded ({ext}): {audio_url}")
+                    logs.append(f"Audio track uploaded (.wav): {audio_url}")
                     generated_asset_urls.append(audio_url)
                     
         except Exception as audio_e:
