@@ -5,6 +5,9 @@ import httpx
 from typing import List, Dict, Any, Optional, TypedDict, Annotated
 import operator
 import json
+import shutil
+import tempfile
+import subprocess
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -215,8 +218,17 @@ async def generate_video_from_image(image_bytes: bytes, prompt: str) -> Optional
         print(f"I2V Generation Error ({HF_I2V_MODEL}): {e}")
         return None
 
+def get_video_duration(path: str) -> float:
+    """Returns the duration of a video file in seconds."""
+    cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        return float(result.stdout.strip())
+    except Exception:
+        return 5.0 # Fallback default
+
 def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = None) -> Optional[bytes]:
-    """Stitches multiple video clips + optional audio track into a single video."""
+    """Stitches multiple video clips with smooth crossfade transitions."""
     if not video_clips:
         return None
 
@@ -224,11 +236,13 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write video clips
             clip_paths = []
+            durations = []
             for i, clip in enumerate(video_clips):
                 path = os.path.join(tmpdir, f"clip_{i}.mp4")
                 with open(path, "wb") as f:
                     f.write(clip)
                 clip_paths.append(path)
+                durations.append(get_video_duration(path))
             
             # Write audio IF provided
             audio_path = None
@@ -236,22 +250,71 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = 
                 audio_path = os.path.join(tmpdir, "audio.wav")
                 with open(audio_path, "wb") as f:
                     f.write(audio_bytes)
-                
-            # Create list file for concatenation
-            list_path = os.path.join(tmpdir, "files.txt")
-            with open(list_path, "w") as f:
-                for path in clip_paths:
-                    f.write(f"file '{path}'\n")
 
             output_path = os.path.join(tmpdir, "final_output.mp4")
             merged_video_path = os.path.join(tmpdir, "merged_video.mp4")
             
-            # 1. Concatenate videos
-            concat_cmd = [
-                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path,
-                "-c", "copy", merged_video_path
-            ]
-            subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            # --- Build XFADE Filter Graph ---
+            # If we only have 1 clip, just copy it
+            if len(clip_paths) == 1:
+                shutil.copy(clip_paths[0], merged_video_path)
+            else:
+                inputs = []
+                filter_complex = ""
+                transition_duration = 1.0 # 1 second crossfade
+                
+                # Build input list
+                for path in clip_paths:
+                    inputs.extend(["-i", path])
+                
+                # Build filter graph
+                # stream 0 and 1 -> xfade -> v0
+                # v0 and 2 -> xfade -> v1 ...
+                
+                offset = 0.0
+                prev_stream = "0:v"
+                
+                for i in range(1, len(clip_paths)):
+                    # Calculate offset for this transition
+                    # Offset is the cumulative duration of previous clips minus the overlap accumulation
+                    # Actually, easier: Offset = end of previous clip - transition duration.
+                    # Duration of first clip is D0. Offset = D0 - 1.
+                    # Result duration = D0 + D1 - 1.
+                    # Next offset = (D0 + D1 - 1) + D2 - 1 ... no wait.
+                    
+                    # Correct logic for N inputs:
+                    # Input 1 (duration D0) starts at 0.
+                    # Input 2 (duration D1) starts at D0 - T.
+                    # Input 3 indicates start at (D0 - T) + (D1 - T) = D0 + D1 - 2T? No.
+                    
+                    # Let's track the "current end time" of the growing stream.
+                    if i == 1:
+                        offset = durations[0] - transition_duration
+                    else:
+                        # Add duration of the PREVIOUS clip to the offset, minus transition overlap
+                        offset += durations[i-1] - transition_duration
+                    
+                    next_stream = f"{i}:v"
+                    target_stream = f"v{i}" if i < len(clip_paths) - 1 else "outv"
+                    
+                    filter_complex += f"[{prev_stream}][{next_stream}]xfade=transition=fade:duration={transition_duration}:offset={offset}[{target_stream}];"
+                    prev_stream = target_stream
+                
+                # Remove trailing semicolon
+                filter_complex = filter_complex.rstrip(";")
+                
+                print(f"Applying XFADE with filter: {filter_complex}")
+                
+                concat_cmd = [
+                    "ffmpeg", "-y",
+                    *inputs,
+                    "-filter_complex", filter_complex,
+                    "-map", f"[outv]",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", # Re-encode for compatibility
+                    merged_video_path
+                ]
+                
+                subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             
             # 2. Add Audio (loop audio if shorter, cut video if longer)
             if audio_path:
@@ -265,9 +328,7 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = 
                     output_path
                 ]
             else:
-                # No audio, just copy merged video to output
-                # Or re-encode if we want consistent output format, but copy is faster
-                 final_cmd = [
+                final_cmd = [
                     "ffmpeg", "-y",
                     "-i", merged_video_path,
                     "-c", "copy",
@@ -276,6 +337,7 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = 
             
             # Use check=False to capture result and ignore non-fatal exit codes
             result = subprocess.run(final_cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
 
             
             # If output exists and is non-zero, we consider it a success
@@ -561,15 +623,15 @@ async def production_studio_node(state: MarketingState):
         Your task is to write 4 distinct, highly detailed, photorealistic image generation prompts for a video sequence.
         
         Style Guide:
-        - Geometric, minimalistic, sleek, matte black, neon blue/cyan accents.
-        - "Apple" commercial aesthetic. 8k resolution, Unreal Engine 5 render.
-        - NO PEOPLE. NO CLUTTER.
+        - Cinematic, 8k resolution, Unreal Engine 5 render, volumetrics, dynamic lighting.
+        - Avoid generic "tech blue" or simple black backgrounds. Use rich, deep colors appropriate for the topic (e.g., warm data centers, cool server rooms, vibrant cyber cities).
+        - High contrast, sharp focus, depth of field.
         
         The 4 prompts must be:
-        1. **Title Card**: A cinematic wide shot with the text "{headline}" clearly visible in the center. Use 'large glowing white sans-serif typography'.
+        1. **Title Card**: A stunning, complex 3D background related to '{topic}' (e.g. a sprawling detailed data center, a glowing neural network, a futuristic city). In the center, large, bold, glowing white sans-serif text reading "{headline}". The text must be legible but integrated into the scene.
         2. **Detail Shot**: A macro close-up of a relevant tech object (e.g. server rack, microchip, fiber optic, data stream) related to the summary: "{summary}". No text.
-        3. **Abstract Shot**: A beautiful, abstract 3D visualization of data flowing or processing. High contrast. No text.
-        4. **Closing Shot**: A sleek, dark background with the text "Databro" in the center AND smaller text "databro.dev" at the bottom. Clean, professional logo style.
+        3. **Abstract Shot**: A beautiful, abstract 3D visualization of data processing or AI. High complexity, glass and metal textures. No text.
+        4. **Closing Shot**: A professional, high-end studio background (dark grey/navy gradient). Large, clean, white 3D sans-serif text reading "Databro" in the center AND smaller text "databro.dev" at the bottom.
         
         Return ONLY a JSON list of 4 strings."""),
         ("human", "Generate the 4 visual prompts now.")
@@ -580,7 +642,7 @@ async def production_studio_node(state: MarketingState):
     
     keyframe_prompts = []
     try:
-        data = await chain.ainvoke({"headline": headline, "summary": summary})
+        data = await chain.ainvoke({"headline": headline, "summary": summary, "topic": state.get("topic", "Technology")})
         keyframe_prompts = data.get("prompts", [])
         logs.append(f"LLM Generated {len(keyframe_prompts)} prompts.")
     except Exception as e:
@@ -589,10 +651,10 @@ async def production_studio_node(state: MarketingState):
     # Fallback if LLM fails
     if not keyframe_prompts or len(keyframe_prompts) < 4:
         keyframe_prompts = [
-            f"Sleek minimalistic tech background, matte black. Large, bold, glowing white text in the center reading: '{headline}'. High resolution typography, correct spelling, sharp focus.",
-            "Close up macro shot of digital data stream, glowing blue particles, depth of field.",
-            "Abstract geometric shapes rotating in void, glass texture, high end commercial style.",
-            "Dark background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Small text 'databro.dev' at bottom. Professional logo design, sharp focus."
+            f"Cinematic 3D render of a futuristic data center with glowing servers. In the center, large bold white text reads: '{headline}'. Volumetric lighting, 8k resolution, detailed background.",
+            "Close up macro shot of digital data stream, glowing blue particles, depth of field, complex texture.",
+            "Abstract geometric shapes rotating in void, glass texture, high end commercial style, colorful lighting.",
+            "Dark professional studio background. Large, clean, white 3D sans-serif text reading 'Databro' in the center. Small text 'databro.dev' at bottom. Professional logo design, sharp focus."
         ]
     
     video_clips = []
