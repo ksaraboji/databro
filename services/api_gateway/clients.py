@@ -116,8 +116,27 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                         kind = filetype.guess(audio_bytes)
                         ext = kind.extension if kind else "bin"
                         print(f"Detected music type: {kind.mime if kind else 'unknown'} ({ext})")
+                        
+                        # Fallback for FLAC if filetype misses it (common with raw streams)
+                        if kind is None:
+                            if audio_bytes.startswith(b'fLaC'):
+                                ext = "flac"
+                                print("Manual detection: FLAC")
+                            elif audio_bytes.startswith(b'RIFF'):
+                                ext = "wav"
+                                print("Manual detection: WAV")
+                            elif audio_bytes.startswith(b'OggS'):
+                                ext = "ogg"
+                                print("Manual detection: OGG")
+                            elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'):
+                                ext = "mp3"
+                                print("Manual detection: MP3")
+                            else:
+                                # Start of file hex dump for debugging
+                                print(f"Unknown audio header: {audio_bytes[:16].hex()}")
 
                         # Create a temp file with the DETECTED extension
+                        # Use .bin if unknown so ffmpeg is forced to probe
                         temp_input = f"/tmp/raw_music_{uuid.uuid4().hex}.{ext}"
                         final_wav = f"/tmp/music_{uuid.uuid4().hex}.wav"
                         
@@ -127,34 +146,56 @@ async def generate_music_track(prompt: str, duration: int = 10) -> Optional[byte
                         # Convert WHATEVER we got (flac, ogg, mp3) to a standard PCM WAV
                         # This fixes the "corruption" issue by re-encoding standard headers
                         try:
-                            print(f"Converting {temp_input} to canonical WAV...")
+                            # Added -f wav to force output format
+                            # Added specific input format handling if extension is ambiguous
+                            # Remove -acodec pcm_s16le if input is weird, let ffmpeg handle it
+                            # But we want standard wav output.
+                            
+                            cmd = ["ffmpeg", "-y", "-i", temp_input, "-ac", "2", "-ar", "44100", final_wav]
+                            
+                            print(f"Converting {temp_input} to canonical WAV using: {' '.join(cmd)}")
+                            
                             process = await asyncio.create_subprocess_exec(
-                                "ffmpeg", "-y", "-i", temp_input, 
-                                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", 
-                                final_wav,
+                                *cmd,
                                 stdout=asyncio.subprocess.PIPE,
                                 stderr=asyncio.subprocess.PIPE
                             )
-                            await process.communicate()
+                            stdout, stderr = await process.communicate()
                             
-                            if os.path.exists(final_wav):
+                            # Log full output if failure or weirdness
+                            if process.returncode != 0:
+                                error_msg = stderr.decode()
+                                print(f"FFmpeg conversion error: {error_msg}")
+                                raise Exception(f"FFmpeg failed to convert audio: {error_msg}")
+                            
+                            # Verify strict WAV header
+                            if os.path.exists(final_wav) and os.path.getsize(final_wav) > 1000: # Ensure not just a header
                                 with open(final_wav, "rb") as f:
                                     clean_wav_bytes = f.read()
+                                
+                                # Double check header manually
+                                if not clean_wav_bytes.startswith(b'RIFF'):
+                                     print("FFmpeg produced file without RIFF header!")
+                                     raise Exception("Invalid WAV header produced")
+                                     
                                 print(f"Successfully converted music to WAV. Size: {len(clean_wav_bytes)}")
                                 
                                 # Cleanup
-                                os.remove(temp_input)
-                                os.remove(final_wav)
+                                if os.path.exists(temp_input): os.remove(temp_input)
+                                if os.path.exists(final_wav): os.remove(final_wav)
                                 
                                 return clean_wav_bytes
                             else:
-                                print("FFmpeg conversion failed to create output file, returning raw bytes.")
+                                print(f"FFmpeg conversion failed: Output file too small or missing.")
                                 if os.path.exists(temp_input): os.remove(temp_input)
-                                return audio_bytes
+                                if os.path.exists(final_wav): os.remove(final_wav)
+                                return None # Explicit failure
+                                
                         except Exception as conv_e:
                             print(f"Error during audio conversion: {conv_e}")
                             if os.path.exists(temp_input): os.remove(temp_input)
-                            return audio_bytes
+                            if os.path.exists(final_wav): os.remove(final_wav)
+                            return None # Return None to signal failure, rather than bad bytes
                     
                     if response.status_code == 503:
                         # Service Unavailable - likely starting up

@@ -215,8 +215,8 @@ async def generate_video_from_image(image_bytes: bytes, prompt: str) -> Optional
         print(f"I2V Generation Error ({HF_I2V_MODEL}): {e}")
         return None
 
-def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional[bytes]:
-    """Stitches multiple video clips + one audio track into a single video."""
+def stitch_video_clips(video_clips: list[bytes], audio_bytes: Optional[bytes] = None) -> Optional[bytes]:
+    """Stitches multiple video clips + optional audio track into a single video."""
     if not video_clips:
         return None
 
@@ -230,12 +230,12 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                     f.write(clip)
                 clip_paths.append(path)
             
-            # Write audio
-            # Detect format by magic bytes again or safe default
-            # Write audio - Now guaranteed to be WAV from generate_music_track
-            audio_path = os.path.join(tmpdir, "audio.wav")
-            with open(audio_path, "wb") as f:
-                f.write(audio_bytes)
+            # Write audio IF provided
+            audio_path = None
+            if audio_bytes:
+                audio_path = os.path.join(tmpdir, "audio.wav")
+                with open(audio_path, "wb") as f:
+                    f.write(audio_bytes)
                 
             # Create list file for concatenation
             list_path = os.path.join(tmpdir, "files.txt")
@@ -254,18 +254,29 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
             subprocess.run(concat_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             
             # 2. Add Audio (loop audio if shorter, cut video if longer)
-            final_cmd = [
-                "ffmpeg", "-y",
-                "-i", merged_video_path,
-                "-stream_loop", "-1", "-i", audio_path, # Loop audio
-                "-map", "0:v", "-map", "1:a",
-                "-c:v", "copy", "-c:a", "aac",
-                "-shortest", # End when the shortest stream ends
-                output_path
-            ]
+            if audio_path:
+                final_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", merged_video_path,
+                    "-stream_loop", "-1", "-i", audio_path, # Loop audio
+                    "-map", "0:v", "-map", "1:a",
+                    "-c:v", "copy", "-c:a", "aac",
+                    "-shortest", # End when the shortest stream ends
+                    output_path
+                ]
+            else:
+                # No audio, just copy merged video to output
+                # Or re-encode if we want consistent output format, but copy is faster
+                 final_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", merged_video_path,
+                    "-c", "copy",
+                    output_path
+                ]
             
             # Use check=False to capture result and ignore non-fatal exit codes
             result = subprocess.run(final_cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
             
             # If output exists and is non-zero, we consider it a success
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
@@ -275,6 +286,12 @@ def stitch_video_clips(video_clips: list[bytes], audio_bytes: bytes) -> Optional
                  # Check for specific errors
                  stderr_out = result.stderr.decode('utf-8')
                  print(f"Stitch Error Output: {stderr_out}")
+                 
+                 # If audio failed stitching, return silent video as fallback
+                 if os.path.exists(merged_video_path) and os.path.getsize(merged_video_path) > 0:
+                     print("Stitching Fallback: Returning silent video (merged_video.mp4).")
+                     with open(merged_video_path, "rb") as f:
+                        return f.read()
                  
                  # Only raise if output is missing
                  raise Exception(f"FFmpeg failed (Exit {result.returncode}): {stderr_out}")
@@ -325,10 +342,11 @@ class VideoScript(BaseModel):
         description=(
             "A highly descriptive, natural language prompt for a 5-second cinematic background video loop. "
             "CRITICAL REQUIREMENTS:\n"
-            "1. SCENE: An empty, minimalist 3D environment. No people, no text, no logos, no icons.\n"
-            "2. VISUAL STYLE: 'Apple' commercial aesthetic, sleek matte black surfaces with glowing neon blue accents.\n"
+            "1. SCENE: An empty, minimalist 3D environment related to the topic. No people, no text, no logos.\n"
+            "2. VISUAL STYLE: Distinctive, cinematic, high-end commercial aesthetic. "
+            "Use varied color palettes appropriate for the subject (e.g., warm oranges for cloud, cool teals for data, bright neons for AI). Avoid generic black.\n"
             "3. MOTION: A slow, continuous, elegant camera pan. Smooth and fluid.\n"
-            "4. QUALITY: Photorealistic, Unreal Engine 5 render style, 8k resolution, entirely in sharp focus (f/8), pristine and clean.\n"
+            "4. QUALITY: Photorealistic, Unreal Engine 5 render style, 8k resolution, photorealistic textures (glass, metal, light).\n"
             "5. FORMAT: Write as a flowing, descriptive paragraph, not a list of keywords."
         )
     )
@@ -372,7 +390,15 @@ async def content_strategist_node(state: MarketingState):
     
     meta_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a Marketing Expert. Extract metadata from the article."),
-        ("human", "Article: {article}\n\n{format_instructions}\n\nProvide the headline, summary, 5-7 relevant tags, and a cover image prompt.")
+        ("human", """Article: {article}
+
+        {format_instructions}
+
+        Provide:
+        1. A catchy Headline
+        2. A concise Summary for Twitter
+        3. 5-7 relevant Hashtags
+        4. A vivid, high-quality Image Prompt for a cover image. It should be cinematic, 8k resolution, and specifically describe the lighting and materials related to the topic. Avoid generic "tech blue" backgrounds. Use complementary colors and dynamic composition.""")
     ])
     
     meta_chain = meta_prompt | llm | parser
@@ -432,15 +458,17 @@ async def visual_director_node(state: MarketingState):
     
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an elite Visual Director for high-end Tech Commercials. Your job is to design stunning, text-free abstract background loops that text and UI elements will be overlaid onto later."),
+        ("system", "You are an elite Visual Director for high-end Tech Commercials. Your job is to design stunning, cinematic video backgrounds that capture the essence of the topic."),
         ("human", """Create a 30s YouTube Short script (voiceover) about: '{headline}'. 
     Context/Summary: {summary}
 
     Return JSON with 'sentences' (for voiceover), 'visuals' (for reference), and a single high-quality 'video_prompt'.
 
-    The 'video_prompt' MUST be for a clean, abstract, text-free background loop. 
-    DO NOT ask the video model to generate typography, logos, or social media icons. The background must be sleek, matte black and neon blue, leaving negative space in the center or rule-of-thirds for us to add the 'Databro' text in post-production.
-
+    The 'video_prompt' MUST be for a clean, abstract, text-free background loop related to the topic. 
+    Make it visually distinct and creative. Avoid generic tech blues if possible. Use shallow depth of field, 8k resolution, photorealistic textures (glass, metal, light), and dynamic lighting.
+    
+    DO NOT ask for text, logos, or UI elements in the video generation. It must be a background.
+    
     {format_instructions}""")
     ])
 
@@ -625,12 +653,15 @@ async def production_studio_node(state: MarketingState):
 
             # Upload Audio immediately if successful
             # NOTE: generate_music_track now guarantees a valid WAV file via ffmpeg conversion
-            if audio_bytes:
+            if audio_bytes and len(audio_bytes) > 1000:
                 audio_filename = f"audio_{uuid.uuid4().hex[:8]}.wav"
                 audio_url = upload_to_azure(audio_bytes, audio_filename, "audio/wav")
                 if audio_url:
                     logs.append(f"Audio track uploaded (.wav): {audio_url}")
                     generated_asset_urls.append(audio_url)
+            elif audio_bytes:
+                 logs.append("Audio generated but too small (<1KB). Discarding.")
+                 audio_bytes = None # Discard small/invalid files
                     
         except Exception as audio_e:
              logs.append(f"Audio Processing Error: {audio_e}")
@@ -649,25 +680,15 @@ async def production_studio_node(state: MarketingState):
         
         if video_clips:
              try:
-                # If audio failed, we might want to generate a silent video
-                # But strict checking in 'stitch_video_clips' enables audio. 
-                # Let's try to proceed. 
-                # Note: The current 'stitch_video_clips' implementation expects 'audio_bytes'. 
-                # If audio is None, we need to handle it.
+                # If audio failed, we still want to generate a silent video
+                # 'stitch_video_clips' handles None audio now.
+                logs.append("Stitching video clips...")
                 
-                if audio_bytes:
-                     # Run stitching in executor
-                    loop = asyncio.get_running_loop()
-                    combined_bytes = await loop.run_in_executor(
-                        None, 
-                        lambda: stitch_video_clips(video_clips, audio_bytes)
-                    )
-                else:
-                    # Fallback: Just concat the video clips without audio
-                    # We can't reuse stitch_video_clips easily without refactoring it.
-                    # For now, let's rely on the individual clips being uploaded (which covers the user request).
-                    logs.append("Skipping final stitch due to missing audio (implementation limitation).")
-                    combined_bytes = None
+                loop = asyncio.get_running_loop()
+                combined_bytes = await loop.run_in_executor(
+                    None, 
+                    lambda: stitch_video_clips(video_clips, audio_bytes)
+                )
 
                 if combined_bytes:
                     video_bytes = combined_bytes
