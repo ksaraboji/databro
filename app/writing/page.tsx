@@ -58,7 +58,13 @@ export default function WritingPage() {
           try {
              const data = await devtoRes.value.json();
              if (data.status === "ok") {
-               const devtoPosts = data.items.map((item: any) => {
+               const devtoPosts = data.items
+                 .filter((item: any) => {
+                   const tags = item.categories || [];
+                   const title = (item.title || "").toLowerCase();
+                   return !tags.includes('archived') && !title.includes('archived');
+                 })
+                 .map((item: any) => {
                  // Dev.to RSS content might differ, check description
                  const doc = new DOMParser().parseFromString(item.description, 'text/html');
                  const textContent = doc.body.textContent || "";
