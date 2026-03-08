@@ -339,7 +339,7 @@ async def script_agent(state: MarketingState, config: RunnableConfig = None):
     cb = config.get("configurable", {}).get("log_cb") if config else None
     
     def add_log(msg: str):
-        add_log(msg)
+        logs.append(msg)
         if cb:
             cb(msg)
 
@@ -394,7 +394,7 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
     cb = config.get("configurable", {}).get("log_cb") if config else None
     
     def add_log(msg: str):
-        add_log(msg)
+        logs.append(msg)
         if cb:
             cb(msg)
 
