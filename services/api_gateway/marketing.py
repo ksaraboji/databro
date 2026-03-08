@@ -89,7 +89,7 @@ async def create_text_layer(text: str, icon_name: str | None = None, size=SLIDE_
     logo_font = None
     
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             # Load main font
             if "Poppins-Bold" not in _FONT_CACHE:
                 font_response = await client.get(fonts_to_download["Poppins-Bold"])
@@ -109,9 +109,9 @@ async def create_text_layer(text: str, icon_name: str | None = None, size=SLIDE_
         print(f"Font fetching error: {e}")
         
     if font is None:
-        font = ImageFont.load_default()
+        font = ImageFont.load_default(size=80) if hasattr(ImageFont, "load_default") and "size" in ImageFont.load_default.__code__.co_varnames else ImageFont.load_default()
     if logo_font is None:
-        logo_font = ImageFont.load_default()
+        logo_font = ImageFont.load_default(size=45) if hasattr(ImageFont, "load_default") and "size" in ImageFont.load_default.__code__.co_varnames else ImageFont.load_default()
         
     lines = []
     words = text.split()
@@ -147,7 +147,7 @@ async def create_text_layer(text: str, icon_name: str | None = None, size=SLIDE_
     # Download and overlay icon
     if icon_name:
         icon_url = f"https://img.icons8.com/ios-glyphs/120/ffffff/{icon_name.lower().replace(' ', '-')}.png"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             try:
                 response = await client.get(icon_url)
                 if response.status_code == 200:
@@ -497,7 +497,7 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
         
         clip_path = f"{OUTPUT_DIR}/{run_id}_clip_{i}.mp4"
         clip = ImageSequenceClip(looped_frames, fps=FINAL_FPS)
-        clip.write_videofile(clip_path, fps=FINAL_FPS, codec="libx264", audio=False, logger=None)
+        clip.write_videofile(clip_path, fps=FINAL_FPS, codec="libx264", audio=False, logger=None, threads=4, preset="ultrafast")
         clips_paths.append(clip_path)
         
         # Uploading animated clip
@@ -546,7 +546,7 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
                 final_audio = CompositeAudioClip(combined_audio)
                 final_video = final_video.set_audio(final_audio)
 
-            final_video.write_videofile(final_video_path, fps=FINAL_FPS, codec="libx264", audio_codec="aac", logger=None)
+            final_video.write_videofile(final_video_path, fps=FINAL_FPS, codec="libx264", audio_codec="aac", logger=None, threads=4, preset="ultrafast")
             final_video_url = upload_to_azure(final_video_path, f"{run_id}_final.mp4", "video/mp4") or final_video_path
             assets["final_video"] = final_video_url
             add_log(f"Successfully generated video at: {final_video_url}")
