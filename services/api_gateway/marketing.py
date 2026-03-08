@@ -52,7 +52,7 @@ SLIDE_SIZE = (1080, 1920)
 
 llm = ChatGroq(
     temperature=0.7,
-    model_name="llama-3.2-90b-text-preview",
+    model_name="llama-3.3-70b-versatile",
     groq_api_key=GROQ_API_KEY
 )
 
