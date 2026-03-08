@@ -25,7 +25,8 @@ class MarketingRequest(BaseModel):
 class MarketingResponse(BaseModel):
     job_id: str
     status: str
-    headline: Optional[str] = None
-    summary: Optional[str] = None
-    article_content: Optional[str] = None
+    blog_content: Optional[str] = None
+    social_tags: Optional[List[str]] = None
+    devto_url: Optional[str] = None
+    video_url: Optional[str] = None
     logs: Optional[List[str]] = None

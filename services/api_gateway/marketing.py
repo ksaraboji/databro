@@ -333,9 +333,20 @@ class SlideShowScript(BaseModel):
     blog_cover_prompt: str = Field(description="A descriptive prompt for an eye-catching, high-quality blog cover image suitable for dev.to, ready for generation via FLUX.1.")
     social_tags: List[str] = Field(description="A list of 5-10 appropriate, high-ranking tags or hashtags that can be used across various social platforms including dev.to.")
 
-async def script_agent(state: MarketingState):
+from langchain_core.runnables import RunnableConfig
+
+async def script_agent(state: MarketingState, config: RunnableConfig = None):
+    cb = config.get("configurable", {}).get("log_cb") if config else None
+    
+    def add_log(msg: str):
+        add_log(msg)
+        if cb:
+            cb(msg)
+
     topic = state.get("topic", "AI")
-    logs = ["Generating slide script..."]
+    logs = []
+    add_log("Generating slide script...")
+
     
     system = "You are an expert marketing video creator."
     human = f"""
@@ -366,7 +377,7 @@ async def script_agent(state: MarketingState):
         blog_content = script_data.get("blog_content", "")
         blog_cover_prompt = script_data.get("blog_cover_prompt", "")
         social_tags = script_data.get("social_tags", [])
-        logs.append(f"Generated {len(slides)} slides and blog content.")
+        add_log(f"Generated {len(slides)} slides and blog content.")
         return {
             "slides": slides,
             "blog_content": blog_content,
@@ -376,13 +387,21 @@ async def script_agent(state: MarketingState):
             "logs": logs
         }
     except Exception as e:
-         logs.append(f"Script Error: {e}")
+         add_log(f"Script Error: {e}")
          return {"logs": logs}
 
-async def production_agent(state: MarketingState):
+async def production_agent(state: MarketingState, config: RunnableConfig = None):
+    cb = config.get("configurable", {}).get("log_cb") if config else None
+    
+    def add_log(msg: str):
+        add_log(msg)
+        if cb:
+            cb(msg)
+
     slides = state.get("slides", [])
     blog_cover_prompt = state.get("blog_cover_prompt", "")
-    logs = ["Producing video assets..."]
+    logs = []
+    add_log("Producing video assets...")
     
     run_id = str(uuid.uuid4())[:8]
     clips_paths = []
@@ -392,7 +411,7 @@ async def production_agent(state: MarketingState):
     
     # Generate Blog Cover Image
     if blog_cover_prompt:
-        logs.append("Generating blog cover image...")
+        add_log("Generating blog cover image...")
         cover_bytes = await generate_image_hf(blog_cover_prompt)
         if cover_bytes:
             cover_file = f"{OUTPUT_DIR}/{run_id}_blog_cover.jpg"
@@ -405,19 +424,19 @@ async def production_agent(state: MarketingState):
     FINAL_FPS = 8
     
     if not ImageSequenceClip:
-        logs.append("MoviePy not installed. Cannot stitch video.")
+        add_log("MoviePy not installed. Cannot stitch video.")
         return {"logs": logs}
 
     music_prompt = slides[0]["bg_music_prompt"] if slides else "upbeat tech electronic background music"
     
     for i, slide in enumerate(slides):
-        logs.append(f"Processing slide {i+1}...")
+        add_log(f"Processing slide {i+1}...")
         slide_assets = {}
         
         # 1. Base Image from FLUX
         img_bytes = await generate_image_hf(slide["image_prompt"])
         if not img_bytes:
-            logs.append(f"Failed to generate base image for slide {i+1}")
+            add_log(f"Failed to generate base image for slide {i+1}")
             continue
             
         base_img_file = f"{OUTPUT_DIR}/{run_id}_slide_{i}_base.jpg"
@@ -485,7 +504,7 @@ async def production_agent(state: MarketingState):
         slide_assets["animated_clip"] = upload_to_azure(clip_path, f"{run_id}_clip_{i}.mp4", "video/mp4") or clip_path
         assets[f"slide_{i+1}"] = slide_assets
 
-    logs.append("Stitching Final Video with FFmpeg via MoviePy...")
+    add_log("Stitching Final Video with FFmpeg via MoviePy...")
     
     music_bytes = await generate_bg_music_hf(music_prompt)
     music_file = None
@@ -530,14 +549,14 @@ async def production_agent(state: MarketingState):
             final_video.write_videofile(final_video_path, fps=FINAL_FPS, codec="libx264", audio_codec="aac", logger=None)
             final_video_url = upload_to_azure(final_video_path, f"{run_id}_final.mp4", "video/mp4") or final_video_path
             assets["final_video"] = final_video_url
-            logs.append(f"Successfully generated video at: {final_video_url}")
+            add_log(f"Successfully generated video at: {final_video_url}")
             
         except Exception as e:
-            logs.append(f"Stitching error: {e}")
+            add_log(f"Stitching error: {e}")
             import traceback
             traceback.print_exc()
     else:
-        logs.append("No clips to stitch.")
+        add_log("No clips to stitch.")
 
     # Post to Dev.to
     topic = state.get("topic", "AI")
@@ -545,7 +564,7 @@ async def production_agent(state: MarketingState):
     social_tags = state.get("social_tags", [])
     devto_url = ""
     if blog_content:
-        logs.append("Posting blog to DEV.to...")
+        add_log("Posting blog to DEV.to...")
         devto_url_resp = await post_to_devto(
             title=f"Exploring {topic}: Deep Dive & Insights", 
             markdown_content=blog_content, 
@@ -554,9 +573,9 @@ async def production_agent(state: MarketingState):
         )
         if devto_url_resp:
             devto_url = devto_url_resp
-            logs.append(f"Successfully posted to DEV.to: {devto_url}")
+            add_log(f"Successfully posted to DEV.to: {devto_url}")
         else:
-            logs.append("Failed to post to DEV.to")
+            add_log("Failed to post to DEV.to")
 
     return {
         "logs": logs,
