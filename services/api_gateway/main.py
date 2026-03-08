@@ -36,14 +36,24 @@ async def run_marketing_job(job_id: str, topic: str, publish_config: dict = None
             "publish_config": publish_config or {}
         }
         
-        # Async invoke the graph
-        config = {"configurable": {"thread_id": job_id}}
-        final_state = await marketing_app.ainvoke(initial_state, config=config)
+        # Stream state updates via callback so frontend can poll milestone progress
+        def log_cb(msg: str):
+            if job_id in marketing_jobs:
+                if "logs" not in marketing_jobs[job_id]["result"]:
+                    marketing_jobs[job_id]["result"]["logs"] = []
+                # Ensure we avoid duplicates optionally or just append
+                marketing_jobs[job_id]["result"]["logs"].append(msg)
+                
+        config = {"configurable": {"thread_id": job_id, "log_cb": log_cb}}
         
         marketing_jobs[job_id] = {
-            "status": final_state.get("status", "finished"),
-            "result": final_state
+            "status": "in-progress",
+            "result": initial_state.copy()
         }
+        
+        final_state = await marketing_app.ainvoke(initial_state, config=config)
+        marketing_jobs[job_id]["result"] = final_state
+        marketing_jobs[job_id]["status"] = final_state.get("status", "finished")
     except Exception as e:
         print(f"Marketing Job Error: {e}")
         marketing_jobs[job_id] = {"status": "failed", "error": str(e)}
@@ -64,9 +74,10 @@ async def get_marketing_status(job_id: str):
     return MarketingResponse(
         job_id=job_id,
         status=job.get("status", "unknown"),
-        headline=result.get("headline"),
-        summary=result.get("summary"),
-        article_content=result.get("article_content"),
+        blog_content=result.get("blog_content"),
+        social_tags=result.get("social_tags"),
+        devto_url=result.get("devto_url"),
+        video_url=result.get("video_url"),
         logs=result.get("logs")
     )
 

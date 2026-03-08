@@ -19,3 +19,5 @@ google-auth-httplib2
 huggingface_hub>=0.28.0
 Pillow
 filetype
+moviepy>=1.0.3,<2.0
+numpy
