@@ -378,12 +378,25 @@ async def script_agent(state: MarketingState, config: RunnableConfig = None):
         blog_cover_prompt = script_data.get("blog_cover_prompt", "")
         social_tags = script_data.get("social_tags", [])
         add_log(f"Generated {len(slides)} slides and blog content.")
+        
+        run_id_for_json = str(uuid.uuid4())[:8]
+        json_filename = f"{run_id_for_json}_script_output.json"
+        json_filepath = os.path.join(OUTPUT_DIR, json_filename)
+        with open(json_filepath, "w") as f:
+            json.dump(script_data, f, indent=4)
+        
+        json_url = upload_to_azure(json_filepath, json_filename, "application/json")
+        if json_url:
+            add_log(f"Uploaded script data to Azure Blob: {json_url}")
+        else:
+            add_log(f"Saved script data locally: {json_filepath}")
+            
         return {
             "slides": slides,
             "blog_content": blog_content,
             "blog_cover_prompt": blog_cover_prompt,
             "social_tags": social_tags,
-            "assets": {},
+            "assets": {"script_json_url": json_url or json_filepath},
             "logs": logs
         }
     except Exception as e:
@@ -406,7 +419,7 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
     run_id = str(uuid.uuid4())[:8]
     clips_paths = []
     audio_paths = []
-    assets = {}
+    assets = state.get("assets", {})
     blog_cover_url = ""
     
     # Generate Blog Cover Image
