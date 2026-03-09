@@ -78,11 +78,11 @@ async def create_text_layer(text: str, icon_name: str | None = None, size=SLIDE_
     text_layer = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(text_layer)
     fonts_to_download = {
-        "Orbitron": "https://github.com/google/fonts/raw/main/ofl/orbitron/Orbitron%5Bwght%5D.ttf",
-        "Poppins-Bold": "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf",
-        "Poppins-Medium": "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Medium.ttf",
-        "Poppins-Regular": "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf",
-        "Poppins-SemiBold": "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-SemiBold.ttf",
+        "Orbitron": "https://raw.githubusercontent.com/google/fonts/main/ofl/orbitron/Orbitron%5Bwght%5D.ttf",
+        "Poppins-Bold": "https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf",
+        "Poppins-Medium": "https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Medium.ttf",
+        "Poppins-Regular": "https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf",
+        "Poppins-SemiBold": "https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-SemiBold.ttf",
     }
     
     font = None
@@ -320,17 +320,17 @@ class MarketingState(TypedDict):
     assets: Dict[str, Any]
 
 class SlideData(BaseModel):
-    slide_text: str = Field(description="The text displayed on the screen.")
+    slide_text: str = Field(description="The exact text displayed on the screen. CRITICAL: DO NOT use any emojis here, they will break the font renderer. For 'Did you know?' slides, include both the question AND a short punchy fact that matches the voiceover.")
     icon_name: str = Field(description="A single word representing a UI icon for the slide (e.g., 'rocket', 'brain', 'zap', 'chart'). Do not use emojis here, just the english word.")
     voiceover: str = Field(description="The exact voiceover text.")
-    image_prompt: str = Field(description="High-quality prompt for FLUX.1 background image.")
-    animation_prompt: str = Field(description="Prompt describing the motion for AnimateDiff-Lightning.")
-    bg_music_prompt: str = Field(description="Brief text for MusicGen background track.")
+    image_prompt: str = Field(description="High-quality prompt for FLUX.1 background image. It MUST visually depict and be highly related to the current slide_text.")
+    animation_prompt: str = Field(description="Prompt describing the motion for AnimateDiff-Lightning. MUST relate to the image_prompt.")
+    bg_music_prompt: str = Field(description="Brief text for MusicGen background track. This must be IDENTICAL across ALL slides to ensure continuous, seamless music playback.")
 
 class SlideShowScript(BaseModel):
     slides: List[SlideData]
-    blog_content: str = Field(description="An engaging, comprehensive, and highly technical blog post in Markdown format for dev.to based on the topic. It must include code snippets where applicable, and a generous, engaging use of emojis (🚀, 💡, 💻) throughout.")
-    blog_cover_prompt: str = Field(description="A descriptive prompt for an eye-catching, high-quality blog cover image suitable for dev.to, ready for generation via FLUX.1.")
+    blog_content: str = Field(description="An engaging, comprehensive, and deeply technical blog post in Markdown format for dev.to based on the topic. It MUST be at least 1000 words, structured with clear sections/headings, and go far beyond generic fluff to provide real technical depth. It must include code snippets where applicable, and a generous, engaging use of emojis (🚀, 💡, 💻) throughout.")
+    blog_cover_prompt: str = Field(description="A descriptive prompt for an eye-catching, high-quality blog cover image suitable for dev.to, ready for generation via FLUX.1. It MUST be HIGHLY related to the technical details expressed in the blog_content.")
     social_tags: List[str] = Field(description="A list of 5-10 appropriate, high-ranking tags or hashtags that can be used across various social platforms including dev.to.")
 
 from langchain_core.runnables import RunnableConfig
@@ -348,23 +348,29 @@ async def script_agent(state: MarketingState, config: RunnableConfig = None):
     add_log("Generating slide script...")
 
     
-    system = "You are an expert marketing video creator."
+    system = "You are an expert marketing video creator and a senior technical writer specializing in deeply technical, comprehensive dev.to articles."
     human = f"""
     Create a 5-slide video script about: {topic}.
-    1. Slide 1: 'Did you know?' to increase eagerness.
-    2. Slide 2: Another 'Did you know?' related to the topic.
+    1. Slide 1: Start with 'Did you know?' followed by a short intriguing fact about the topic. The slide_text MUST include this fact.
+    2. Slide 2: Another 'Did you know?' followed by a different short fact related to the topic. The slide_text MUST include this fact.
     3. Slide 3: Reveal the real topic.
     4. Slide 4: Real important concepts and highlights of the topic.
     5. Slide 5: Closing slide saying exactly: "To know more visit dev.to/ksaraboji".
     
     For each, provide:
-    - slide_text: the text displayed on the screen
+    - slide_text: the text displayed on the screen. ABSOLUTELY NO EMOJIS in this field. It must clearly capture the point made in the voiceover.
     - voiceover: what the speaker will say
-    - image_prompt: prompt for FLUX background image
-    - animation_prompt: prompt for AnimateDiff describing motion and aesthetics
-    - bg_music_prompt: brief description of background music for MusicGen
+    - image_prompt: prompt for FLUX background image. Ensure the prompt describes a scene that directly illustrates the content of the `slide_text`.
+    - animation_prompt: prompt for AnimateDiff describing motion and aesthetics. Ensure it matches the scene from `image_prompt`.
+    - bg_music_prompt: brief description of background music for MusicGen. VERY IMPORTANT: The `bg_music_prompt` MUST be the exact same string for every single slide. Do not change it per slide so the music can be generated as one continuous, sequential track that fits the overall animation style.
     
-    You must also write an engaging, well-structured, and highly technical blog post in Markdown format for dev.to about this topic, ensuring it includes relevant technical explanations, valid code snippets, and a good use of emojis (🚀, 💡, 💻, etc.) throughout to keep the reader engaged. Also, generate an image prompt specifically for the blog post's cover image, and provide a list of highly relevant social tags to promote it.
+    You must also write an engaging, well-structured, and highly technical blog post in Markdown format for dev.to about this topic, ensuring it includes relevant technical explanations, valid code snippets, and a good use of emojis (🚀, 💡, 💻, etc.) throughout to keep the reader engaged. 
+    IMPORTANT BLOG REQUIREMENTS:
+    - The blog post MUST be at least 1000 words long.
+    - It MUST have clear sections and headings.
+    - It MUST NOT be generic; do a complete deep dive into the technical details and advanced concepts.
+    
+    Also, generate an image prompt specifically for the blog post's cover image. This prompt MUST highly correlate with the specific technical concepts discussed within the `blog_content`. Provide a list of highly relevant social tags to promote it.
     """
     
     parser = JsonOutputParser(pydantic_object=SlideShowScript)
@@ -522,10 +528,10 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
     music_bytes = await generate_bg_music_hf(music_prompt)
     music_file = None
     if music_bytes:
-        music_file = f"{OUTPUT_DIR}/{run_id}_bg_music.mp3"
+        music_file = f"{OUTPUT_DIR}/{run_id}_bg_music.wav"
         with open(music_file, "wb") as f:
             f.write(music_bytes)
-        assets["bg_music"] = upload_to_azure(music_file, f"{run_id}_bg_music.mp3", "audio/mpeg") or music_file
+        assets["bg_music"] = upload_to_azure(music_file, f"{run_id}_bg_music.wav", "audio/wav") or music_file
             
     final_video_path = f"{OUTPUT_DIR}/{run_id}_final.mp4"
     final_video_url = ""
@@ -545,15 +551,24 @@ async def production_agent(state: MarketingState, config: RunnableConfig = None)
                     
             if music_file and os.path.exists(music_file):
                 try:
-                    bg_clip = AudioFileClip(music_file)
                     import math
-                    from moviepy.editor import concatenate_audioclips
-                    loops = max(1, math.ceil(final_video.duration / bg_clip.duration))
-                    bg_clip = concatenate_audioclips([bg_clip]*loops).set_duration(final_video.duration)
-                    bg_clip = bg_clip.volumex(0.3)
+                    from moviepy.editor import AudioFileClip
+                    from moviepy.audio.fx.all import audio_loop, volumex
+                    
+                    bg_clip = AudioFileClip(music_file)
+                    if getattr(bg_clip, "duration", None) is None:
+                        # Try to guess or force a duration if not loaded correctly
+                        bg_clip = bg_clip.set_duration(10.0)
+                        
+                    bg_clip = audio_loop(bg_clip, duration=final_video.duration)
+                    bg_clip = volumex(bg_clip, 0.3)
                     combined_audio.append(bg_clip)
+                    add_log("Successfully attached background music.")
                 except Exception as e:
-                    print(f"Error handling bg music: {e}")
+                    import traceback
+                    tb = traceback.format_exc()
+                    print(f"Error handling bg music: {e}\n{tb}")
+                    add_log(f"Warning: Failed to attach background music. {e}")
 
             if combined_audio:
                 final_audio = CompositeAudioClip(combined_audio)
