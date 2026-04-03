@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, Utensils, CreditCard, ShoppingCart, Fingerprint, Lock, Key, QrCode } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -72,6 +72,27 @@ const toolCategories: Category[] = [
         href: "/tools/sql-formatter",
         color: "bg-blue-50 hover:bg-blue-100",
       },
+      {
+        name: "Parquet Inspector Plus",
+        description: "Inspect row groups, codecs, schema, footer metadata, and sample rows in Parquet files.",
+        icon: <FileSpreadsheet className="w-8 h-8 text-teal-600" />,
+        href: "/tools/parquet-inspector-plus",
+        color: "bg-teal-50 hover:bg-teal-100",
+      },
+      {
+        name: "JSON Schema Inferrer",
+        description: "Paste any JSON and instantly generate a JSON Schema (Draft-07) inferred from its structure and types.",
+        icon: <Braces className="w-8 h-8 text-violet-600" />,
+        href: "/tools/json-schema-inferrer",
+        color: "bg-violet-50 hover:bg-violet-100",
+      },
+      {
+        name: "Schema Diff Tool",
+        description: "Compare two JSON schemas or objects side-by-side and see exactly what was added, removed, or changed.",
+        icon: <ArrowLeftRight className="w-8 h-8 text-rose-600" />,
+        href: "/tools/schema-diff",
+        color: "bg-rose-50 hover:bg-rose-100",
+      },
     ],
   },
   {
@@ -133,6 +154,20 @@ const toolCategories: Category[] = [
         icon: <QrCode className="w-8 h-8 text-teal-600" />,
         href: "/tools/qr-code-generator",
         color: "bg-teal-50 hover:bg-teal-100",
+      },
+      {
+        name: "UUID / CUID / Hash Key Generator",
+        description: "Generate UUIDs (RFC 4122), CUID identifiers, or cryptographic hash keys for APIs and databases.",
+        icon: <Key className="w-8 h-8 text-purple-600" />,
+        href: "/tools/uuid-cuid-hash-generator",
+        color: "bg-purple-50 hover:bg-purple-100",
+      },
+      {
+        name: "Timestamp / Timezone Converter",
+        description: "Convert between Unix timestamps and readable dates, or transform times across timezones instantly.",
+        icon: <Clock className="w-8 h-8 text-blue-600" />,
+        href: "/tools/timestamp-timezone-converter",
+        color: "bg-blue-50 hover:bg-blue-100",
       },
     ],
   },

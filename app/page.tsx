@@ -76,7 +76,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
           className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-4 w-full sm:w-auto px-3"
         >
-          <Link href="/tools" className="w-full sm:w-auto">
+          <Link href="/tools/" className="w-full sm:w-auto">
             <button
               className={cn(
                 "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
@@ -91,7 +91,7 @@ export default function Home() {
             </button>
           </Link>
 
-          <Link href="/backend" className="w-full sm:w-auto">
+          <Link href="/backend/" className="w-full sm:w-auto">
             <button
               className={cn(
                 "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
@@ -106,7 +106,7 @@ export default function Home() {
             </button>
           </Link>
 
-          <Link href="/visualizations" className="w-full sm:w-auto">
+          <Link href="/visualizations/" className="w-full sm:w-auto">
              <button
               className={cn(
                 "rounded-full h-auto py-3 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg font-bold whitespace-normal leading-tight",
