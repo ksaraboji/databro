@@ -119,3 +119,4 @@ resource "aws_s3_bucket_cors_configuration" "nextjs_build" {
     max_age_seconds = 3000
   }
 }
+

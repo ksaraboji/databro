@@ -275,13 +275,27 @@ jobs:
         run: |
           set -e
           cd terraform/aws || exit 0
-          terraform init -backend-config=backend-prod.hcl -input=false
-          S3=$(terraform output -raw s3_bucket_name)
-          CF_ID=$(terraform output -raw cloudfront_distribution_id)
-          CF_DOMAIN=$(terraform output -raw cloudfront_domain_name)
-          echo "PROD_S3_BUCKET=$S3" >> $GITHUB_ENV
-          echo "PROD_CF_ID=$CF_ID" >> $GITHUB_ENV
-          echo "PROD_CF_DOMAIN=$CF_DOMAIN" >> $GITHUB_ENV
+          terraform init -backend-config=backend-prod.hcl -input=false -no-color
+
+          get_prod_output() {
+            terraform output -raw "$1" -no-color 2>/dev/null | tr -d '\r' | head -n1 || true
+          }
+
+          S3="$(get_prod_output s3_bucket_name)"
+          CF_ID="$(get_prod_output cloudfront_distribution_id)"
+          CF_DOMAIN="$(get_prod_output cloudfront_domain_name)"
+
+          if [ -n "$S3" ]; then
+            echo "PROD_S3_BUCKET=$S3" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "$CF_ID" ]; then
+            echo "PROD_CF_ID=$CF_ID" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "$CF_DOMAIN" ]; then
+            echo "PROD_CF_DOMAIN=$CF_DOMAIN" >> "$GITHUB_ENV"
+          fi
         continue-on-error: true
 
       - name: Deploy to Prod S3
@@ -298,9 +312,14 @@ jobs:
           echo "✅ Prod S3 deployment completed"
 
       - name: Invalidate Prod CloudFront cache
-        if: github.event_name != 'pull_request' && env.PROD_CF_ID != ''
+        if: github.event_name != 'pull_request'
         run: |
-          aws cloudfront create-invalidation --distribution-id ${PROD_CF_ID:-${{ secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID }}} --paths "/*"
+          CF_ID="${PROD_CF_ID:-${{ secrets.PROD_CLOUDFRONT_DISTRIBUTION_ID }}}"
+          if [ -z "$CF_ID" ]; then
+            echo "No prod CloudFront distribution ID available; skipping invalidation."
+            exit 0
+          fi
+          aws cloudfront create-invalidation --distribution-id "$CF_ID" --paths "/*"
 
       - name: Create GitHub deployment
         if: github.event_name != 'pull_request'
