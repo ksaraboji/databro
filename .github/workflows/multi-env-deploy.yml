@@ -222,6 +222,9 @@ jobs:
     needs: check-changes
     if: needs.check-changes.outputs.run_prod == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -323,6 +326,7 @@ jobs:
 
       - name: Create GitHub deployment
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
