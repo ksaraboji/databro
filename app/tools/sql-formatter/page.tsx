@@ -202,6 +202,8 @@ export default function SqlFormatter() {
 
         </div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by sql-formatter.</p>
     </div>
   );
 }

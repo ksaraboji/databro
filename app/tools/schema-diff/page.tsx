@@ -79,6 +79,10 @@ const SAMPLE_B = `{
   "updatedAt": "string"
 }`;
 
+const SAFE_FILE_SIZE_LIMIT_BYTES = 25 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 const DIFF_COLORS: Record<DiffType, { bg: string; badge: string; dot: string; label: string }> = {
   added:        { bg: "bg-green-50 border-green-200",  badge: "bg-green-100 text-green-700",  dot: "bg-green-500",  label: "Added"        },
   removed:      { bg: "bg-red-50 border-red-200",      badge: "bg-red-100 text-red-700",      dot: "bg-red-500",    label: "Removed"      },
@@ -141,6 +145,13 @@ export default function SchemaDiff() {
     try {
       setError(null);
       setName(file.name);
+
+      if (file.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+        setError(
+          `File too large (${formatSizeMB(file.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side schema parsing.`
+        );
+        return;
+      }
 
       if (lowerName.endsWith(".parquet")) {
         const buffer = await file.arrayBuffer();
@@ -270,7 +281,7 @@ export default function SchemaDiff() {
               spellCheck={false}
             />
             <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 text-xs text-slate-500">
-              {fileErrorA ? <span className="text-red-600">{fileErrorA}</span> : fileNameA ? `Loaded: ${fileNameA}` : "Input mode: paste JSON or upload .json/.parquet"}
+              {fileErrorA ? <span className="text-red-600">{fileErrorA}</span> : fileNameA ? `Loaded: ${fileNameA}` : "Input mode: paste JSON or upload .json/.parquet (recommended up to 25 MB)"}
             </div>
           </div>
 
@@ -302,7 +313,7 @@ export default function SchemaDiff() {
               spellCheck={false}
             />
             <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 text-xs text-slate-500">
-              {fileErrorB ? <span className="text-red-600">{fileErrorB}</span> : fileNameB ? `Loaded: ${fileNameB}` : "Input mode: paste JSON or upload .json/.parquet"}
+              {fileErrorB ? <span className="text-red-600">{fileErrorB}</span> : fileNameB ? `Loaded: ${fileNameB}` : "Input mode: paste JSON or upload .json/.parquet (recommended up to 25 MB)"}
             </div>
           </div>
         </div>
@@ -377,6 +388,8 @@ export default function SchemaDiff() {
             <p>Paste two JSON objects or schemas above to see the diff</p>
           </div>
         )}
+
+        <p className="text-center text-slate-400 text-sm">Powered by Hyparquet Schema Parsing.</p>
 
       </main>
     </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Upload, FileSpreadsheet, Activity, ChevronRight, BarChart3, PieChart, Table as TableIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
 import { DuckDBClient } from "@/lib/duckdb";
 import { tableFromIPC } from "apache-arrow";
 
@@ -43,6 +43,10 @@ interface ColumnDetail {
   distribution?: { bin: string; count: number }[]; // For numeric histograms later
 }
 
+const SAFE_FILE_SIZE_LIMIT_BYTES = 50 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 export default function DataProfilerPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -54,9 +58,47 @@ export default function DataProfilerPage() {
 
   const colors = ["#4f46e5", "#ec4899", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981"];
 
+    const parseXlsxBuffer = async (buffer: ArrayBuffer) => {
+        const rows = await readSheet(buffer);
+        if (!rows.length) return [];
+
+        const headerCounts = new Map<string, number>();
+        const headers = (rows[0] || []).map((cell, index) => {
+            const base = String(cell ?? `column_${index + 1}`).trim() || `column_${index + 1}`;
+            const count = headerCounts.get(base) ?? 0;
+            headerCounts.set(base, count + 1);
+            return count === 0 ? base : `${base}_${count + 1}`;
+        });
+
+        return rows
+            .slice(1)
+            .filter((row) => row.some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== ""))
+            .map((row) => {
+                const record: Record<string, unknown> = {};
+                headers.forEach((header, index) => {
+                    const value = row[index];
+                    record[header] = value instanceof Date ? value.toISOString() : (value ?? null);
+                });
+                return record;
+            });
+    };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+        setFile(null);
+        setLoadState("error");
+        setSummary([]);
+        setColumnDetails({});
+        setSelectedColumn(null);
+        setError(
+          `File too large (${formatSizeMB(selectedFile.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side profiling.`
+        );
+        return;
+      }
+
+      setFile(selectedFile);
       setLoadState("idle");
       setSummary([]);
       setColumnDetails({});
@@ -109,10 +151,7 @@ export default function DataProfilerPage() {
       } else if (['xlsx', 'xls'].includes(ext || '')) {
           setLoadState("loading"); // Excel parsing is heavy
           console.log("Parsing Excel...");
-          const workbook = XLSX.read(buffer, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          const jsonData = await parseXlsxBuffer(buffer);
           const jsonContent = JSON.stringify(jsonData);
           // Safe JSON filename
           const jsonFileName = `input_data.json`;
@@ -268,7 +307,8 @@ export default function DataProfilerPage() {
                             <Upload className="w-8 h-8 text-indigo-600" />
                         </div>
                         <h3 className="text-xl font-bold text-slate-900 mb-2">Upload Data File</h3>
-                        <p className="text-slate-500 mb-4">Support for CSV, Parquet, JSON, Excel, Arrow</p>
+                        <p className="text-slate-500 mb-1">Support for CSV, Parquet, JSON, Excel, Arrow</p>
+                        <p className="text-xs text-indigo-600 font-medium mb-4">Recommended safe size: up to 50 MB per file</p>
                         <button className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-sm group-hover:bg-indigo-700 transition-colors">
                             Select File
                         </button>
@@ -495,6 +535,8 @@ export default function DataProfilerPage() {
             </div>
         )}
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by DuckDB-Wasm, read-excel-file, Apache Arrow, and Recharts.</p>
     </div>
   );
 }

@@ -2,8 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Check, Trash2, Binary } from "lucide-react";
-import FloatingHomeButton from "@/components/floating-home-button";
+import { ArrowLeft, Copy, Check, Trash2, Binary, Home } from "lucide-react";
 
 export default function Base64Converter() {
   const [inputText, setInputText] = useState("");
@@ -48,28 +47,34 @@ export default function Base64Converter() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <FloatingHomeButton />
-      
-      <main className="max-w-4xl mx-auto p-4 sm:p-8 py-12 space-y-8">
+      <main className="max-w-4xl mx-auto p-4 sm:p-8 py-12 space-y-6">
         {/* Header */}
-        <header className="space-y-4">
-          <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
-          </Link>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-              <Binary className="w-8 h-8 text-cyan-500" />
-              Base64 Encoder / Decoder
-            </h1>
-            <p className="text-slate-600 max-w-2xl">
-              Convert text to Base64 and back instantly. Handles UTF-8 characters correctly.
-              Everything happens in your browser—no data leaves your device.
-            </p>
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <Link
+              href="/tools"
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div className="space-y-2 text-left">
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <Binary className="w-8 h-8 text-cyan-500" />
+                Base64 Encoder / Decoder
+              </h1>
+              <p className="text-slate-500 text-sm max-w-2xl">
+                Convert text to Base64 and back instantly. Handles UTF-8 characters correctly.
+              </p>
+            </div>
           </div>
+
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-cyan-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
+          >
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
+          </Link>
         </header>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -162,6 +167,8 @@ export default function Base64Converter() {
             </div>
           </div>
         </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by Native Browser Base64 APIs.</p>
       </main>
     </div>
   );

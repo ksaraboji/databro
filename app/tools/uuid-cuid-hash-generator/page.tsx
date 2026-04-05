@@ -350,6 +350,8 @@ export default function UUIDCUIDHashGenerator() {
             </div>
           </div>
         </section>
+
+        <p className="text-center text-slate-400 text-sm">Powered by uuid and crypto-js.</p>
       </main>
     </div>
   );

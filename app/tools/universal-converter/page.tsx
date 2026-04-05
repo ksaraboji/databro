@@ -2,18 +2,24 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings, Copy, Check } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings, Share2, Download, Home } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { parquetReadObjects, parquetMetadata } from "hyparquet";
 import { parquetWriteBuffer } from "hyparquet-writer";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
+import ExcelJS from "exceljs";
 import { DuckDBClient } from "@/lib/duckdb";
 import { tableToIPC, tableFromIPC, Table, vectorFromArray } from "apache-arrow";
 import avro from 'avsc';
 
 type ConversionMode = "universal" | "view_query" | "view_metadata";
 type Format = "csv" | "xlsx" | "parquet" | "arrow" | "avro";
+type OutputAction = "download" | "share";
+
+const SAFE_FILE_SIZE_LIMIT_BYTES = 50 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 export default function GenericConverterPage() {
   const [mode, setMode] = useState<ConversionMode>("universal");
@@ -24,6 +30,7 @@ export default function GenericConverterPage() {
 
   const [delimiter, setDelimiter] = useState<string>(",");
   const [isConverting, setIsConverting] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("SELECT * FROM 'data.parquet' LIMIT 10;");
@@ -32,7 +39,6 @@ export default function GenericConverterPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [metadataResult, setMetadataResult] = useState<any | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const handleModeChange = (newMode: ConversionMode) => {
     setMode(newMode);
@@ -43,7 +49,6 @@ export default function GenericConverterPage() {
     setQueryResult(null);
     setQueryColumns([]);
     setMetadataResult(null);
-    setCopied(false);
     setQuery("SELECT * FROM 'data.parquet' LIMIT 10;");
   };
  
@@ -57,11 +62,117 @@ export default function GenericConverterPage() {
       return 'csv'; // Default
   };
 
+  const getAllowedOutputFormats = (detectedInput: Format): Format[] => {
+      if (detectedInput === 'csv') {
+          return ['parquet', 'arrow'];
+      }
+
+      if (detectedInput === 'xlsx') {
+          return ['parquet', 'csv', 'arrow'];
+      }
+
+      if (detectedInput === 'parquet') {
+          return ['csv', 'xlsx', 'arrow'];
+      }
+
+      if (detectedInput === 'arrow') {
+          return ['csv', 'xlsx', 'parquet'];
+      }
+
+      // Keep current behavior for formats without explicit mapping (e.g. avro).
+      return ['parquet', 'csv', 'xlsx', 'arrow'];
+  };
+
+  const parseXlsxBuffer = async (buffer: ArrayBuffer) => {
+    const rows = await readSheet(buffer);
+      if (!rows.length) return [];
+
+      const headerCounts = new Map<string, number>();
+      const headers = (rows[0] || []).map((cell, index) => {
+          const base = String(cell ?? `column_${index + 1}`).trim() || `column_${index + 1}`;
+          const count = headerCounts.get(base) ?? 0;
+          headerCounts.set(base, count + 1);
+          return count === 0 ? base : `${base}_${count + 1}`;
+      });
+
+      return rows
+          .slice(1)
+          .filter((row) => row.some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== ""))
+          .map((row) => {
+              const record: Record<string, unknown> = {};
+              headers.forEach((header, index) => {
+                  const value = row[index];
+                  record[header] = value instanceof Date ? value.toISOString() : (value ?? null);
+              });
+              return record;
+          });
+  };
+
+  const parseCsvWithDuckDB = async (buffer: ArrayBuffer, sourceName: string) => {
+      const conn = await DuckDBClient.getConnection();
+      if (!conn) throw new Error("Could not connect to DuckDB");
+
+      const safeName = "convert_" + sourceName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      await DuckDBClient.registerFile(safeName, new Uint8Array(buffer.slice(0)));
+      const result = await conn.query(`SELECT * FROM read_csv_auto('${safeName}')`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return result.toArray().map((row: any) => row.toJSON());
+  };
+
+  const escapeCsvValue = (value: unknown) => {
+      const str = value === null || value === undefined ? "" : String(value);
+      if (str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes(delimiter)) {
+          return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+  };
+
+  const toCsv = (rows: Record<string, unknown>[]) => {
+      if (!rows.length) return "";
+      const headers = Object.keys(rows[0]);
+      const headerLine = headers.map((header) => escapeCsvValue(header)).join(delimiter);
+      const bodyLines = rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(delimiter));
+      return [headerLine, ...bodyLines].join("\n");
+  };
+
+  const toXlsxBuffer = async (rows: Record<string, unknown>[]) => {
+      if (!rows.length) throw new Error("No data available for Excel export");
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Sheet1");
+      const headers = Object.keys(rows[0]);
+      worksheet.columns = headers.map((header) => ({ header, key: header }));
+
+      rows.forEach((row) => {
+          worksheet.addRow(headers.map((header) => row[header] ?? null));
+      });
+
+      return workbook.xlsx.writeBuffer();
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
+
+      if (selected.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+          setFile(null);
+          setFileSize("");
+          setError(
+              `File too large (${formatSizeMB(selected.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side conversion.`
+          );
+          setSuccessMessage(null);
+          setMetadataResult(null);
+          return;
+      }
+
       setFile(selected);
-      setInputFormat(detectFormat(selected.name));
+            const detected = detectFormat(selected.name);
+            setInputFormat(detected);
+
+            const allowedOutputs = getAllowedOutputFormats(detected);
+            if (!allowedOutputs.includes(outputFormat)) {
+                    setOutputFormat(allowedOutputs[0]);
+            }
       
       let sizeStr = "";
       if (selected.size < 1024) {
@@ -76,7 +187,6 @@ export default function GenericConverterPage() {
       setError(null);
       setSuccessMessage(null);
       setMetadataResult(null);
-      setCopied(false);
       // Sanitize for default query
       const safeName = "file_" + selected.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       setQuery(`SELECT * FROM '${safeName}' LIMIT 10;`);
@@ -88,7 +198,6 @@ export default function GenericConverterPage() {
       setIsExecuting(true);
       setError(null);
       setMetadataResult(null);
-      setCopied(false);
 
       try {
           const buffer = await file.arrayBuffer();
@@ -99,6 +208,7 @@ export default function GenericConverterPage() {
           } else if (inputFormat === 'arrow') {
               const table = tableFromIPC(new Uint8Array(buffer));
               const schema = table.schema;
+              const schemaMetadata = schema.metadata ? Object.fromEntries(schema.metadata.entries()) : {};
               const meta = {
                   numRows: table.numRows,
                   numCols: table.numCols,
@@ -108,7 +218,7 @@ export default function GenericConverterPage() {
                       type: f.type.toString(),
                       nullable: f.nullable
                   })),
-                  metadata: schema.metadata
+                  metadata: schemaMetadata
               };
               setMetadataResult(meta);
           } else {
@@ -147,10 +257,7 @@ export default function GenericConverterPage() {
              // Convert XLSX to CSV/JSON first? 
              // DuckDB in browser doesn't support spatial/excel extensions easily.
              // We reuse our parsing logic:
-             const workbook = XLSX.read(buffer, { type: 'array' });
-             const firstSheetName = workbook.SheetNames[0];
-             const worksheet = workbook.Sheets[firstSheetName];
-             const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                 const jsonData = await parseXlsxBuffer(buffer);
              
              // Register as JSON file
              const jsonContent = JSON.stringify(jsonData);
@@ -247,8 +354,40 @@ export default function GenericConverterPage() {
       }
   };
 
+  const handleBlobOutput = async (blob: Blob, fullFileName: string, action: OutputAction) => {
+      if (action === "share") {
+          const shareFile = new File([blob], fullFileName, { type: blob.type || "application/octet-stream" });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+              try {
+                  await navigator.share({
+                      files: [shareFile],
+                      title: fullFileName,
+                  });
+                  return;
+              } catch (err) {
+                  // User canceled share: do nothing and keep current page state.
+                  if (err instanceof DOMException && err.name === "AbortError") {
+                      return;
+                  }
+                  // Some platforms throw permission/not-allowed errors after async processing.
+                  // Fall back to direct download instead of failing conversion.
+                  console.warn("Share failed, falling back to download", err);
+              }
+          }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fullFileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const writeParquetFile = async (data: any[], fileName: string) => {
+  const writeParquetFile = async (data: any[], fileName: string, action: OutputAction = "download") => {
        // Infer schema
        // Data is array of objects. hyparquet-writer expects array of ColumnSourc (basically arrays of values per column)
        // We need to re-orient row-based JSON to column-based arrays 
@@ -266,37 +405,19 @@ export default function GenericConverterPage() {
            columnData,
        });
        
-       // Download
-        const blob = new Blob([buffer], { type: "application/octet-stream" });
-        const fullFileName = `${fileName}.parquet`;
-
-        // Attempt Share (Mobile)
-        const shareFile = new File([blob], fullFileName, { type: "application/octet-stream" });
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
-            try {
-                await navigator.share({
-                    files: [shareFile],
-                    title: fullFileName,
-                });
-                return;
-            } catch (err) {
-                console.log('Share skipped', err);
-            }
-        }
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", fullFileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+             const blob = new Blob([buffer], { type: "application/octet-stream" });
+             const fullFileName = `${fileName}.parquet`;
+             await handleBlobOutput(blob, fullFileName, action);
   };
 
-  const convertAndDownload = async () => {
+    const convertOutput = async (action: OutputAction) => {
     if (!file) return;
 
-    setIsConverting(true);
+        if (action === "share") {
+            setIsSharing(true);
+        } else {
+            setIsConverting(true);
+        }
     setError(null);
     setSuccessMessage(null);
 
@@ -309,11 +430,10 @@ export default function GenericConverterPage() {
       // ===== READ INPUT =====
       if (inputFormat === 'parquet') {
            data = await parquetReadObjects({ file: buffer });
-      } else if (inputFormat === 'csv' || inputFormat === 'xlsx') {
-           const workbook = XLSX.read(buffer, { type: 'array' });
-           const firstSheetName = workbook.SheetNames[0];
-           const worksheet = workbook.Sheets[firstSheetName];
-           data = XLSX.utils.sheet_to_json(worksheet);
+     } else if (inputFormat === 'csv') {
+         data = await parseCsvWithDuckDB(buffer, file.name);
+     } else if (inputFormat === 'xlsx') {
+         data = await parseXlsxBuffer(buffer);
       } else if (inputFormat === 'arrow') {
            const table = tableFromIPC(new Uint8Array(buffer));
            data = table.toArray().map(row => row.toJSON());
@@ -340,20 +460,15 @@ export default function GenericConverterPage() {
 
       // ===== WRITE OUTPUT =====
       if (outputFormat === 'parquet') {
-           await writeParquetFile(data, originalName);
+         await writeParquetFile(data, originalName, action);
            setSuccessMessage(`Converted ${data.length} rows to .parquet`);
       } else if (outputFormat === 'csv') {
-           const worksheet = XLSX.utils.json_to_sheet(data);
-           const csvOutput = XLSX.utils.sheet_to_csv(worksheet, { FS: delimiter });
-           downloadFile(csvOutput, originalName, 'csv', 'text/csv;charset=utf-8;');
+         const csvOutput = toCsv(data as Record<string, unknown>[]);
+         await downloadFile(csvOutput, originalName, 'csv', 'text/csv;charset=utf-8;', action);
            setSuccessMessage(`Converted ${data.length} rows to .csv`);
       } else if (outputFormat === 'xlsx') {
-           const worksheet = XLSX.utils.json_to_sheet(data);
-           const workbook = XLSX.utils.book_new();
-           XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-           // Write to buffer to enable sharing/download
-           const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-           await downloadBlob(new Blob([wbout], {type: 'application/octet-stream'}), originalName, 'xlsx');
+         const wbout = await toXlsxBuffer(data as Record<string, unknown>[]);
+        await downloadBlob(new Blob([wbout], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), originalName, 'xlsx', action);
            
            setSuccessMessage(`Converted ${data.length} rows to .xlsx`);
       } else if (outputFormat === 'arrow') {
@@ -392,7 +507,7 @@ export default function GenericConverterPage() {
 
                const outputBuffer = tableToIPC(table, 'file');
                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-               downloadBlob(new Blob([outputBuffer as any]), originalName, 'arrow');
+               await downloadBlob(new Blob([outputBuffer as any]), originalName, 'arrow', action);
                setSuccessMessage(`Converted ${data.length} rows to .arrow`);
            }
       } else if (outputFormat === 'avro') {
@@ -424,75 +539,61 @@ export default function GenericConverterPage() {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to convert file.");
     } finally {
-      setIsConverting(false);
+            if (action === "share") {
+                setIsSharing(false);
+            } else {
+                setIsConverting(false);
+            }
     }
   };
 
-  const downloadFile = (content: string, fileName: string, ext: string, mime: string) => {
-      downloadBlob(new Blob([content], { type: mime }), fileName, ext);
+    const convertAndDownload = async () => convertOutput("download");
+    const convertAndShare = async () => convertOutput("share");
+
+    const downloadFile = async (content: string, fileName: string, ext: string, mime: string, action: OutputAction = "download") => {
+            await downloadBlob(new Blob([content], { type: mime }), fileName, ext, action);
   };
 
-  const downloadBlob = async (blob: Blob, fileName: string, ext: string) => {
+    const downloadBlob = async (blob: Blob, fileName: string, ext: string, action: OutputAction = "download") => {
       const fullFileName = `${fileName}.${ext}`;
-      
-      // Attempt Share (Mobile)
-      const shareFile = new File([blob], fullFileName, { type: blob.type });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
-          try {
-              await navigator.share({
-                  files: [shareFile],
-                  title: fullFileName,
-              });
-              return;
-          } catch (err) {
-              console.log('Share skipped', err);
-          }
-      }
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", fullFileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+            await handleBlobOutput(blob, fullFileName, action);
   };
-
-  const handleCopyMetadata = () => {
-    if (!metadataResult) return;
-    const jsonStr = JSON.stringify(metadataResult, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2);
-    navigator.clipboard.writeText(jsonStr);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8 font-sans">
-      <div className="max-w-3xl mx-auto space-y-8 py-12">
+    <div className="max-w-3xl mx-auto space-y-6 py-12">
         {/* Header */}
-        <header className="space-y-4 text-center sm:text-left">
-          <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
-          </Link>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
-              <FileSpreadsheet className="w-10 h-10 text-orange-600" />
-              File Converter & SQL Query Tool
-            </h1>
-            <p className="text-lg text-slate-600">
-              Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL entirely in your browser.
-            </p>
-          </motion.div>
-        </header>
+                <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                        <Link
+                            href="/tools"
+                            className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </Link>
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-2 text-left"
+                        >
+                            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                                <FileSpreadsheet className="w-8 h-8 text-orange-600" />
+                                File Converter & SQL Query Tool
+                            </h1>
+                            <p className="text-sm text-slate-500">
+                                Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL.
+                            </p>
+                        </motion.div>
+                    </div>
+
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-orange-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                    >
+                        <Home className="w-4 h-4" />
+                        <span className="hidden sm:inline">Home</span>
+                    </Link>
+                </header>
 
         {/* Main Card */}
         <motion.div
@@ -501,7 +602,7 @@ export default function GenericConverterPage() {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
         >
-            <div className="p-6 sm:p-8 space-y-8">
+            <div className="p-6 sm:p-8 space-y-6">
                 
                         {/* Mode Switcher Buttons */}
                         <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
@@ -525,7 +626,7 @@ export default function GenericConverterPage() {
                                     <FileType className="w-4 h-4" /> Output Format
                                 </label>
                                 <div className="flex flex-wrap gap-3">
-                                    {(['parquet', 'csv', 'xlsx', 'arrow'] as Format[]).map(fmt => (
+                                    {getAllowedOutputFormats(inputFormat).map(fmt => (
                                         <button 
                                             key={fmt}
                                             onClick={() => setOutputFormat(fmt)}
@@ -569,6 +670,9 @@ export default function GenericConverterPage() {
                                         {mode === 'view_metadata'
                                           ? "Supports Parquet, Arrow"
                                           : "Supports Parquet, CSV, Excel, Arrow, Avro"}
+                                    </span>
+                                    <span className="text-xs text-orange-600 font-medium">
+                                        Recommended safe size: up to 50 MB per file
                                     </span>
                                 </div>
                             )}
@@ -644,19 +748,9 @@ export default function GenericConverterPage() {
                                <div className="space-y-2">
                                    <div className="flex items-center justify-between">
                                        <label className="block text-sm font-bold text-slate-900 uppercase tracking-wide">
-                                           File Metadata
+                                           Metadata Summary
                                        </label>
                                        <div className="flex gap-2">
-                                            {metadataResult && (
-                                                <button
-                                                    onClick={handleCopyMetadata}
-                                                    className="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2"
-                                                    title="Copy JSON to Clipboard"
-                                                >
-                                                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                                    {copied ? 'Copied' : 'Copy JSON'}
-                                                </button>
-                                            )}
                                            <button
                                                onClick={extractMetadata}
                                                disabled={isExecuting}
@@ -667,10 +761,71 @@ export default function GenericConverterPage() {
                                            </button>
                                        </div>
                                    </div>
+
+                                   {!file ? (
+                                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-600">
+                                          Upload a file first to inspect metadata.
+                                      </div>
+                                   ) : (inputFormat !== 'parquet' && inputFormat !== 'arrow') ? (
+                                      <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 text-sm text-amber-800">
+                                          Metadata mode supports only Parquet and Arrow files.
+                                      </div>
+                                   ) : null}
                                    
                                    {metadataResult && (
-                                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs overflow-auto max-h-[500px]">
-                                           <pre>{JSON.stringify(metadataResult, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2)}</pre>
+                                       <div className="space-y-4">
+                                           {inputFormat === 'parquet' ? (
+                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Rows</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{String(metadataResult.num_rows ?? '-')}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Row Groups</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{metadataResult.row_groups?.length ?? '-'}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Leaf Columns</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{metadataResult.schema?.filter((s: { type?: unknown }) => s.type).length ?? '-'}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Created By</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1 break-all">{metadataResult.created_by || 'Unknown'}</p>
+                                                   </div>
+                                               </div>
+                                           ) : (
+                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Rows</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{metadataResult.numRows ?? '-'}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Columns</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{metadataResult.numCols ?? '-'}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Schema Fields</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{metadataResult.schema?.length ?? '-'}</p>
+                                                   </div>
+                                                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Schema Metadata Keys</p>
+                                                       <p className="text-sm font-semibold text-slate-900 mt-1">{Object.keys(metadataResult.metadata || {}).length}</p>
+                                                   </div>
+                                               </div>
+                                           )}
+
+                                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                               <div className="text-sm text-blue-900">
+                                                   Open the dedicated inspector for full schema/row-group/chunk details.
+                                               </div>
+                                               <Link
+                                                   href={inputFormat === 'parquet' ? '/tools/parquet-inspector-plus' : '/tools/arrow-inspector-plus'}
+                                                   className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-slate-900 text-white border border-slate-900 text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm no-underline"
+                                                   style={{ color: "#ffffff", backgroundColor: "#0f172a" }}
+                                               >
+                                                   Open {inputFormat === 'parquet' ? 'Parquet' : 'Arrow'} Inspector
+                                               </Link>
+                                           </div>
                                        </div>
                                    )}
                                </div>
@@ -698,25 +853,47 @@ export default function GenericConverterPage() {
                         {/* 3. Action (Only for conversion modes) */}
                          {mode === "universal" && (
                             <div className="pt-4">
-                                <button
-                                    onClick={convertAndDownload}
-                                    disabled={isConverting}
-                                    className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
-                                        isConverting 
-                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                        : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
-                                    }`}
-                                >
-                                    {isConverting ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 animate-spin" /> Converting...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Convert & Download {outputFormat.toUpperCase()}
-                                        </>
-                                    )}
-                                </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button
+                                        onClick={convertAndDownload}
+                                        disabled={isConverting || isSharing}
+                                        className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                                            isConverting || isSharing
+                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                            : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                                        }`}
+                                    >
+                                        {isConverting ? (
+                                            <>
+                                                <Loader2 className="w-5 h-5 animate-spin" /> Converting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Download className="w-5 h-5" /> Convert & Download
+                                            </>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        onClick={convertAndShare}
+                                        disabled={isSharing || isConverting}
+                                        className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                                            isSharing || isConverting
+                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                            : 'bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                                        }`}
+                                    >
+                                        {isSharing ? (
+                                            <>
+                                                <Loader2 className="w-5 h-5 animate-spin" /> Converting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Share2 className="w-5 h-5" /> Convert & Share
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                          )}
                     </motion.div>
@@ -748,8 +925,7 @@ export default function GenericConverterPage() {
 
         {/* Info Footer */}
         <p className="text-center text-slate-400 text-sm">
-            Powered by <a href="https://github.com/hyparam/hyparquet" target="_blank" className="underline hover:text-slate-600">hyparquet</a>, hyparquet-writer, <a href="https://sheetjs.com/" target="_blank" className="underline hover:text-slate-600">SheetJS</a>, Apache Arrow, and avsc.
-            <br className="hidden sm:block"/> No data leaves your browser.
+            Powered by <a href="https://github.com/hyparam/hyparquet" target="_blank" className="underline hover:text-slate-600">hyparquet</a>, hyparquet-writer, <a href="https://github.com/catamphetamine/read-excel-file" target="_blank" className="underline hover:text-slate-600">read-excel-file</a>, <a href="https://github.com/exceljs/exceljs" target="_blank" className="underline hover:text-slate-600">ExcelJS</a>, Apache Arrow, and avsc.
         </p>
 
       </div>
