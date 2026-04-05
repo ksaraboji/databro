@@ -5,7 +5,6 @@ import { ArrowLeft, BookOpen, Bot, Construction } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
-import ProdFeatureGate from "@/components/prod-feature-gate";
 
 type Feature = {
   name: string;
@@ -49,9 +48,8 @@ const backendFeatures: Category[] = [
 
 export default function BackendPage() {
   return (
-    <ProdFeatureGate featureName="Burning My Credits">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
-        <div className="max-w-6xl mx-auto space-y-12 py-12">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-12 py-12">
         {/* Header */}
         <header className="space-y-4">
           <Link
@@ -151,10 +149,9 @@ export default function BackendPage() {
           ))}
         </div>
         
-          <FloatingHomeButton />
-        </div>
+        <FloatingHomeButton />
       </div>
-    </ProdFeatureGate>
+    </div>
   );
 }
 

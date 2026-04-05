@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import BlogList, { BlogPost } from "@/components/writing/blog-list";
 import { Loader2 } from "lucide-react";
-import ProdFeatureGate from "@/components/prod-feature-gate";
 
 export default function WritingPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -127,9 +126,5 @@ export default function WritingPage() {
       );
   }
 
-  return (
-    <ProdFeatureGate featureName="Build Logs">
-      <BlogList posts={posts} />
-    </ProdFeatureGate>
-  );
+  return <BlogList posts={posts} />;
 }
