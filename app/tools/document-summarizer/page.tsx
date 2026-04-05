@@ -5,6 +5,10 @@ import Link from "next/link";
 import { ArrowLeft, Upload, FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const SAFE_FILE_SIZE_LIMIT_BYTES = 5 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 export default function BackendProjects() {
   const [file, setFile] = useState<File | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -13,7 +17,16 @@ export default function BackendProjects() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+        setFile(null);
+        setSummary(null);
+        setError(
+          `File too large (${formatSizeMB(selectedFile.size)}). Maximum supported size is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)}.`
+        );
+        return;
+      }
+      setFile(selectedFile);
       setSummary(null);
       setError(null);
     }
@@ -78,6 +91,7 @@ export default function BackendProjects() {
               Summarize lengthy PDFs and documents using our AI microservice.
             </p>
           </motion.div>
+
         </header>
 
         <div className="grid gap-8">
@@ -181,6 +195,8 @@ export default function BackendProjects() {
             </motion.div>
         </div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by Backend Document Summarization Service.</p>
     </div>
   );
 }

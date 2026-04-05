@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, Target, PieChart, TrendingUp, Download, Share2 } from "lucide-react";
+import { ArrowLeft, Calculator, Target, PieChart, TrendingUp, Download, Share2, Home } from "lucide-react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from "jspdf";
@@ -480,12 +480,12 @@ export default function FutureIncomeCalculator() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 py-12">
         
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
            <div className="flex items-center gap-4">
-                <Link href="/tools" className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                <Link href="/tools" className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors">
                     <ArrowLeft className="w-5 h-5" />
                 </Link>
                 <div>
@@ -497,7 +497,14 @@ export default function FutureIncomeCalculator() {
                 </div>
            </div>
            
-           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                    >
+                        <Home className="w-4 h-4" />
+                        <span className="hidden sm:inline">Home</span>
+                    </Link>
                <div className="flex items-center gap-2 w-full sm:w-auto">
                    <button 
                       onClick={shareReport}
@@ -937,6 +944,8 @@ export default function FutureIncomeCalculator() {
             </div>
         </div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by Recharts, jsPDF, and jspdf-autotable.</p>
     </div>
   );
 }

@@ -4,12 +4,20 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, FileText, File as FileIcon, Loader2, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from "mammoth";
 
-// Set worker source for PDF.js
-// We use unpkg to match the installed version dynamically if possible, preventing version mismatch errors.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
+
+async function loadPdfJs() {
+    if (!pdfjsPromise) {
+        pdfjsPromise = import('pdfjs-dist').then((pdfjsLib) => {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+            return pdfjsLib;
+        });
+    }
+
+    return pdfjsPromise;
+}
 
 type Status = 'idle' | 'loading_model' | 'processing_file' | 'summarizing' | 'complete' | 'error';
 
@@ -61,6 +69,7 @@ export default function DocumentSummarizerPage() {
   }, []); // Only on mount. Note: 'text' dependency issues if we strictly followed it, but we use refs or direct calls.
 
   const extractTextFromPdf = async (file: File): Promise<string> => {
+      const pdfjsLib = await loadPdfJs();
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       

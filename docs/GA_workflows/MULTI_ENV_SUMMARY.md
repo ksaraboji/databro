@@ -98,10 +98,12 @@ terraform/
 ├── build-and-deploy.yml         # (Kept for reference)
 └── README.md                    # Workflow documentation
 
-Root Files:
+GA Workflow Docs (`docs/GA_workflows/`):
 ├── DEPLOYMENT.md                # Original deployment guide
 ├── MULTI_ENVIRONMENT_SETUP.md   # ✨ NEW - This setup guide
-└── README.md                    # Updated with new info
+├── MULTI_ENV_SUMMARY.md         # This summary
+├── QUICK_START.md               # Quick deployment reference
+└── WORKFLOW_SEPARATION.md       # Detailed workflow architecture
 ```
 
 ## 🚀 Deployment Flow

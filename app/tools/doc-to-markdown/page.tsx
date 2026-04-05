@@ -2,17 +2,78 @@
 
 import React, { useState, useCallback } from "react";
 import Link from "next/link"; // For back button
-import { ArrowLeft, Upload, FileText, Check, Copy, Download, RefreshCw, AlertCircle } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Check, Copy, Download, Share2, RefreshCw, AlertCircle, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from "mammoth"; // For DOCX
 
-// Initialize PDF.js worker
-if (typeof window !== "undefined" && 'Worker' in window) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+type PdfJsLike = {
+  version: string;
+  GlobalWorkerOptions: { workerSrc: string };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getDocument: (src: { data: ArrayBuffer }) => { promise: Promise<any> };
+};
+
+let pdfjsPromise: Promise<PdfJsLike> | null = null;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizePdfJsModule(mod: any): PdfJsLike | null {
+  if (!mod || typeof mod !== "object") return null;
+
+  const candidates = [mod, mod.default];
+  for (const candidate of candidates) {
+    if (
+      candidate &&
+      typeof candidate === "object" &&
+      typeof candidate.getDocument === "function" &&
+      candidate.GlobalWorkerOptions
+    ) {
+      return candidate as PdfJsLike;
+    }
+  }
+
+  return null;
+}
+
+async function loadPdfJs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = (async () => {
+      const moduleLoaders = [
+        () => import('pdfjs-dist/legacy/build/pdf.min.mjs'),
+        () => import('pdfjs-dist/build/pdf.min.mjs'),
+      ];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastError: any = null;
+      for (const loadModule of moduleLoaders) {
+        try {
+          const mod = await loadModule();
+          const pdfjsLib = normalizePdfJsModule(mod);
+          if (pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
+            return pdfjsLib;
+          }
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      throw lastError ?? new Error("Unable to load pdfjs-dist module");
+    })();
+  }
+
+  try {
+    return await pdfjsPromise;
+  } catch (err) {
+    pdfjsPromise = null;
+    throw err;
+  }
 }
 
 type ConversionStatus = "idle" | "converting" | "success" | "error";
+
+const SAFE_FILE_SIZE_LIMIT_BYTES = 25 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 export default function DocToMarkdownPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -22,54 +83,118 @@ export default function DocToMarkdownPage() {
   const [dragActive, setDragActive] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // --- HTML to Markdown Converter (Simple) ---
+  const normalizeInlineWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+  const inlineNodeToMarkdown = (node: ChildNode): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent ?? "";
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    const content = Array.from(el.childNodes).map(inlineNodeToMarkdown).join("");
+
+    if (tag === "strong" || tag === "b") return `**${content}**`;
+    if (tag === "em" || tag === "i") return `*${content}*`;
+    if (tag === "code") return `\`${content}\``;
+    if (tag === "br") return "  \n";
+    if (tag === "a") {
+      const href = el.getAttribute("href") ?? "";
+      return href ? `[${content || href}](${href})` : content;
+    }
+    if (tag === "img") {
+      const src = el.getAttribute("src") ?? "";
+      const alt = el.getAttribute("alt") || "Image";
+      return src ? `![${alt}](${src})` : "";
+    }
+
+    return content;
+  };
+
+  const listToMarkdown = (listEl: HTMLElement, depth = 0): string => {
+    const ordered = listEl.tagName.toLowerCase() === "ol";
+    const start = Number(listEl.getAttribute("start") ?? "1") || 1;
+    const indent = "  ".repeat(depth);
+
+    const lines: string[] = [];
+    let index = start;
+
+    const directItems = Array.from(listEl.children).filter(
+      (child) => child.tagName.toLowerCase() === "li"
+    );
+
+    for (const item of directItems) {
+      const li = item as HTMLElement;
+      const marker = ordered ? `${index}.` : "-";
+
+      const inlineChildren = Array.from(li.childNodes).filter((child) => {
+        return !(child.nodeType === Node.ELEMENT_NODE && ["ul", "ol"].includes((child as HTMLElement).tagName.toLowerCase()));
+      });
+      const inlineText = normalizeInlineWhitespace(inlineChildren.map(inlineNodeToMarkdown).join(""));
+
+      lines.push(`${indent}${marker} ${inlineText || "(empty)"}`);
+
+      const nestedLists = Array.from(li.children).filter((child) => ["ul", "ol"].includes(child.tagName.toLowerCase()));
+      for (const nested of nestedLists) {
+        lines.push(listToMarkdown(nested as HTMLElement, depth + 1).trimEnd());
+      }
+
+      index += 1;
+    }
+
+    return lines.join("\n") + "\n";
+  };
+
+  // --- HTML to Markdown Converter (DOM-based for better list fidelity) ---
   const convertHtmlToMarkdown = (html: string): string => {
-    // 1. Clean up whitespace
-    let md = html.replace(/\n/g, " "); // Remove existing newlines in HTML to avoid confusion
-    
-    // 2. Headings
-    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, "\n# $1\n");
-    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "\n## $1\n");
-    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n### $1\n");
-    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, "\n#### $1\n");
-    md = md.replace(/<h5[^>]*>(.*?)<\/h5>/gi, "\n##### $1\n");
-    md = md.replace(/<h6[^>]*>(.*?)<\/h6>/gi, "\n###### $1\n");
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
 
-    // 3. Paragraphs (double newline)
-    md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, "\n$1\n");
-    md = md.replace(/<br\s*\/?>/gi, "  \n");
+    const blocks: string[] = [];
+    const toBlockMarkdown = (node: ChildNode) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = normalizeInlineWhitespace(node.textContent ?? "");
+        if (text) blocks.push(text);
+        return;
+      }
 
-    // 4. Bold / Italic
-    md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**");
-    md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**");
-    md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*");
-    md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*");
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-    // 5. Lists (Basic support)
-    // This is tricky with regex because valid HTML lists are nested.
-    // We'll do a simple pass for <li>. A true parser is better but this is a lightweight tool.
-    // Mammoth outputs <ul><li>...</li></ul>.
-    md = md.replace(/<ul[^>]*>/gi, "\n");
-    md = md.replace(/<\/ul>/gi, "\n");
-    md = md.replace(/<ol[^>]*>/gi, "\n");
-    md = md.replace(/<\/ol>/gi, "\n");
-    md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n");
+      const el = node as HTMLElement;
+      const tag = el.tagName.toLowerCase();
 
-    // 6. Links / Images
-    md = md.replace(/<a[^>]*href="(.*?)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
-    md = md.replace(/<img[^>]*src="(.*?)"[^>]*>/gi, "![Image]($1)");
+      if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(tag)) {
+        const level = Number(tag.replace("h", ""));
+        const text = normalizeInlineWhitespace(Array.from(el.childNodes).map(inlineNodeToMarkdown).join(""));
+        if (text) blocks.push(`${"#".repeat(level)} ${text}`);
+        return;
+      }
 
-    // 7. Decode HTML entities (basic)
-    md = md
-      .replace(/&nbsp;/g, " ")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
+      if (tag === "p") {
+        const text = normalizeInlineWhitespace(Array.from(el.childNodes).map(inlineNodeToMarkdown).join(""));
+        if (text) blocks.push(text);
+        return;
+      }
 
-    // 8. Trim aggregation
-    return md.replace(/\n\s*\n/g, "\n\n").trim();
+      if (tag === "ul" || tag === "ol") {
+        blocks.push(listToMarkdown(el).trimEnd());
+        return;
+      }
+
+      if (tag === "pre") {
+        const codeText = el.textContent ?? "";
+        blocks.push(`\`\`\`\n${codeText}\n\`\`\``);
+        return;
+      }
+
+      const text = normalizeInlineWhitespace(Array.from(el.childNodes).map(inlineNodeToMarkdown).join(""));
+      if (text) blocks.push(text);
+    };
+
+    Array.from(doc.body.childNodes).forEach(toBlockMarkdown);
+    return blocks.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
   };
 
   // Helper to remove control characters that confuse editors
@@ -82,6 +207,7 @@ export default function DocToMarkdownPage() {
 
   // --- PDF Extraction ---
   const extractTextFromPdf = async (file: File): Promise<string> => {
+    const pdfjsLib = await loadPdfJs();
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
@@ -107,17 +233,9 @@ export default function DocToMarkdownPage() {
 
         let pageMd = "";
 
-        // --- Better Strategy: Group by Rows ---
-        // Sort by Y (descending) then X (ascending)
-        // PDF coordinates: Y increases upwards. So larger Y is higher on page.
-        textItems.sort((a, b) => {
-             // Round Y to avoid float jitter (e.g. 500.0001 vs 500.0002)
-             const yA = Math.round(a.transform[5]); 
-             const yB = Math.round(b.transform[5]);
-             
-             if (yA !== yB) return yB - yA; // Sort top-to-bottom (Desc Y)
-             return a.transform[4] - b.transform[4]; // Sort left-to-right (Asc X)
-        });
+        // Keep PDF.js text stream order to reduce column/table reordering artifacts.
+        // We still group adjacent items into lines using Y proximity and `hasEOL` hints.
+        const orderedItems = textItems;
 
         // Group into lines based on Y-coordinate proximity
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,7 +244,7 @@ export default function DocToMarkdownPage() {
         let currentLine: any[] = [];
         let currentY = -1;
 
-        for (const item of textItems) {
+        for (const item of orderedItems) {
             const itemY = Math.round(item.transform[5]);
             
             if (currentY === -1) {
@@ -141,6 +259,12 @@ export default function DocToMarkdownPage() {
                 currentLine = [item];
                 currentY = itemY;
             }
+
+          if (item.hasEOL && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = [];
+            currentY = -1;
+          }
         }
         if (currentLine.length > 0) lines.push(currentLine);
 
@@ -187,6 +311,17 @@ export default function DocToMarkdownPage() {
 
   // --- File Handler ---
   const processFile = async (selectedFile: File) => {
+    if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+      setFile(null);
+      setMarkdown("");
+      setCopied(false);
+      setStatus("error");
+      setErrorMessage(
+        `File too large (${formatSizeMB(selectedFile.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side conversion.`
+      );
+      return;
+    }
+
     setFile(selectedFile);
     setStatus("converting");
     setErrorMessage(null);
@@ -210,10 +345,10 @@ export default function DocToMarkdownPage() {
 
       } else if (fileType === "pdf") {
         result = await extractTextFromPdf(selectedFile);
-      } else if (fileType === "txt" || fileType === "md") {
+      } else if (fileType === "txt") {
         result = await selectedFile.text();
       } else {
-        throw new Error("Unsupported file format. Please use .docx or .pdf");
+        throw new Error("Unsupported file format. Please use .docx, .pdf, or .txt");
       }
 
       setMarkdown(result);
@@ -233,10 +368,17 @@ export default function DocToMarkdownPage() {
     }
   }, []);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(markdown);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (!markdown) return;
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Clipboard access failed. You can still download the Markdown file.");
+      setStatus("error");
+    }
   };
 
   const handleDownload = () => {
@@ -251,32 +393,66 @@ export default function DocToMarkdownPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleShare = async () => {
+    if (!markdown) return;
+
+    const fileName = (file?.name.replace(/\.[^/.]+$/, "") || "converted") + ".md";
+    const markdownFile = new File([markdown], fileName, { type: "text/markdown" });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [markdownFile] })) {
+      try {
+        await navigator.share({
+          files: [markdownFile],
+          title: fileName,
+        });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.warn("Share failed, falling back to download", err);
+      }
+    }
+
+    // Fallback for unsupported/failed share flows.
+    handleDownload();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto space-y-8 py-12">
+      <div className="max-w-4xl mx-auto space-y-6 py-12">
         
         {/* Header */}
-        <header className="space-y-4 text-center sm:text-left">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <Link
+              href="/tools"
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-2 text-left"
+            >
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <FileText className="w-8 h-8 text-blue-600" />
+                Doc to Markdown
+              </h1>
+              <p className="text-sm text-slate-500">
+                Convert Word documents and PDFs into clean Markdown for your LLM prompts or documentation.
+              </p>
+            </motion.div>
+          </div>
+
           <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
           </Link>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
-              <FileText className="w-10 h-10 text-blue-600" />
-              Doc to Markdown
-            </h1>
-            <p className="text-lg text-slate-600">
-              Convert Word documents and PDFs into clean Markdown for your LLM prompts or documentation.
-            </p>
-          </motion.div>
         </header>
 
         {/* Upload Area */}
@@ -305,7 +481,10 @@ export default function DocToMarkdownPage() {
                   Drag and drop or click to browse
                 </p>
                 <p className="text-xs text-slate-400">
-                  Supports .docx and .pdf
+                  Supports .docx, .pdf, and .txt
+                </p>
+                <p className="text-xs text-amber-600 font-medium">
+                  Recommended safe size: up to 25 MB per file for smooth browser-side conversion.
                 </p>
               </div>
               
@@ -313,7 +492,7 @@ export default function DocToMarkdownPage() {
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept=".docx,.pdf,.txt,.md"
+                accept=".docx,.pdf,.txt"
                 onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])}
               />
               
@@ -382,6 +561,14 @@ export default function DocToMarkdownPage() {
                     >
                         <Download className="w-4 h-4" />
                     </button>
+                    <button
+                      onClick={handleShare}
+                      disabled={!markdown}
+                      className="p-2 bg-slate-900 text-white rounded-lg shadow-sm hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Share .md file"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
                </div>
 
                <textarea
@@ -393,6 +580,8 @@ export default function DocToMarkdownPage() {
           </div>
         </motion.div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by Mammoth and PDF.js.</p>
     </div>
   );
 }
