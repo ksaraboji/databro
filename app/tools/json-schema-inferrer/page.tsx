@@ -204,6 +204,8 @@ export default function JsonSchemaInferrer() {
           </div>
         </div>
 
+        <p className="text-center text-slate-400 text-sm">Powered by JSON Schema Draft-07 Inference.</p>
+
       </main>
     </div>
   );

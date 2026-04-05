@@ -2,27 +2,55 @@
 
 import React, { useState, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileText, Loader2, AlertCircle, X, Download, GripVertical } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, AlertCircle, X, Download, Share2, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PDFDocument } from 'pdf-lib';
+
+const SAFE_FILE_SIZE_LIMIT_BYTES = 50 * 1024 * 1024;
+const SAFE_TOTAL_SIZE_LIMIT_BYTES = 200 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 export default function PDFMergerPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [isMerging, setIsMerging] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      // Append new files to existing list
-      const newFiles = Array.from(e.target.files).filter(file => file.type === "application/pdf");
-      
-      if (newFiles.length !== e.target.files.length) {
-          setError("Some files were skipped because they are not PDFs.");
-      } else {
-          setError(null);
+      const selectedFiles = Array.from(e.target.files);
+      const validPdfFiles = selectedFiles.filter(file => file.type === "application/pdf");
+      const oversizedFiles = validPdfFiles.filter((file) => file.size > SAFE_FILE_SIZE_LIMIT_BYTES);
+      const acceptedFiles = validPdfFiles.filter((file) => file.size <= SAFE_FILE_SIZE_LIMIT_BYTES);
+
+      const existingTotal = files.reduce((sum, file) => sum + file.size, 0);
+      let runningTotal = existingTotal;
+      const filesWithinTotalLimit: File[] = [];
+      for (const file of acceptedFiles) {
+        if (runningTotal + file.size <= SAFE_TOTAL_SIZE_LIMIT_BYTES) {
+          filesWithinTotalLimit.push(file);
+          runningTotal += file.size;
+        }
       }
-      
-      setFiles(prev => [...prev, ...newFiles]);
+
+      const skippedNonPdf = validPdfFiles.length !== selectedFiles.length;
+      const skippedOversized = oversizedFiles.length > 0;
+      const skippedTotalLimit = filesWithinTotalLimit.length !== acceptedFiles.length;
+
+      if (skippedNonPdf || skippedOversized || skippedTotalLimit) {
+        const issues: string[] = [];
+        if (skippedNonPdf) issues.push("non-PDF files");
+        if (skippedOversized) issues.push(`files over ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)}`);
+        if (skippedTotalLimit) issues.push(`total size above ${formatSizeMB(SAFE_TOTAL_SIZE_LIMIT_BYTES)}`);
+        setError(`Some files were skipped: ${issues.join(", ")}.`);
+      } else {
+        setError(null);
+      }
+
+      if (filesWithinTotalLimit.length > 0) {
+        setFiles((prev) => [...prev, ...filesWithinTotalLimit]);
+      }
     }
     // Reset input
     e.target.value = '';
@@ -70,25 +98,9 @@ export default function PDFMergerPage() {
         const baseName = files[0].name.replace(/\.[^/.]+$/, "");
         const filename = `${baseName}_merged_${timestamp}.pdf`;
 
-        // Handle Download / Share
+        // Merge & Download should always trigger a direct file download.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const blob = new Blob([mergedPdfBytes as any], { type: "application/pdf" });
-        const file = new File([blob], filename, { type: "application/pdf" });
-
-        // Try native sharing on supported mobile devices
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: filename,
-                });
-                return; // Share successful, skip fallback download
-            } catch (err) {
-                console.log('Share cancelled or failed, falling back to download', err);
-            }
-        }
-
-        // Fallback to standard download
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -96,6 +108,7 @@ export default function PDFMergerPage() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
     } catch (err: unknown) {
         console.error(err);
@@ -105,32 +118,96 @@ export default function PDFMergerPage() {
     }
   };
 
+    const mergeAndSharePDFs = async () => {
+        if (files.length < 2) {
+            setError("Please select at least 2 PDF files to merge.");
+            return;
+        }
+
+        setIsSharing(true);
+        setError(null);
+
+        try {
+            const mergedPdf = await PDFDocument.create();
+
+            for (const file of files) {
+                const fileBuffer = await file.arrayBuffer();
+                const pdf = await PDFDocument.load(fileBuffer);
+                const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+            }
+
+            const mergedPdfBytes = await mergedPdf.save();
+
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+            const baseName = files[0].name.replace(/\.[^/.]+$/, "");
+            const filename = `${baseName}_merged_${timestamp}.pdf`;
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const blob = new Blob([mergedPdfBytes as any], { type: "application/pdf" });
+            const shareFile = new File([blob], filename, { type: "application/pdf" });
+
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                await navigator.share({
+                    files: [shareFile],
+                    title: filename,
+                });
+                return;
+            }
+
+            // Fallback when native share isn't available.
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err: unknown) {
+            console.error(err);
+            setError("Failed to merge/share PDFs. One of the files might be corrupted or password protected.");
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8 font-sans">
-      <div className="max-w-3xl mx-auto space-y-8 py-12">
+    <div className="max-w-3xl mx-auto space-y-6 py-12">
         {/* Header */}
-        <header className="space-y-4 text-center sm:text-left">
-          <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
-          </Link>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
-              <FileText className="w-10 h-10 text-red-600" />
-              PDF Merger
-            </h1>
-            <p className="text-lg text-slate-600">
-              Combine multiple PDF files into a single document. Reorder pages by dragging files. Secure and client-side only.
-            </p>
-          </motion.div>
-        </header>
+                <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                        <Link
+                            href="/tools"
+                            className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </Link>
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-2 text-left"
+                        >
+                            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                                <FileText className="w-8 h-8 text-red-600" />
+                                PDF Merger
+                            </h1>
+                            <p className="text-sm text-slate-500">
+                                Combine multiple PDF files into a single document. Reorder pages by dragging files.
+                            </p>
+                        </motion.div>
+                    </div>
+
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                    >
+                        <Home className="w-4 h-4" />
+                        <span className="hidden sm:inline">Home</span>
+                    </Link>
+                </header>
 
         {/* Main Card */}
         <motion.div
@@ -139,7 +216,7 @@ export default function PDFMergerPage() {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
         >
-            <div className="p-6 sm:p-8 space-y-8">
+            <div className="p-6 sm:p-8 space-y-6">
                 
                 {/* File Upload */}
                 <div className="space-y-4">
@@ -162,6 +239,9 @@ export default function PDFMergerPage() {
                                 </div>
                                 <span className="text-xs opacity-70">
                                     Supports PDF files only
+                                </span>
+                                <span className="text-xs text-red-600 font-medium">
+                                    Recommended safe size: up to 50 MB per file, 200 MB total
                                 </span>
                             </div>
                          </div>
@@ -222,25 +302,47 @@ export default function PDFMergerPage() {
                         animate={{ opacity: 1 }}
                         className="pt-4"
                     >
-                        <button
-                            onClick={mergePDFs}
-                            disabled={isMerging || files.length < 2}
-                            className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
-                                isMerging || files.length < 2
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                : 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
-                            }`}
-                        >
-                            {isMerging ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin" /> Merging...
-                                </>
-                            ) : (
-                                <>
-                                    <Download className="w-5 h-5" /> Merge & Download
-                                </>
-                            )}
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button
+                                onClick={mergePDFs}
+                                disabled={isMerging || isSharing || files.length < 2}
+                                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                                    isMerging || isSharing || files.length < 2
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                                }`}
+                            >
+                                {isMerging ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" /> Merging...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-5 h-5" /> Merge & Download
+                                    </>
+                                )}
+                            </button>
+
+                            <button
+                                onClick={mergeAndSharePDFs}
+                                disabled={isSharing || isMerging || files.length < 2}
+                                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                                    isSharing || isMerging || files.length < 2
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]'
+                                }`}
+                            >
+                                {isSharing ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" /> Merging...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Share2 className="w-5 h-5" /> Merge & Share
+                                    </>
+                                )}
+                            </button>
+                        </div>
                         {files.length < 2 && (
                             <p className="text-center text-xs text-slate-400 mt-2">Add at least 2 files to merge</p>
                         )}
@@ -264,7 +366,6 @@ export default function PDFMergerPage() {
         {/* Info Footer */}
         <p className="text-center text-slate-400 text-sm">
             Powered by <a href="https://github.com/Hopding/pdf-lib" target="_blank" className="underline hover:text-slate-600">pdf-lib</a>.
-            <br className="hidden sm:block"/> No data leaves your browser.
         </p>
 
       </div>

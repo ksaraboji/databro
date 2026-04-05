@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -11,6 +11,7 @@ type Tool = {
   icon: React.ReactNode;
   href: string;
   color: string;
+  browserOnly?: boolean;
 };
 
 type Category = {
@@ -25,18 +26,20 @@ const toolCategories: Category[] = [
     title: "Data Conversion",
     tools: [
       {
-        name: "File Converter & Query Tool",
+        name: "File Converter & SQL Query Tool",
         description: "Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL.",
         icon: <FileSpreadsheet className="w-8 h-8 text-orange-600" />,
         href: "/tools/universal-converter",
         color: "bg-orange-50 hover:bg-orange-100",
+        browserOnly: true,
       },
       {
         name: "PDF Merger",
-        description: "Combine multiple PDF files into a single document comfortably in your browser.",
+        description: "Combine multiple PDF files into a single document.",
         icon: <FileText className="w-8 h-8 text-red-600" />,
         href: "/tools/pdf-merger",
         color: "bg-red-50 hover:bg-red-100",
+        browserOnly: true,
       },
       {
         name: "PDF Splitter & Extractor",
@@ -44,6 +47,7 @@ const toolCategories: Category[] = [
         icon: <FileMinus className="w-8 h-8 text-pink-600" />,
         href: "/tools/pdf-splitter",
         color: "bg-pink-50 hover:bg-pink-100",
+        browserOnly: true,
       },
       {
         name: "Doc to Markdown",
@@ -51,6 +55,23 @@ const toolCategories: Category[] = [
         icon: <FileText className="w-8 h-8 text-blue-600" />,
         href: "/tools/doc-to-markdown",
         color: "bg-blue-50 hover:bg-blue-100",
+        browserOnly: true,
+      },
+      {
+        name: "PDF to Image Converter",
+        description: "Convert all pages of a PDF into high-quality images (PNG, JPEG, or WebP).",
+        icon: <ImageIcon className="w-8 h-8 text-purple-600" />,
+        href: "/tools/pdf-to-image",
+        color: "bg-purple-50 hover:bg-purple-100",
+        browserOnly: true,
+      },
+      {
+        name: "Image to PDF Converter",
+        description: "Combine multiple images (PNG, JPEG, WebP, GIF) into a single PDF document.",
+        icon: <FileText className="w-8 h-8 text-orange-600" />,
+        href: "/tools/image-to-pdf",
+        color: "bg-orange-50 hover:bg-orange-100",
+        browserOnly: true,
       },
     ],
   },
@@ -64,6 +85,7 @@ const toolCategories: Category[] = [
         icon: <FileJson className="w-8 h-8 text-indigo-600" />,
         href: "/tools/json-formatter",
         color: "bg-indigo-50 hover:bg-indigo-100",
+        browserOnly: true,
       },
       {
         name: "SQL Formatter",
@@ -71,6 +93,7 @@ const toolCategories: Category[] = [
         icon: <Database className="w-8 h-8 text-blue-600" />,
         href: "/tools/sql-formatter",
         color: "bg-blue-50 hover:bg-blue-100",
+        browserOnly: true,
       },
       {
         name: "Parquet Inspector Plus",
@@ -78,6 +101,15 @@ const toolCategories: Category[] = [
         icon: <FileSpreadsheet className="w-8 h-8 text-teal-600" />,
         href: "/tools/parquet-inspector-plus",
         color: "bg-teal-50 hover:bg-teal-100",
+        browserOnly: true,
+      },
+      {
+        name: "Arrow Inspector Plus",
+        description: "Inspect Arrow schema fields, field metadata, and sample rows in IPC files.",
+        icon: <Binary className="w-8 h-8 text-sky-600" />,
+        href: "/tools/arrow-inspector-plus",
+        color: "bg-sky-50 hover:bg-sky-100",
+        browserOnly: true,
       },
       {
         name: "JSON Schema Inferrer",
@@ -85,6 +117,7 @@ const toolCategories: Category[] = [
         icon: <Braces className="w-8 h-8 text-violet-600" />,
         href: "/tools/json-schema-inferrer",
         color: "bg-violet-50 hover:bg-violet-100",
+        browserOnly: true,
       },
       {
         name: "Schema Diff Tool",
@@ -92,6 +125,7 @@ const toolCategories: Category[] = [
         icon: <ArrowLeftRight className="w-8 h-8 text-rose-600" />,
         href: "/tools/schema-diff",
         color: "bg-rose-50 hover:bg-rose-100",
+        browserOnly: true,
       },
     ],
   },
@@ -105,27 +139,31 @@ const toolCategories: Category[] = [
         icon: <Binary className="w-8 h-8 text-cyan-600" />,
         href: "/tools/base64-converter",
         color: "bg-cyan-50 hover:bg-cyan-100",
+        browserOnly: true,
       },
       {
         name: "Secure Zip Creator",
-        description: "Compress files into password-protected ZIP archives safely in your browser.",
+        description: "Compress files into password-protected ZIP archives.",
         icon: <FileArchive className="w-8 h-8 text-amber-600" />,
         href: "/tools/secure-zip",
         color: "bg-amber-50 hover:bg-amber-100",
+        browserOnly: true,
       },
       {
-        name: "Checksum Calculator",
-        description: "Generate MD5/SHA256 hashes and count lines for text files locally.",
+        name: "File Checksum",
+        description: "Generate MD5/SHA256 hashes and count lines for text files.",
         icon: <Hash className="w-8 h-8 text-emerald-600" />,
         href: "/tools/checksum-calculator",
         color: "bg-emerald-50 hover:bg-emerald-100",
+        browserOnly: true,
       },
       {
-        name: "Credit Card Validator",
-        description: "Validate credit card numbers using the Luhn checksum algorithm locally.",
+        name: "Credit Card / Luhn Validator",
+        description: "Validate credit card numbers using the Luhn checksum algorithm.",
         icon: <CreditCard className="w-8 h-8 text-violet-600" />,
         href: "/tools/credit-card-validator",
         color: "bg-violet-50 hover:bg-violet-100",
+        browserOnly: true,
       },
       {
         name: "UPC / EAN Validator",
@@ -133,13 +171,15 @@ const toolCategories: Category[] = [
         icon: <ShoppingCart className="w-8 h-8 text-rose-600" />,
         href: "/tools/upc-validator",
         color: "bg-rose-50 hover:bg-rose-100",
+        browserOnly: true,
       },
       {
         name: "Aadhaar Validator",
-        description: "Validate Indian Aadhaar numbers privately using the Verhoeff algorithm.",
+        description: "Validate Indian Aadhaar numbers using the Verhoeff algorithm.",
         icon: <Fingerprint className="w-8 h-8 text-orange-600" />,
         href: "/tools/aadhaar-validator",
         color: "bg-orange-50 hover:bg-orange-100",
+        browserOnly: true,
       },
       {
         name: "JWT Debugger",
@@ -147,6 +187,7 @@ const toolCategories: Category[] = [
         icon: <Key className="w-8 h-8 text-cyan-600" />,
         href: "/tools/jwt-debugger",
         color: "bg-cyan-50 hover:bg-cyan-100",
+        browserOnly: true,
       },
       {
         name: "QR Code Generator",
@@ -154,13 +195,15 @@ const toolCategories: Category[] = [
         icon: <QrCode className="w-8 h-8 text-teal-600" />,
         href: "/tools/qr-code-generator",
         color: "bg-teal-50 hover:bg-teal-100",
+        browserOnly: true,
       },
       {
-        name: "UUID / CUID / Hash Key Generator",
+        name: "UUID / CUID / Hash Generator",
         description: "Generate UUIDs (RFC 4122), CUID identifiers, or cryptographic hash keys for APIs and databases.",
         icon: <Key className="w-8 h-8 text-purple-600" />,
         href: "/tools/uuid-cuid-hash-generator",
         color: "bg-purple-50 hover:bg-purple-100",
+        browserOnly: true,
       },
       {
         name: "Timestamp / Timezone Converter",
@@ -168,6 +211,7 @@ const toolCategories: Category[] = [
         icon: <Clock className="w-8 h-8 text-blue-600" />,
         href: "/tools/timestamp-timezone-converter",
         color: "bg-blue-50 hover:bg-blue-100",
+        browserOnly: true,
       },
     ],
   },
@@ -181,13 +225,15 @@ const toolCategories: Category[] = [
         icon: <Activity className="w-8 h-8 text-indigo-600" />,
         href: "/tools/data-profiler",
         color: "bg-indigo-50 hover:bg-indigo-100",
+        browserOnly: true,
       },
       {
-        name: "Future Income Calculator",
+        name: "Detailed Financial Planner",
         description: "Project your financial freedom timeline, inflation impact, and investment gaps in USD & INR.",
         icon: <TrendingUp className="w-8 h-8 text-emerald-600" />,
         href: "/tools/future-income-calculator",
         color: "bg-emerald-50 hover:bg-emerald-100",
+        browserOnly: true,
       },
     ],
   },
@@ -251,6 +297,11 @@ export default function ToolsPage() {
                             {tool.icon}
                           </div>
                           <div>
+                            {tool.browserOnly ? (
+                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                                Browser-only
+                              </span>
+                            ) : null}
                             <h3 className="text-xl font-bold text-slate-900">
                               {tool.name}
                             </h3>

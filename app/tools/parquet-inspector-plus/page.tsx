@@ -69,6 +69,9 @@ type InspectorResult = {
 };
 
 const SAMPLE_ROW_LIMIT = 15;
+const SAFE_FILE_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 function formatBytes(value: bigint | number | null | undefined) {
   if (value == null) return "-";
@@ -214,6 +217,13 @@ export default function ParquetInspectorPlusPage() {
       setError("Please choose a .parquet file.");
       return;
     }
+    if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+      setFile(null);
+      setError(
+        `File too large (${formatSizeMB(selectedFile.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side inspection.`
+      );
+      return;
+    }
 
     setLoading(true);
     try {
@@ -284,6 +294,9 @@ export default function ParquetInspectorPlusPage() {
                 </p>
                 <p className="text-slate-500 text-sm mt-1">
                   Reads the Parquet footer, row-group metadata, and a small sample without sending data anywhere.
+                </p>
+                <p className="text-cyan-700 text-xs font-medium mt-1">
+                  Recommended safe size: up to 100 MB per file
                 </p>
               </div>
             </div>
@@ -528,6 +541,8 @@ export default function ParquetInspectorPlusPage() {
 
           </div>
         )}
+
+        <p className="text-center text-slate-400 text-sm">Powered by Hyparquet.</p>
       </main>
     </div>
   );

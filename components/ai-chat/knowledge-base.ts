@@ -18,22 +18,22 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "stack",
         keywords: ["tech stack", "technologies", "framework", "library", "react", "next.js", "typescript", "tailwind", "tech", "css", "frontend", "ui", "vue", "angular", "svelte", "jquery", "bootstrap"], 
-        text: "The tech stack uses Next.js v16.1.3 (App Router), React v19.2.3, TypeScript v5, Tailwind CSS v4, and Framer Motion v12." 
+        text: "The tech stack uses Next.js v16.x (App Router), React v19.2.3, TypeScript v5, Tailwind CSS v4, and Framer Motion v12." 
     },
     { 
         id: "infra",
         keywords: ["infrastructure", "cloud", "aws", "hosting", "deploy", "s3", "cloudfront", "terraform", "where hosted", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes", "lambda", "ec2"], 
-        text: "The infrastructure exclusively uses AWS S3 (Storage) and AWS CloudFront (CDN). There are NO other AWS services used." 
+        text: "Infrastructure is managed with Terraform across AWS and Azure. The web app uses AWS S3 and CloudFront, while backend services are deployed on Azure Container Apps with Azure Container Registry and related Azure resources." 
     },
     { 
         id: "arch",
         keywords: ["architecture", "backend", "database", "api", "security", "serverless", "jamstack", "api", "graphql", "rest", "mysql", "postgres", "mongodb", "oracle", "sql", "sqlite", "auth", "login"], 
-        text: "The architecture is purely Jamstack (Static Export). There is NO backend server and NO database. All logic is client-side." 
+        text: "The architecture is frontend-first with many browser-only tools, plus containerized backend microservices for API and AI use cases. The web frontend is static-hosted, and backend services run in Azure Container Apps." 
     },
     { 
         id: "cicd",
         keywords: ["ci", "cd", "ci/cd", "continuous integration", "continuous delivery", "pipeline", "github actions", "build", "automation", "jenkins", "gitlab", "built", "how built", "compilation", "process"], 
-        text: "CI/CD is automated via GitHub Actions. It runs Linting, Building, Security Checks, and S3 Deployment." 
+        text: "CI/CD is automated via GitHub Actions with separate workflows for AWS Terraform, Azure Terraform, web app build/deploy, and backend service image build/deploy." 
     },
     { 
         id: "ai",
@@ -43,57 +43,102 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "tool-sql",
         keywords: ["sql", "formatter", "database", "query", "link", "url"], 
-        text: "The SQL Formatter tool is available at https://dev.databro.dev/tools/sql-formatter" 
+        text: "The SQL Formatter tool is available at https://databro.dev/tools/sql-formatter" 
     },
     { 
         id: "tool-checksum",
         keywords: ["checksum", "hash", "calculator", "generator", "md5", "sha", "link", "url"], 
-        text: "The Checksum Calculator tool is available at https://dev.databro.dev/tools/checksum-calculator" 
+        text: "The Checksum Calculator tool is available at https://databro.dev/tools/checksum-calculator" 
     },
     { 
         id: "tool-json",
         keywords: ["json", "formatter", "beautify", "pretty", "link", "url"], 
-        text: "The JSON Formatter tool is available at https://dev.databro.dev/tools/json-formatter" 
+        text: "The JSON Formatter tool is available at https://databro.dev/tools/json-formatter" 
     },
     {
         id: "tool-universal",
         keywords: ["universal", "converter", "file", "format", "transform", "arrow", "avro", "csv", "parquet", "excel", "link", "url"],
-        text: "The File Converter & Query Tool is available at https://dev.databro.dev/tools/universal-converter. It supports conversion between CSV, Excel, Parquet, Arrow, and Avro formats, and allows SQL querying via DuckDB."
+        text: "The File Converter & SQL Query Tool is available at https://databro.dev/tools/universal-converter. It supports conversion between CSV, Excel, Parquet, Arrow, and Avro formats, and allows SQL querying via DuckDB."
     },
     {
         id: "tool-pdf-merger",
         keywords: ["pdf", "merger", "combine", "join", "merge", "document", "link", "url"],
-        text: "The PDF Merger tool is available at https://dev.databro.dev/tools/pdf-merger. It helps combine multiple PDF files into one."
+        text: "The PDF Merger tool is available at https://databro.dev/tools/pdf-merger. It helps combine multiple PDF files into one."
     },
     {
         id: "tool-pdf-splitter",
         keywords: ["pdf", "splitter", "extract", "page", "split", "remove", "separate", "link", "url"],
-        text: "The PDF Splitter & Extractor tool is available at https://dev.databro.dev/tools/pdf-splitter. It allows extracting specific pages from PDF documents."
+        text: "The PDF Splitter & Extractor tool is available at https://databro.dev/tools/pdf-splitter. It allows extracting specific pages from PDF documents."
     },
     {
         id: "tool-doc-md",
         keywords: ["doc", "docx", "word", "pdf", "markdown", "md", "convert", "extract", "text", "llm", "prompt", "link", "url"],
-        text: "The Doc to Markdown tool is available at https://dev.databro.dev/tools/doc-to-markdown. It converts Microsoft Word (.docx) and PDF files into clean Markdown text for LLM prompts."
+        text: "The Doc to Markdown tool is available at https://databro.dev/tools/doc-to-markdown. It converts Microsoft Word (.docx) and PDF files into clean Markdown text for LLM prompts."
     },
     {
         id: "tool-base64",
         keywords: ["base64", "encoder", "decoder", "encode", "decode", "text", "binary", "link", "url"],
-        text: "The Base64 Encoder / Decoder tool is available at https://dev.databro.dev/tools/base64-converter. It handles UTF-8 text encoding and decoding."
+        text: "The Base64 Encoder / Decoder tool is available at https://databro.dev/tools/base64-converter. It handles UTF-8 text encoding and decoding."
     },
     {
         id: "tool-zip",
         keywords: ["zip", "secure", "compress", "archive", "password", "protect", "encryption", "link", "url"],
-        text: "The Secure Zip Creator tool is available at https://dev.databro.dev/tools/secure-zip. It creates password-protected ZIP archives entirely in the browser using AES-256 or ZipCrypto."
+        text: "The Secure Zip Creator tool is available at https://databro.dev/tools/secure-zip. It creates password-protected ZIP archives entirely in the browser using AES-256 or ZipCrypto."
     },
     { 
         id: "tool-profiler",
         keywords: ["data", "profiler", "explorer", "stats", "statistics", "distribution", "analysis", "analyze", "column", "null", "unique", "link", "url"], 
-        text: "The Data Profiler & Explorer tool is available at https://dev.databro.dev/tools/data-profiler. It allows uploading CSV/Parquet files to instantly view column statistics (min, max, nulls, unique count) and value distributions." 
+        text: "The Data Profiler & Explorer tool is available at https://databro.dev/tools/data-profiler. It allows uploading CSV/Parquet files to instantly view column statistics (min, max, nulls, unique count) and value distributions." 
     },
     { 
         id: "tool-finance",
         keywords: ["financial", "planner", "calculator", "income", "expense", "budget", "retirement", "fire", "investment", "money", "corpus", "wealth", "projection", "link", "url"], 
-        text: "The Financial Planner tool is available at https://dev.databro.dev/tools/future-income-calculator. It helps project financial freedom timelines with detailed asset growth, expense inflation, and PDF reporting features." 
+        text: "The Financial Planner tool is available at https://databro.dev/tools/future-income-calculator. It helps project financial freedom timelines with detailed asset growth, expense inflation, and PDF reporting features." 
+    },
+    {
+        id: "tool-parquet-inspector",
+        keywords: ["parquet", "inspector", "schema", "row group", "metadata", "codec", "column stats", "link", "url"],
+        text: "The Parquet Inspector Plus tool is available at https://databro.dev/tools/parquet-inspector-plus. It inspects schema, row groups, codecs, metadata, and sample rows in Parquet files."
+    },
+    {
+        id: "tool-arrow-inspector",
+        keywords: ["arrow", "inspector", "feather", "ipc", "schema", "metadata", "link", "url"],
+        text: "The Arrow Inspector Plus tool is available at https://databro.dev/tools/arrow-inspector-plus. It inspects Arrow schema fields, metadata, and sample rows from Arrow/Feather IPC files."
+    },
+    {
+        id: "tool-schema-diff",
+        keywords: ["schema", "diff", "compare", "json schema", "parquet schema", "changes", "added", "removed", "link", "url"],
+        text: "The Schema Diff Tool is available at https://databro.dev/tools/schema-diff. It compares JSON or Parquet-derived schemas and highlights added, removed, and changed fields."
+    },
+    {
+        id: "tool-json-schema-inferrer",
+        keywords: ["json schema", "inferrer", "infer", "draft-07", "schema generation", "link", "url"],
+        text: "The JSON Schema Inferrer tool is available at https://databro.dev/tools/json-schema-inferrer. It infers Draft-07 JSON Schema from sample JSON input."
+    },
+    {
+        id: "tool-pdf-to-image",
+        keywords: ["pdf to image", "convert pdf", "png", "jpeg", "webp", "pages", "link", "url"],
+        text: "The PDF to Image Converter tool is available at https://databro.dev/tools/pdf-to-image. It converts PDF pages to PNG, JPEG, or WebP images in-browser."
+    },
+    {
+        id: "tool-image-to-pdf",
+        keywords: ["image to pdf", "combine images", "jpg to pdf", "png to pdf", "webp", "gif", "link", "url"],
+        text: "The Image to PDF Converter tool is available at https://databro.dev/tools/image-to-pdf. It combines multiple images into a single PDF document."
+    },
+    {
+        id: "tool-uuid-cuid",
+        keywords: ["uuid", "cuid", "hash generator", "sha", "id generator", "token", "link", "url"],
+        text: "The UUID / CUID / Hash Generator tool is available at https://databro.dev/tools/uuid-cuid-hash-generator. It generates UUIDs, CUID-style IDs, and cryptographic hashes."
+    },
+    {
+        id: "tool-timestamp-timezone",
+        keywords: ["timestamp", "timezone", "unix time", "epoch", "date converter", "time zone", "link", "url"],
+        text: "The Timestamp / Timezone Converter tool is available at https://databro.dev/tools/timestamp-timezone-converter. It converts Unix timestamps and transforms date-times across timezones."
+    },
+    {
+        id: "tool-document-summarizer",
+        keywords: ["document summarizer", "summarize", "pdf summary", "docx summary", "ai summary", "link", "url"],
+        text: "The Document Summarizer tool is available at https://databro.dev/tools/document-summarizer. It sends supported documents to a backend summarization service and returns condensed output."
     },
     { 
         id: "tools-usp",
@@ -103,7 +148,7 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "tools",
         keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
-        text: "Available tools: QR Code Generator (/tools/qr-code-generator), Credit Card Validator (/tools/credit-card-validator), UPC/EAN Validator (/tools/upc-validator), Aadhaar Validator (/tools/aadhaar-validator), JWT Debugger (/tools/jwt-debugger), SQL Formatter (/tools/sql-formatter), Checksum Calculator (/tools/checksum-calculator), JSON Formatter (/tools/json-formatter), File Converter (/tools/universal-converter), Doc to Markdown (/tools/doc-to-markdown), PDF Merger (/tools/pdf-merger), PDF Splitter (/tools/pdf-splitter), Base64 Converter (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), Data Profiler (/tools/data-profiler), and Financial Planner (/tools/future-income-calculator)." 
+        text: "Available tools include: File Converter & SQL Query Tool (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter & Extractor (/tools/pdf-splitter), Doc to Markdown (/tools/doc-to-markdown), PDF to Image Converter (/tools/pdf-to-image), Image to PDF Converter (/tools/image-to-pdf), JSON Pretty Print (/tools/json-formatter), SQL Formatter (/tools/sql-formatter), Parquet Inspector Plus (/tools/parquet-inspector-plus), Arrow Inspector Plus (/tools/arrow-inspector-plus), JSON Schema Inferrer (/tools/json-schema-inferrer), Schema Diff Tool (/tools/schema-diff), Base64 Encoder / Decoder (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), File Checksum (/tools/checksum-calculator), Credit Card / Luhn Validator (/tools/credit-card-validator), UPC / EAN Validator (/tools/upc-validator), Aadhaar Validator (/tools/aadhaar-validator), JWT Debugger (/tools/jwt-debugger), QR Code Generator (/tools/qr-code-generator), UUID / CUID / Hash Generator (/tools/uuid-cuid-hash-generator), Timestamp / Timezone Converter (/tools/timestamp-timezone-converter), Data Profiler & Explorer (/tools/data-profiler), Detailed Financial Planner (/tools/future-income-calculator), and Document Summarizer (/tools/document-summarizer)." 
     },
     {
         id: "qr-generator",

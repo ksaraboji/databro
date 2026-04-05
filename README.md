@@ -1,130 +1,120 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Databro
 
-A modern data engineer portfolio with responsive design, smooth animations, and cloud infrastructure.
+Databro is a Next.js application with client-side data tools and multi-cloud deployment workflows.
 
-## 🚀 Features
+## Overview
 
-- **Next.js 16** - React framework for production
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first CSS framework
-- **Framer Motion** - Smooth animations
-- **Lucide Icons** - Beautiful icon library
-- **AWS Infrastructure** - S3 + CloudFront deployment
-- **Terraform IaC** - Infrastructure as Code
-- **GitHub Actions CI/CD** - Automated build and deploy
+- Frontend: Next.js 16 + React 19 + TypeScript
+- UI: Tailwind CSS v4 + Framer Motion + Lucide icons
+- Data tooling: DuckDB WASM, Apache Arrow, Parquet utilities, PDF/image utilities
+- Infrastructure as Code: Terraform for AWS and Azure
+- CI/CD: GitHub Actions for infra deployment, app deployment, and service image builds
 
-## 📂 Project Structure
+## Repository Structure
 
-```
+```text
 databro/
-├── app/                    # Next.js app directory
-├── lib/                    # Utility functions
+├── app/                    # Next.js App Router pages and routes
+├── components/             # Shared React UI components
+├── lib/                    # App utilities and integration helpers
 ├── public/                 # Static assets
-├── terraform/              # Infrastructure as Code (Terraform)
-├── .github/workflows/      # CI/CD workflows (GitHub Actions)
-├── DEPLOYMENT.md           # Deployment guide
-└── package.json            # Dependencies
+├── services/               # Containerized backend services (api_gateway, llm, rag, speech)
+├── terraform/              # Terraform code for AWS and Azure
+├── tests/                  # Test scripts and manual test assets
+├── .github/workflows/      # CI/CD and infra workflows
+└── package.json            # Project scripts and dependencies
 ```
 
-## 🛠️ Getting Started
+## Local Development
 
-### Development Server
+### Prerequisites
+
+- Node.js 20+
+- npm 10+
+
+### Install Dependencies
+
+```bash
+npm ci
+```
+
+### Start Dev Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-### Production Build
+### Lint and Build
 
 ```bash
+npm run lint
 npm run build
 npm start
 ```
 
-## 🚀 Deployment
+## Deployment Model
 
-### Option 1: Automated with GitHub Actions
+### Web App (AWS)
 
-1. Push to `main` branch
-2. GitHub Actions automatically:
-   - Builds the Next.js app
-   - Deploys to S3
-   - Invalidates CloudFront cache
+- Static export/build artifacts are deployed to S3
+- CloudFront serves content and handles cache invalidation
+- Terraform in `terraform/aws` provisions infra
 
-### Option 2: Manual Deployment
+### Backend Services (Azure)
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
+- `services/api_gateway`, `services/llm`, `services/rag`, and `services/speech` are built as container images
+- Images are pushed to Azure Container Registry (ACR)
+- Workflows deploy to Azure Container Apps
+- Terraform in `terraform/azure` provisions infra
 
-- Setting up Terraform
-- Configuring AWS credentials
-- Deploying infrastructure
-- Managing S3 and CloudFront
+## Branch and Environment Mapping
 
-### Quick Deployment Steps
+- `develop` -> dev environment
+- `main` -> prod environment
 
-1. **Setup Infrastructure**:
+This mapping is used by infra and deployment workflows.
 
-   ```bash
-   cd terraform
-   terraform init
-   terraform plan
-   terraform apply
-   ```
+## CI/CD Workflows
 
-2. **Build and Deploy**:
-   ```bash
-   npm run build
-   aws s3 sync .next s3://your-bucket-name/ --delete
-   ```
+Primary workflows are in `.github/workflows`:
 
-## 📋 Terraform & Infrastructure
+- `deploy-aws-infra.yml` - Terraform plan/apply for AWS infra and optional app deploy chaining
+- `multi-env-deploy.yml` - Next.js build and deploy to AWS (dev/prod)
+- `deploy-azure-infra.yml` - Terraform plan/apply for Azure infra
+- `build-api-gateway.yml` - Build/push/deploy API Gateway service
+- `build-llm-service.yml` - Build/push/deploy LLM service
+- `build-rag-service.yml` - Build/push/deploy RAG service
+- `build-speech-service.yml` - Build/push/deploy Speech service
+- `manual-import.yml` - Manual Terraform import helper (Azure)
 
-Infrastructure setup with Terraform includes:
+## Required Secrets
 
-- **S3 Bucket** - Static file hosting with encryption and versioning
-- **CloudFront** - CDN for faster content delivery
-- **Access Logging** - Monitor and audit S3 access
-- **Security** - Public access blocked, HTTPS enforced
+### AWS-related
 
-See [terraform/README.md](terraform/README.md) for detailed infrastructure documentation.
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
 
-## 🔄 CI/CD Workflows
+### Azure-related
 
-GitHub Actions workflows handle:
+- `ARM_CLIENT_ID`
+- `ARM_CLIENT_SECRET`
+- `ARM_SUBSCRIPTION_ID`
+- `ARM_TENANT_ID`
 
-- **Build** - Install dependencies, run linter, build Next.js
-- **Deploy** - Sync to S3, invalidate CloudFront
-- **Infrastructure** - Terraform plan and apply
+### Service-specific (as used by workflows)
 
-See [.github/workflows/README.md](.github/workflows/README.md) for workflow documentation.
+- `HF_API_KEY`
+- `GROQ_API_KEY`
+- `YOUTUBE_API_KEY`
+- `INSTAGRAM_ACCESS_TOKEN`
+- `INSTAGRAM_ACCOUNT_ID`
+- `DEVTO_API_KEY`
 
-## 🔐 Environment Variables
+## Additional References
 
-Required for deployment:
+- [terraform/README.md](terraform/README.md)
+- [.github/workflows/README.md](.github/workflows/README.md)
+- [Next.js Documentation](https://nextjs.org/docs)
 
-```bash
-AWS_ACCESS_KEY_ID          # AWS IAM access key
-AWS_SECRET_ACCESS_KEY      # AWS IAM secret key
-S3_BUCKET_NAME             # Target S3 bucket
-CLOUDFRONT_DISTRIBUTION_ID # CloudFront distribution ID (optional)
-```
-
-## 📚 Documentation
-
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Infrastructure and deployment guide
-- [terraform/README.md](terraform/README.md) - Terraform configuration guide
-- [.github/workflows/README.md](.github/workflows/README.md) - CI/CD workflows guide
-- [Next.js Documentation](https://nextjs.org/docs) - Learn about Next.js
-- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest) - Infrastructure as Code
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

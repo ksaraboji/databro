@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ShoppingCart, Check, X, ShieldCheck, ShieldAlert, Binary } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Check, X, ShieldCheck, ShieldAlert, Binary, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function UPCEANValidatorPage() {
@@ -73,28 +73,37 @@ export default function UPCEANValidatorPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-8">
-      <div className="max-w-3xl mx-auto space-y-8 py-12">
-        <header className="space-y-4 text-center sm:text-left">
+      <div className="max-w-3xl mx-auto space-y-6 py-12">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <Link
+              href="/tools"
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-2 text-left"
+            >
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <ShoppingCart className="w-8 h-8 text-rose-600" />
+                UPC / EAN Validator
+              </h1>
+              <p className="text-sm text-slate-500">
+                Verify global trade item numbers (UPC, EAN, GTIN) check digits.
+              </p>
+            </motion.div>
+          </div>
+
           <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-rose-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
           </Link>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
-              <ShoppingCart className="w-10 h-10 text-rose-600" />
-              UPC / EAN Validator
-            </h1>
-            <p className="text-lg text-slate-600">
-              Verify global trade item numbers (UPC, EAN, GTIN) check digits.
-            </p>
-          </motion.div>
         </header>
 
         <motion.div
@@ -103,7 +112,7 @@ export default function UPCEANValidatorPage() {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
         >
-          <div className="p-8 sm:p-12 space-y-8">
+          <div className="p-6 sm:p-8 space-y-6">
             <div className="space-y-4">
               <label htmlFor="upc-input" className="block text-sm font-bold text-slate-900 uppercase tracking-wide">
                 Enter Barcode Number
@@ -163,6 +172,8 @@ export default function UPCEANValidatorPage() {
           </div>
         </motion.div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by GTIN/UPC/EAN Validation Logic.</p>
     </div>
   );
 }

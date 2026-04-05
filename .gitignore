@@ -22,6 +22,7 @@
 
 # docs
 /docs/tools
+/docs/GA_workflows
 
 # misc
 .DS_Store
@@ -35,6 +36,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
 
 # vercel
 .vercel

@@ -9,6 +9,10 @@ import CryptoJS from "crypto-js";
 
 type HashAlgorithm = "MD5" | "SHA256";
 
+const SAFE_FILE_SIZE_LIMIT_BYTES = 25 * 1024 * 1024;
+
+const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 export default function ChecksumCalculator() {
   const [file, setFile] = useState<File | null>(null);
   const [algorithm, setAlgorithm] = useState<HashAlgorithm>("MD5");
@@ -72,6 +76,16 @@ export default function ChecksumCalculator() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+        if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+            setFile(null);
+            setError(
+                `File too large (${formatSizeMB(selectedFile.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side checksum generation.`
+            );
+            setHash("");
+            setLineCount(null);
+            setLoading(false);
+            return;
+        }
         setFile(selectedFile);
         processFile(selectedFile);
     }
@@ -82,6 +96,16 @@ export default function ChecksumCalculator() {
     e.stopPropagation();
     const selectedFile = e.dataTransfer.files?.[0];
     if (selectedFile) {
+        if (selectedFile.size > SAFE_FILE_SIZE_LIMIT_BYTES) {
+            setFile(null);
+            setError(
+                `File too large (${formatSizeMB(selectedFile.size)}). Recommended safe limit is ${formatSizeMB(SAFE_FILE_SIZE_LIMIT_BYTES)} for browser-side checksum generation.`
+            );
+            setHash("");
+            setLineCount(null);
+            setLoading(false);
+            return;
+        }
         setFile(selectedFile);
         processFile(selectedFile);
     }
@@ -178,6 +202,7 @@ export default function ChecksumCalculator() {
                         <div>
                             <p className="font-semibold text-slate-700">Click to upload or drag & drop</p>
                             <p className="text-sm text-slate-500 mt-1">Text files supported (TXT, CSV, JSON, LOG...)</p>
+                            <p className="text-xs text-indigo-600 mt-1 font-medium">Recommended safe size: up to 25 MB per file</p>
                         </div>
                     )}
                 </div>
@@ -288,6 +313,8 @@ export default function ChecksumCalculator() {
             </div>
         </div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by crypto-js.</p>
     </div>
   );
 }

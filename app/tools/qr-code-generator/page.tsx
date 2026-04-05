@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, QrCode, Download, Settings, Trash2, Eye } from "lucide-react";
+import { ArrowLeft, QrCode, Download, Settings, Trash2, Eye, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -32,28 +32,37 @@ export default function QRCodeGeneratorPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto space-y-8 py-12">
-        <header className="space-y-4 text-center sm:text-left">
+      <div className="max-w-6xl mx-auto space-y-6 py-12">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <Link
+              href="/tools"
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-2 text-left"
+            >
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <QrCode className="w-8 h-8 text-teal-600" />
+                QR Code Generator
+              </h1>
+              <p className="text-sm text-slate-500">
+                Create custom QR codes for URLs, text, or data completely offline.
+              </p>
+            </motion.div>
+          </div>
+
           <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-teal-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
           </Link>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-3">
-              <QrCode className="w-10 h-10 text-teal-600" />
-              QR Code Generator
-            </h1>
-            <p className="text-lg text-slate-600">
-              Create custom QR codes for URLs, text, or data completely offline.
-            </p>
-          </motion.div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -208,6 +217,8 @@ export default function QRCodeGeneratorPage() {
           </motion.div>
         </div>
       </div>
+
+        <p className="text-center text-slate-400 text-sm">Powered by qrcode.react.</p>
     </div>
   );
 }
