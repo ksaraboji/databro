@@ -6,7 +6,6 @@ import { ExternalLink, Award, BookOpen, ChevronLeft } from "lucide-react"; // Ic
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
-import ProdFeatureGate from "@/components/prod-feature-gate";
 
 // Types for our data
 interface ProfileLink {
@@ -64,8 +63,7 @@ const CERTIFICATIONS: Certification[] = [
 
 export default function LearningPage() {
   return (
-    <ProdFeatureGate featureName="Brain Dump">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-100 selection:text-indigo-900">
         <FloatingHomeButton />
         
         <div className="max-w-6xl mx-auto space-y-12 md:space-y-16 py-8">
@@ -201,6 +199,5 @@ export default function LearningPage() {
           <FloatingHomeButton />
         </div>
       </div>
-    </ProdFeatureGate>
   );
 }

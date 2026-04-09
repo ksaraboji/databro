@@ -77,8 +77,8 @@ export default function ProdFeatureGate({ featureName, children }: ProdFeatureGa
         </div>
 
         <p className="text-slate-600 text-lg leading-relaxed">
-          This corner of the site is still in the workshop. The duct tape is visible, the wiring is questionable,
-          and future me asked that we do not let visitors in just yet.
+          This section is still in the workshop. The duct tape is doing its best, the wiring is making bold life
+          choices, and future me politely asked us not to let visitors in just yet.
         </p>
 
         <div className="pt-4">
