@@ -56,6 +56,16 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
         text: "The JSON Formatter tool is available at https://databro.dev/tools/json-formatter" 
     },
     {
+        id: "tool-json-flatten-unflatten",
+        keywords: ["json flatten", "unflatten", "flatten", "nested json", "json paths", "dot notation", "link", "url"],
+        text: "The JSON Flatten / Unflatten tool is available at https://databro.dev/tools/json-flatten-unflatten. It flattens nested JSON into key paths and reconstructs nested JSON from flattened keys."
+    },
+    {
+        id: "tool-yaml-json-converter",
+        keywords: ["yaml", "yml", "json", "converter", "yaml to json", "json to yaml", "transform", "link", "url"],
+        text: "The YAML / JSON Converter tool is available at https://databro.dev/tools/yaml-json-converter. It converts YAML to JSON and JSON to YAML with instant validation."
+    },
+    {
         id: "tool-universal",
         keywords: ["universal", "converter", "file", "format", "transform", "arrow", "avro", "csv", "parquet", "excel", "link", "url"],
         text: "The File Converter & SQL Query Tool is available at https://databro.dev/tools/universal-converter. It supports conversion between CSV, Excel, Parquet, Arrow, and Avro formats, and allows SQL querying via DuckDB."
@@ -136,6 +146,11 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
         text: "The Timestamp / Timezone Converter tool is available at https://databro.dev/tools/timestamp-timezone-converter. It converts Unix timestamps and transforms date-times across timezones."
     },
     {
+        id: "tool-cron-time-window-simulator",
+        keywords: ["cron", "scheduler", "time window", "simulator", "next runs", "schedule preview", "link", "url"],
+        text: "The Cron and Time Window Simulator tool is available at https://databro.dev/tools/cron-time-window-simulator. It previews next run times from cron expressions and estimates execution counts within custom time windows."
+    },
+    {
         id: "tool-document-summarizer",
         keywords: ["document summarizer", "summarize", "pdf summary", "docx summary", "ai summary", "link", "url"],
         text: "The Document Summarizer tool is available at https://databro.dev/tools/document-summarizer. It sends supported documents to a backend summarization service and returns condensed output."
@@ -148,7 +163,7 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "tools",
         keywords: ["tools", "utils", "available", "list", "features", "links", "urls"], 
-        text: "Available tools include: File Converter & SQL Query Tool (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter & Extractor (/tools/pdf-splitter), Doc to Markdown (/tools/doc-to-markdown), PDF to Image Converter (/tools/pdf-to-image), Image to PDF Converter (/tools/image-to-pdf), JSON Pretty Print (/tools/json-formatter), SQL Formatter (/tools/sql-formatter), Parquet Inspector Plus (/tools/parquet-inspector-plus), Arrow Inspector Plus (/tools/arrow-inspector-plus), JSON Schema Inferrer (/tools/json-schema-inferrer), Schema Diff Tool (/tools/schema-diff), Base64 Encoder / Decoder (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), File Checksum (/tools/checksum-calculator), Credit Card / Luhn Validator (/tools/credit-card-validator), UPC / EAN Validator (/tools/upc-validator), Aadhaar Validator (/tools/aadhaar-validator), JWT Debugger (/tools/jwt-debugger), QR Code Generator (/tools/qr-code-generator), UUID / CUID / Hash Generator (/tools/uuid-cuid-hash-generator), Timestamp / Timezone Converter (/tools/timestamp-timezone-converter), Data Profiler & Explorer (/tools/data-profiler), Detailed Financial Planner (/tools/future-income-calculator), and Document Summarizer (/tools/document-summarizer)." 
+        text: "Available tools include: File Converter & SQL Query Tool (/tools/universal-converter), PDF Merger (/tools/pdf-merger), PDF Splitter & Extractor (/tools/pdf-splitter), Doc to Markdown (/tools/doc-to-markdown), PDF to Image Converter (/tools/pdf-to-image), Image to PDF Converter (/tools/image-to-pdf), JSON Pretty Print (/tools/json-formatter), YAML / JSON Converter (/tools/yaml-json-converter), SQL Formatter (/tools/sql-formatter), Parquet Inspector Plus (/tools/parquet-inspector-plus), Arrow Inspector Plus (/tools/arrow-inspector-plus), JSON Schema Inferrer (/tools/json-schema-inferrer), Schema Diff Tool (/tools/schema-diff), JSON Flatten / Unflatten (/tools/json-flatten-unflatten), Base64 Encoder / Decoder (/tools/base64-converter), Secure Zip Creator (/tools/secure-zip), File Checksum (/tools/checksum-calculator), Credit Card / Luhn Validator (/tools/credit-card-validator), UPC / EAN Validator (/tools/upc-validator), Aadhaar Validator (/tools/aadhaar-validator), JWT Debugger (/tools/jwt-debugger), QR Code Generator (/tools/qr-code-generator), UUID / CUID / Hash Generator (/tools/uuid-cuid-hash-generator), Timestamp / Timezone Converter (/tools/timestamp-timezone-converter), Cron and Time Window Simulator (/tools/cron-time-window-simulator), Data Profiler & Explorer (/tools/data-profiler), Detailed Financial Planner (/tools/future-income-calculator), and Document Summarizer (/tools/document-summarizer)." 
     },
     {
         id: "qr-generator",
