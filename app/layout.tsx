@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import ClientOnlyPostit from "@/components/client-only-postit";
 import VisitorCounter from "@/components/visitor-counter";
 import AiChatWidget from "@/components/ai-chat/widget";
 import Footer from "@/components/footer";
 import "./globals.css";
-import { usePathname } from 'next/navigation';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,8 +35,12 @@ export const metadata: Metadata = {
   publisher: "Kumar Saraboji",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
   },
   openGraph: {
     type: "website",
@@ -77,7 +79,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   return (
     <html lang="en">
       <body

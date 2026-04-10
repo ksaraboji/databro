@@ -32,5 +32,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date(),
     changeFrequency: route === '' ? 'weekly' : 'monthly',
     priority: route === '' ? 1 : 0.8,
+    images: route === '' ? [`${baseUrl}/favicon.svg`] : undefined,
   }));
 }
