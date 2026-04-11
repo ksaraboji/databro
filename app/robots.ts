@@ -9,6 +9,9 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/private/', '/api/'],
     },
-    sitemap: 'https://databro.dev/sitemap.xml',
+    sitemap: [
+      'https://databro.dev/sitemap.xml',
+      'https://data-bro.com/sitemap-data-bro.xml',
+    ],
   };
 }
