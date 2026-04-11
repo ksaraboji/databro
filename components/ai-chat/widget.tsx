@@ -2,13 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Loader2, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle, Mic } from 'lucide-react';
+import { Send, Bot, User, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle, Mic } from 'lucide-react';
 import { KNOWLEDGE_BASE } from './knowledge-base';
 
 
 // The context is a prioritized Knowledge Base.
 // The Worker will mathematically select the best chunk before sending to the AI.
 const TECH_STACK_CONTEXT = JSON.stringify(KNOWLEDGE_BASE);
+const CITATION_PREVIEW_BY_ID = Object.fromEntries(
+  KNOWLEDGE_BASE.map((chunk) => [
+    chunk.id,
+    chunk.text.length > 180 ? `${chunk.text.slice(0, 180)}...` : chunk.text,
+  ]),
+);
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -31,6 +37,15 @@ interface SpeechRecognitionAlternative {
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  citations?: string[];
+}
+
+interface SpeechRecognitionLike {
+  stop: () => void;
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string;
 }
 
 export default function AiChatWidget() {
@@ -44,7 +59,7 @@ export default function AiChatWidget() {
   const [isListening, setIsListening] = useState(false);
   const worker = useRef<Worker | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     // Only initialize worker if chat is opened at least once to save resources
@@ -60,7 +75,7 @@ export default function AiChatWidget() {
       };
 
       worker.current.onmessage = (e) => {
-        const { status, data, output, error } = e.data;
+        const { status, data, output, error, citations } = e.data;
         
         switch (status) {
           case 'worker-loaded':
@@ -84,10 +99,11 @@ export default function AiChatWidget() {
                 const lastMsg = newMessages[newMessages.length - 1];
                 if (lastMsg.role === 'assistant') {
                     lastMsg.content = output; // Update content
+                lastMsg.citations = undefined;
                     return newMessages;
                 } else {
                     // If last message was user, append a new assistant message
-                    return [...prev, { role: 'assistant', content: output }];
+                return [...prev, { role: 'assistant', content: output, citations: undefined }];
                 }
             });
             break;
@@ -98,6 +114,9 @@ export default function AiChatWidget() {
                 const lastMsg = newMessages[newMessages.length - 1];
                 if (lastMsg.role === 'assistant') {
                     lastMsg.content = output;
+                lastMsg.citations = Array.isArray(citations)
+                  ? citations.filter((c: unknown) => typeof c === 'string')
+                  : undefined;
                 }
                 return newMessages;
             });
@@ -152,7 +171,7 @@ const startListening = useCallback(() => {
         }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error("Speech recognition error:", event.error);
         setIsListening(false);
         recognitionRef.current = null;
@@ -213,9 +232,11 @@ const startListening = useCallback(() => {
   };
 
   const renderContent = (text: string) => {
+    const contentWithoutSources = text.replace(/\n*\s*Sources:\s*(?:\[[^\]]+\](?:,\s*)?)+\s*$/i, '');
+
     // Patch: Fix known model hallucination where it adds spaces in the domain
     // e.g. "dev databro.dev" or "dev .databro.dev"
-    const patchedText = text
+    const patchedText = contentWithoutSources
         .replace(/dev\s+databro\.dev/gi, 'dev.databro.dev')
         .replace(/dev\s+\.databro\.dev/gi, 'dev.databro.dev')
         .replace(/devatabro\.dev/gi, 'dev.databro.dev');
@@ -309,6 +330,20 @@ const startListening = useCallback(() => {
                       : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 rounded-tl-sm'
                   }`}>
                     {renderContent(msg.content)}
+                    {msg.role === 'assistant' && Array.isArray(msg.citations) && msg.citations.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {msg.citations.map((citation) => (
+                          <span
+                            key={`${idx}-${citation}`}
+                            className="rounded-full border border-slate-300 bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                            title={CITATION_PREVIEW_BY_ID[citation] || `Source chunk: ${citation}`}
+                            aria-label={CITATION_PREVIEW_BY_ID[citation] || `Source chunk: ${citation}`}
+                          >
+                            [{citation}]
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
