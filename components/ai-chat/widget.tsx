@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Bot, User, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle, Mic } from 'lucide-react';
 import {
   buildCitationPreviewMap,
   buildRAGContextFromMarkdown,
   FALLBACK_RAG_CHUNKS,
+  KB_EMBEDDING_MODEL,
   KB_VERSION,
+  KBVectorArtifact,
 } from './rag-kb';
 
 
@@ -47,10 +50,11 @@ interface SpeechRecognitionErrorEvent {
 }
 
 export default function AiChatWidget() {
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I am your portfolio assistant. Ask me about projects, tools, architecture, or tech stack. If needed, I will download local AI models first." }
+    { role: 'assistant', content: "Hi! I'm your portfolio assistant — ask me anything about this site's USP, architecture, or tech stack. Your first message may take a moment while local AI models load." }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
@@ -62,12 +66,59 @@ export default function AiChatWidget() {
   const retrievalModeNoticeShown = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const pendingAssistantOutputRef = useRef<string | null>(null);
+  const streamRafRef = useRef<number | null>(null);
+
+  const flushStreamToUI = useCallback(() => {
+    const output = pendingAssistantOutputRef.current;
+    if (output == null) return;
+
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastMsg = newMessages[newMessages.length - 1];
+      if (lastMsg?.role === 'assistant') {
+        lastMsg.content = output;
+        lastMsg.citations = undefined;
+        return newMessages;
+      }
+      return [...prev, { role: 'assistant', content: output, citations: undefined }];
+    });
+  }, []);
+
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamRafRef.current != null) return;
+    streamRafRef.current = window.requestAnimationFrame(() => {
+      streamRafRef.current = null;
+      flushStreamToUI();
+    });
+  }, [flushStreamToUI]);
+
+  useEffect(() => {
+    if (searchParams.get('chat') === 'open') {
+      setIsOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadMarkdownKnowledgeBase = async () => {
+    const loadKnowledgeBaseContext = async () => {
       try {
+        const vectorResponse = await fetch('/ai-chat/knowledge-base-vectors.json', { cache: 'no-store' });
+        if (vectorResponse.ok) {
+          const vectorArtifact = (await vectorResponse.json()) as KBVectorArtifact;
+          const artifactKbVersion = vectorArtifact?.header?.kbVersion;
+          const artifactEmbeddingModel = vectorArtifact?.header?.embeddingModel;
+          const artifactChunks = Array.isArray(vectorArtifact?.chunks) ? vectorArtifact.chunks : [];
+
+          const isVectorArtifactCompatible = artifactKbVersion === KB_VERSION && artifactEmbeddingModel === KB_EMBEDDING_MODEL;
+          if (isVectorArtifactCompatible && artifactChunks.length > 0 && !cancelled) {
+            setRagContextJSON(JSON.stringify(vectorArtifact));
+            setCitationPreviewById(buildCitationPreviewMap(artifactChunks));
+            return;
+          }
+        }
+
         const response = await fetch('/ai-chat/knowledge-base.md', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`KB fetch failed: ${response.status}`);
@@ -90,7 +141,7 @@ export default function AiChatWidget() {
       }
     };
 
-    loadMarkdownKnowledgeBase();
+    loadKnowledgeBaseContext();
 
     return () => {
       cancelled = true;
@@ -134,45 +185,50 @@ export default function AiChatWidget() {
             }
             break;
           case 'retrieval-mode':
-            if (e.data?.mode === 'keyword-only' && !retrievalModeNoticeShown.current) {
+            if (e.data?.mode === 'sparse-only' && !retrievalModeNoticeShown.current) {
               retrievalModeNoticeShown.current = true;
               setMessages(prev => [
                 ...prev,
                 {
                   role: 'assistant',
-                  content: 'Semantic retrieval is temporarily unavailable, so I am using keyword-only grounding for now.',
+                  content: 'Semantic retrieval is temporarily unavailable, so I am using sparse BM25 grounding for now.',
                 },
               ]);
             }
             break;
           case 'update':
-            // Streaming update: Update the last message content real-time
-            setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg.role === 'assistant') {
-                    lastMsg.content = output; // Update content
-                lastMsg.citations = undefined;
-                    return newMessages;
-                } else {
-                    // If last message was user, append a new assistant message
-                return [...prev, { role: 'assistant', content: output, citations: undefined }];
-                }
-            });
+            pendingAssistantOutputRef.current = typeof output === 'string' ? output : null;
+            scheduleStreamFlush();
             break;
           case 'complete':
+            // Ensure any queued streaming update is flushed before final state.
+            if (streamRafRef.current != null) {
+              window.cancelAnimationFrame(streamRafRef.current);
+              streamRafRef.current = null;
+            }
+            flushStreamToUI();
             // Final update to ensure we have everything
             setMessages(prev => {
                 const newMessages = [...prev];
                 const lastMsg = newMessages[newMessages.length - 1];
                 if (lastMsg.role === 'assistant') {
                     lastMsg.content = output;
-                lastMsg.citations = Array.isArray(citations)
-                  ? citations.filter((c: unknown) => typeof c === 'string')
-                  : undefined;
+                    lastMsg.citations = Array.isArray(citations)
+                      ? citations.filter((c: unknown) => typeof c === 'string')
+                      : undefined;
+                } else {
+                    // Canonical/fallback paths may return complete without streaming updates.
+                    newMessages.push({
+                      role: 'assistant',
+                      content: typeof output === 'string' ? output : '',
+                      citations: Array.isArray(citations)
+                        ? citations.filter((c: unknown) => typeof c === 'string')
+                        : undefined,
+                    });
                 }
                 return newMessages;
             });
+              pendingAssistantOutputRef.current = null;
             setStatus('idle');
             break;
           case 'error':
@@ -187,8 +243,12 @@ export default function AiChatWidget() {
        if the user re-opens the chat. We only terminate on unmount. */
     return () => {
         // worker.current?.terminate(); // Cleaner might trigger on page nav, let's keep it alive unless component unmounts
+        if (streamRafRef.current != null) {
+          window.cancelAnimationFrame(streamRafRef.current);
+          streamRafRef.current = null;
+        }
     };
-  }, [isOpen]);
+  }, [flushStreamToUI, isOpen, scheduleStreamFlush]);
 const startListening = useCallback(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         alert("Speech recognition is not supported in this browser.");
@@ -273,7 +333,7 @@ const startListening = useCallback(() => {
     // Post to worker
     worker.current?.postMessage({
       text: userEntry,
-      context: ragContextJSON
+      context: ragContextJSON,
     });
   }, [input, status, ragContextJSON]);
 
@@ -295,6 +355,17 @@ const startListening = useCallback(() => {
         .replace(/devatabro\.dev/gi, 'dev.databro.dev');
 
     const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+    const renderBoldSegments = (input: string, keyPrefix: string) => {
+      const boldRegex = /(\*\*[^*]+\*\*)/g;
+      return input.split(boldRegex).map((segment, idx) => {
+        if (/^\*\*[^*]+\*\*$/.test(segment)) {
+          return <strong key={`${keyPrefix}-b-${idx}`}>{segment.slice(2, -2)}</strong>;
+        }
+        return <span key={`${keyPrefix}-t-${idx}`}>{segment}</span>;
+      });
+    };
+
     return patchedText.split(urlRegex).map((part, i) => {
       if (part.match(/^https?:\/\//)) {
         let cleanUrl = part;
@@ -319,7 +390,7 @@ const startListening = useCallback(() => {
           </span>
         );
       }
-      return <span key={i}>{part}</span>;
+      return <span key={i}>{renderBoldSegments(part, `chunk-${i}`)}</span>;
     });
   };
 
@@ -382,7 +453,7 @@ const startListening = useCallback(() => {
                       ? 'bg-blue-600 text-white rounded-tr-sm' 
                       : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 rounded-tl-sm'
                   }`}>
-                    {renderContent(msg.content)}
+                    <div className="whitespace-pre-line wrap-break-word">{renderContent(msg.content)}</div>
                     {msg.role === 'assistant' && Array.isArray(msg.citations) && msg.citations.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {msg.citations.map((citation) => (
@@ -420,6 +491,24 @@ const startListening = useCallback(() => {
                       </div>
                     ) : null}
                  </div>
+              )}
+
+              {status === 'generating' && (
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30">
+                    <Bot size={12} />
+                  </div>
+                  <div className="rounded-2xl px-3 py-2 text-sm bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 rounded-tl-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">Thinking</span>
+                      <span className="inline-flex items-center gap-1" aria-label="Generating response">
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.2s]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.1s]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-bounce" />
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {status === 'error' && (

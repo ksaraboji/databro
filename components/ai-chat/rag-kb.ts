@@ -1,5 +1,3 @@
-import { KNOWLEDGE_BASE } from './knowledge-base';
-
 export interface RAGChunkMetadata {
   kbVersion: string;
   source: string;
@@ -14,7 +12,23 @@ export interface RAGChunk {
   id: string;
   keywords: string[];
   text: string;
+  embedding?: number[];
   metadata: RAGChunkMetadata;
+}
+
+export interface KBVectorArtifactHeader {
+  kbVersion: string;
+  embeddingModel: string;
+  generatedAt: string;
+  source: string;
+  chunkSize: number;
+  overlap: number;
+  dimensions: number;
+}
+
+export interface KBVectorArtifact {
+  header: KBVectorArtifactHeader;
+  chunks: RAGChunk[];
 }
 
 interface MarkdownSection {
@@ -33,7 +47,8 @@ interface ChunkOptions {
 const DEFAULT_SOURCE = 'public/ai-chat/knowledge-base.md';
 const DEFAULT_CHUNK_SIZE = 520;
 const DEFAULT_OVERLAP = 100;
-export const KB_VERSION = '2026-04-11.1';
+export const KB_VERSION = '2026-04-11.19';
+export const KB_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 function slugify(input: string): string {
   return input
@@ -224,17 +239,19 @@ export function buildCitationPreviewMap(chunks: Array<{ id: string; text: string
   );
 }
 
-export const FALLBACK_RAG_CHUNKS: RAGChunk[] = KNOWLEDGE_BASE.map((chunk, index) => ({
-  id: chunk.id,
-  keywords: chunk.keywords,
-  text: chunk.text,
-  metadata: {
-    kbVersion: KB_VERSION,
-    source: 'components/ai-chat/knowledge-base.ts',
-    section: chunk.id,
-    tags: chunk.keywords,
-    chunkIndex: index,
-    charStart: 0,
-    charEnd: chunk.text.length,
+export const FALLBACK_RAG_CHUNKS: RAGChunk[] = [
+  {
+    id: 'fallback-about',
+    keywords: ['portfolio', 'owner', 'tools', 'ai', 'hosting'],
+    text: 'Databro is a portfolio site with browser-first tools and AI utilities. If full knowledge base loading fails, this fallback provides limited answers until the markdown knowledge base is available.',
+    metadata: {
+      kbVersion: KB_VERSION,
+      source: 'components/ai-chat/rag-kb.ts',
+      section: 'Emergency Fallback',
+      tags: ['fallback', 'limited-context'],
+      chunkIndex: 0,
+      charStart: 0,
+      charEnd: 181,
+    },
   },
-}));
+];
