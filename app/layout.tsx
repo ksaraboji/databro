@@ -22,6 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  // Keep a single canonical host for SEO; secondary domains should redirect here.
   metadataBase: new URL('https://databro.dev'),
   title: {
     default: "Databro. | Kumar Saraboji",
@@ -57,6 +58,7 @@ export const metadata: Metadata = {
     creator: "@ksaraboji", // Placeholder, safest to include or omit if unknown. I'll omit if I don't know it, but "databro" sounds like a handle. I'll leave basic summary.
   },
   alternates: {
+    // Canonical remains databro.dev even when data-bro.com also serves the site.
     canonical: "/",
   },
   robots: {
