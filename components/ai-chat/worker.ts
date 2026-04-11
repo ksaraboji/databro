@@ -4,9 +4,17 @@ import { CreateMLCEngine, MLCEngine } from "@mlc-ai/web-llm";
 // Configuration
 env.allowLocalModels = false;
 env.useBrowserCache = true;
+// Force a stable local wasm backend path in web workers to avoid import.meta.url fetch issues.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const onnxWasmEnv = (env as any)?.backends?.onnx?.wasm;
+if (onnxWasmEnv) {
+    onnxWasmEnv.wasmPaths = '/ort/';
+    onnxWasmEnv.numThreads = 1;
+}
 
 const GENERATION_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 const EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
+const SHOW_DEBUG_INFO = process.env.NODE_ENV !== 'production';
 
 const appConfig = {
     model_list: [
@@ -27,13 +35,31 @@ interface ContextChunk {
     id: string;
     keywords: string[];
     text: string;
+    metadata: {
+        kbVersion: string;
+        source: string;
+        section: string;
+        tags: string[];
+        chunkIndex: number;
+        charStart: number;
+        charEnd: number;
+    };
 }
 
 interface CachedChunk {
     id: string;
     keywords: string[];
     text: string;
-    embedding: number[];
+    embedding: number[] | null;
+    metadata?: {
+        kbVersion: string;
+        source: string;
+        section: string;
+        tags: string[];
+        chunkIndex: number;
+        charStart: number;
+        charEnd: number;
+    };
 }
 
 interface RetrievalConfig {
@@ -41,6 +67,7 @@ interface RetrievalConfig {
     topKCandidates: number;
     semanticWeight: number;
     keywordWeight: number;
+    metadataWeight: number;
     minConfidence: number;
     minMeanTop3: number;
 }
@@ -49,6 +76,7 @@ interface ScoredCandidate {
     chunk: CachedChunk;
     semantic: number;
     keyword: number;
+    metadata: number;
     final: number;
 }
 
@@ -66,8 +94,9 @@ interface ContextAssembly {
 const RETRIEVAL_CONFIG: RetrievalConfig = {
     topK: 4,
     topKCandidates: 8,
-    semanticWeight: 0.7,
-    keywordWeight: 0.3,
+    semanticWeight: 0.62,
+    keywordWeight: 0.23,
+    metadataWeight: 0.15,
     minConfidence: 0.28,
     minMeanTop3: 0.22,
 };
@@ -75,6 +104,10 @@ const RETRIEVAL_CONFIG: RetrievalConfig = {
 class AI {
     static llmEngine: MLCEngine | null = null;
     static embedderPipeline: unknown = null;
+    static embedderUnavailable = false;
+    static embedderFallbackAnnounced = false;
+    static embedderLastFailureAt = 0;
+    static readonly embedderRetryCooldownMs = 12000;
     static contextHash: string | null = null;
     static cachedChunks: CachedChunk[] = [];
 
@@ -114,8 +147,26 @@ class AI {
     }
 
     static async getEmbedder() {
+        if (this.embedderUnavailable) {
+            const elapsed = Date.now() - this.embedderLastFailureAt;
+            if (elapsed < this.embedderRetryCooldownMs) {
+                return null;
+            }
+            // Retry after cooldown in case this was a transient network/CDN failure.
+            this.embedderUnavailable = false;
+        }
         if (!this.embedderPipeline) {
-            this.embedderPipeline = await pipeline('feature-extraction', EMBEDDING_MODEL);
+            try {
+                this.embedderPipeline = await pipeline('feature-extraction', EMBEDDING_MODEL);
+                this.embedderFallbackAnnounced = false;
+                return this.embedderPipeline;
+            } catch (error) {
+                console.warn('Embedding backend unavailable. Falling back to keyword-only retrieval.', error);
+                this.embedderUnavailable = true;
+                this.embedderLastFailureAt = Date.now();
+                this.embedderPipeline = null;
+                return null;
+            }
         }
         return this.embedderPipeline;
     }
@@ -152,6 +203,17 @@ function normalizeChunks(contextJSON: string): ContextChunk[] {
                     ? chunk.keywords.filter((k: unknown) => typeof k === 'string')
                     : [],
                 text: chunk.text,
+                metadata: {
+                    kbVersion: typeof chunk.metadata?.kbVersion === 'string' ? chunk.metadata.kbVersion : 'legacy',
+                    source: typeof chunk.metadata?.source === 'string' ? chunk.metadata.source : 'unknown',
+                    section: typeof chunk.metadata?.section === 'string' ? chunk.metadata.section : '',
+                    tags: Array.isArray(chunk.metadata?.tags)
+                        ? chunk.metadata.tags.filter((t: unknown) => typeof t === 'string')
+                        : [],
+                    chunkIndex: typeof chunk.metadata?.chunkIndex === 'number' ? chunk.metadata.chunkIndex : idx,
+                    charStart: typeof chunk.metadata?.charStart === 'number' ? chunk.metadata.charStart : 0,
+                    charEnd: typeof chunk.metadata?.charEnd === 'number' ? chunk.metadata.charEnd : chunk.text.length,
+                },
             }));
     } catch {
         return [];
@@ -160,7 +222,8 @@ function normalizeChunks(contextJSON: string): ContextChunk[] {
 
 async function ensureContextCache(contextJSON: string): Promise<void> {
     const incomingHash = hashString(contextJSON);
-    if (AI.contextHash === incomingHash && AI.cachedChunks.length > 0) {
+    const hasEmbeddedVectors = AI.cachedChunks.some((chunk) => Array.isArray(chunk.embedding) && chunk.embedding.length > 0);
+    if (AI.contextHash === incomingHash && AI.cachedChunks.length > 0 && hasEmbeddedVectors) {
         return;
     }
 
@@ -172,15 +235,20 @@ async function ensureContextCache(contextJSON: string): Promise<void> {
     }
 
     const embedder = await AI.getEmbedder();
-    if (!embedder) throw new Error('Embedder failed to initialize');
 
     const newCache: CachedChunk[] = [];
-    for (const chunk of chunks) {
-        const textForEmbedding = `${chunk.keywords.join(' ')}. ${chunk.text}`;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const chunkOut = await (embedder as any)(textForEmbedding, { pooling: 'mean', normalize: true });
-        const chunkVec = Array.from(chunkOut.data as Float32Array);
-        newCache.push({ ...chunk, embedding: chunkVec });
+    if (!embedder) {
+        for (const chunk of chunks) {
+            newCache.push({ ...chunk, embedding: null });
+        }
+    } else {
+        for (const chunk of chunks) {
+            const textForEmbedding = `${chunk.keywords.join(' ')}. ${chunk.text}`;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chunkOut = await (embedder as any)(textForEmbedding, { pooling: 'mean', normalize: true });
+            const chunkVec = Array.from(chunkOut.data as Float32Array);
+            newCache.push({ ...chunk, embedding: chunkVec });
+        }
     }
 
     AI.cachedChunks = newCache;
@@ -195,6 +263,70 @@ function calculateKeywordScore(queryLower: string, keywords: string[]): number {
         if (boundaryRegex.test(queryLower)) keywordHits += 1;
     }
     return Math.min(keywordHits / 3, 1);
+}
+
+function calculateMetadataIntentScore(queryLower: string, chunk: CachedChunk): number {
+    const metadata = chunk.metadata;
+    if (!metadata) return 0;
+
+    const sectionLower = metadata.section.toLowerCase();
+    const tagsLower = metadata.tags.map((tag) => tag.toLowerCase());
+
+    const intentMap: Array<{ queryTerms: string[]; targetTerms: string[] }> = [
+        {
+            queryTerms: ['owner', 'creator', 'who built', 'who made', 'about', 'purpose'],
+            targetTerms: ['owner', 'about', 'purpose'],
+        },
+        {
+            queryTerms: ['hosted', 'hosting', 'where hosted', 'deploy', 'deployment', 'aws', 'azure', 'infra', 'infrastructure'],
+            targetTerms: ['hosting', 'infra', 'aws', 'azure', 'cloud'],
+        },
+        {
+            queryTerms: ['tech stack', 'stack', 'frontend', 'backend', 'framework', 'libraries'],
+            targetTerms: ['stack', 'frontend', 'backend', 'libraries'],
+        },
+        {
+            queryTerms: ['ci/cd', 'cicd', 'pipeline', 'workflow', 'github actions', 'deploy flow'],
+            targetTerms: ['cicd', 'workflow', 'deploy'],
+        },
+        {
+            queryTerms: ['tool', 'tools', 'utility', 'utilities', 'url', 'link'],
+            targetTerms: ['tools', 'catalog', 'urls', 'utility'],
+        },
+        {
+            queryTerms: ['rag', 'chatbot', 'retrieval', 'embedding', 'llm', 'ai widget', 'ai chat'],
+            targetTerms: ['ai', 'chatbot', 'rag', 'embeddings', 'webllm'],
+        },
+        {
+            queryTerms: ['flow', 'request flow', 'frontend to backend', 'api gateway'],
+            targetTerms: ['flow', 'request-path', 'gateway', 'api'],
+        },
+    ];
+
+    let score = 0;
+    for (const mapping of intentMap) {
+        const hasIntent = mapping.queryTerms.some((term) => queryLower.includes(term));
+        if (!hasIntent) continue;
+
+        const termMatch = mapping.targetTerms.some((term) => sectionLower.includes(term) || tagsLower.some((tag) => tag.includes(term)));
+        if (termMatch) score += 0.4;
+    }
+
+    const directSectionMatch = sectionLower.length > 0 && queryLower.includes(sectionLower);
+    if (directSectionMatch) score += 0.3;
+
+    const metadataTerms = [sectionLower, ...tagsLower].filter(Boolean);
+    const lexicalMatches = metadataTerms.reduce((acc, term) => {
+        const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?:^|[^a-z0-9])${esc}(?:$|[^a-z0-9])`, 'i');
+        return regex.test(queryLower) ? acc + 1 : acc;
+    }, 0);
+
+    if (lexicalMatches > 0) {
+        score += Math.min(0.3, lexicalMatches * 0.08);
+    }
+
+    return Math.max(0, Math.min(1, score));
 }
 
 function calculateMeanTop3(candidates: ScoredCandidate[]): number {
@@ -217,22 +349,30 @@ async function findMostRelevantChunks(query: string, cfg: RetrievalConfig): Prom
 
     try {
         const embedder = await AI.getEmbedder();
-        if (!embedder) throw new Error('Embedder failed to init');
+        let queryVec: number[] | null = null;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const queryOut = await (embedder as any)(query, { pooling: 'mean', normalize: true });
-        const queryVec = Array.from(queryOut.data as Float32Array);
+        if (embedder) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const queryOut = await (embedder as any)(query, { pooling: 'mean', normalize: true });
+            queryVec = Array.from(queryOut.data as Float32Array);
+        }
 
         const scored: ScoredCandidate[] = AI.cachedChunks.map((chunk) => {
             // cosineSimilarity returns [-1..1], convert to [0..1] for weighted blending.
-            const semanticRaw = cosineSimilarity(queryVec, chunk.embedding);
-            const semantic = Math.max(0, Math.min(1, (semanticRaw + 1) / 2));
+            const semanticRaw = queryVec && chunk.embedding ? cosineSimilarity(queryVec, chunk.embedding) : 0;
+            const semantic = queryVec && chunk.embedding ? Math.max(0, Math.min(1, (semanticRaw + 1) / 2)) : 0;
             const keyword = calculateKeywordScore(q, chunk.keywords);
+            const metadata = calculateMetadataIntentScore(q, chunk);
+
+            const semanticWeight = queryVec ? cfg.semanticWeight : 0;
+            const keywordWeight = queryVec ? cfg.keywordWeight : 0.75;
+            const metadataWeight = queryVec ? cfg.metadataWeight : 0.25;
             return {
                 chunk,
                 semantic,
                 keyword,
-                final: (cfg.semanticWeight * semantic) + (cfg.keywordWeight * keyword),
+                metadata,
+                final: (semanticWeight * semantic) + (keywordWeight * keyword) + (metadataWeight * metadata),
             };
         });
 
@@ -281,6 +421,28 @@ function buildContextText(chunks: CachedChunk[], maxContextChars = 2200): Contex
     };
 }
 
+function stripSourcesLine(text: string): string {
+    // Remove any "Sources: [...]" line wherever it appears (start, middle, or end)
+    // Covers both [chunk:id] format (model copying context) and [id] format (prompted citations)
+    return text
+        .replace(/\n*\s*Sources:\s*(?:\[(?:chunk:)?[^\]]+\](?:,\s*)?)+\s*\n?/gi, '\n')
+        .trim();
+}
+
+function buildGroundedFallbackFromChunks(chunks: CachedChunk[]): string {
+    if (!chunks.length) {
+        return 'I could not generate a complete answer from the local model for this question.';
+    }
+
+    const primary = chunks[0].text.trim();
+    if (!primary) {
+        return 'I could not generate a complete answer from the local model for this question.';
+    }
+
+    // Keep fallback concise for widget UX.
+    return primary.length > 320 ? `${primary.slice(0, 320)}...` : primary;
+}
+
 self.addEventListener('message', async (event: MessageEvent) => {
     const { text, context } = event.data;
 
@@ -293,7 +455,20 @@ self.addEventListener('message', async (event: MessageEvent) => {
             self.postMessage({ status: 'progress', data });
         });
 
+        self.postMessage({ status: 'embedder-status', data: { state: 'loading', text: 'Loading semantic retriever (all-MiniLM)...' } });
         await ensureContextCache(context);
+
+        if (AI.embedderUnavailable && !AI.embedderFallbackAnnounced) {
+            self.postMessage({ status: 'retrieval-mode', mode: 'keyword-only' });
+            AI.embedderFallbackAnnounced = true;
+        }
+
+        self.postMessage({
+            status: 'embedder-status',
+            data: AI.embedderUnavailable
+                ? { state: 'unavailable', text: 'Semantic retriever unavailable, using keyword-only retrieval.' }
+                : { state: 'ready', text: 'Semantic retriever ready.' },
+        });
 
         self.postMessage({ status: 'ready' });
 
@@ -318,7 +493,9 @@ self.addEventListener('message', async (event: MessageEvent) => {
                 content: [
                     "You are a grounded assistant for this portfolio website.",
                     "Use ONLY the provided context chunks.",
-                    "If the answer is not present in context, clearly say you do not have enough information.",
+                    "Answer ONLY what the user asked for.",
+                    "Do not require unrelated details (for example names, domains, or versions) unless the user explicitly asks for them.",
+                    "If and only if the requested fact is truly missing from all provided chunks, say you do not have enough information.",
                     "Do not invent links, tools, versions, names, or facts.",
                     "Keep answers concise and factual.",
                     "End the answer with a citations line in this format: Sources: [chunk-id], [chunk-id]",
@@ -326,7 +503,15 @@ self.addEventListener('message', async (event: MessageEvent) => {
             },
             { 
                 role: "user" as const, 
-                content: `Context:\n${relevantContext}\n\nQuestion: ${text}\n\nInstruction: Answer strictly from context. If unknown from context, say so explicitly.`
+                content: [
+                    `Context:\n${relevantContext}`,
+                    `Question: ${text}`,
+                    'Instruction:',
+                    '- Provide a direct answer to the question first.',
+                    '- If the question asks for a list (for example tech stack), list the items found in context.',
+                    '- Do not add commentary about missing unrelated fields.',
+                    '- Only mention insufficient information if the asked fact itself is not present.',
+                ].join('\n\n')
             }
         ];
 
@@ -346,13 +531,20 @@ self.addEventListener('message', async (event: MessageEvent) => {
             }
         }
 
-        const baseAnswer = fullResponse.trim();
+        const modelRawAnswer = fullResponse.trim();
+        const baseAnswer = stripSourcesLine(modelRawAnswer);
         const sourcesLine = citations.length > 0
             ? `Sources: ${citations.map((id) => `[${id}]`).join(', ')}`
             : '';
-        const finalAnswer = sourcesLine && !/sources\s*:/i.test(baseAnswer)
-            ? `${baseAnswer}\n\n${sourcesLine}`
-            : baseAnswer;
+        const groundedAnswer = baseAnswer || buildGroundedFallbackFromChunks(relevantChunks);
+        const answerWithSources = sourcesLine
+            ? `${groundedAnswer}\n\n${sourcesLine}`
+            : groundedAnswer;
+        const retrievalMode = AI.embedderUnavailable ? 'keyword-only' : 'hybrid';
+        const debugLine = SHOW_DEBUG_INFO
+            ? `\n\n[debug] retrieval=${retrievalMode}, confidence=${retrieval.topScore.toFixed(2)}`
+            : '';
+        const finalAnswer = `${answerWithSources}${debugLine}`;
 
         self.postMessage({
             status: 'complete',

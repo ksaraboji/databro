@@ -7,7 +7,7 @@ export interface ContextChunk {
 export const KNOWLEDGE_BASE: ContextChunk[] = [
     { 
         id: "about",
-        keywords: ["databro", "site", "about", "portfolio", "what is this", "purpose", "goal", "website", "author", "creator", "developer", "engineer", "who built", "who made", "created by", "kumar", "saraboji", "owner"], 
+        keywords: ["databro", "about", "portfolio", "what is this", "purpose", "goal", "website", "author", "creator", "developer", "engineer", "who built", "who made", "created by", "kumar", "saraboji", "owner"], 
         text: "The developer and owner of this portfolio site is Kumar Saraboji. It demonstrates skills in Data Engineering, Cloud Automation (AWS), and AI Integration." 
     },
     { 
@@ -22,8 +22,8 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
     },
     { 
         id: "infra",
-        keywords: ["infrastructure", "cloud", "aws", "hosting", "deploy", "s3", "cloudfront", "terraform", "where hosted", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes", "lambda", "ec2"], 
-        text: "Infrastructure is managed with Terraform across AWS and Azure. The web app uses AWS S3 and CloudFront, while backend services are deployed on Azure Container Apps with Azure Container Registry and related Azure resources." 
+        keywords: ["infrastructure", "cloud", "aws", "hosting", "hosted", "where hosted", "where", "deploy", "deployed", "s3", "cloudfront", "cdn", "terraform", "azure", "gcp", "google", "digitalocean", "vps", "server", "docker", "kubernetes", "lambda", "ec2", "site hosted", "live"], 
+        text: "The site is hosted on AWS: the frontend uses S3 (static files) and CloudFront (CDN). Backend services are deployed on Azure Container Apps via Azure Container Registry. Infrastructure for both clouds is managed as code with Terraform." 
     },
     { 
         id: "arch",
@@ -159,6 +159,11 @@ export const KNOWLEDGE_BASE: ContextChunk[] = [
         id: "tools-usp",
         keywords: ["unique", "feature", "selling point", "special", "privacy", "security", "local", "offline", "data safety", "why use", "advantage", "tools"], 
         text: "The unique feature of these tools is that all data processing happens locally in your browser. No data ever leaves your machine or is sent to a server." 
+    },
+    {
+        id: "site-highlights",
+        keywords: ["cool", "interesting", "standout", "highlight", "what makes", "impressive", "amazing", "awesome", "best feature", "showcase", "capability", "capabilities", "differentiator", "why is this site", "notable"],
+        text: "What makes this site stand out: 28+ browser-only tools where no data ever leaves your device; a built-in AI chat assistant (this one!) running entirely in-browser via WebLLM and local semantic embeddings; real-time data profiling for CSV and Parquet files; multi-cloud infrastructure managed with Terraform (AWS + Azure); and full CI/CD via GitHub Actions. It is a living showcase of full-stack, data engineering, and AI skills."
     },
     { 
         id: "tools",

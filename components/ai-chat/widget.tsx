@@ -3,18 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Bot, User, Sparkles, X, MessageSquare, ChevronDown, AlertTriangle, Mic } from 'lucide-react';
-import { KNOWLEDGE_BASE } from './knowledge-base';
+import {
+  buildCitationPreviewMap,
+  buildRAGContextFromMarkdown,
+  FALLBACK_RAG_CHUNKS,
+  KB_VERSION,
+} from './rag-kb';
 
 
-// The context is a prioritized Knowledge Base.
-// The Worker will mathematically select the best chunk before sending to the AI.
-const TECH_STACK_CONTEXT = JSON.stringify(KNOWLEDGE_BASE);
-const CITATION_PREVIEW_BY_ID = Object.fromEntries(
-  KNOWLEDGE_BASE.map((chunk) => [
-    chunk.id,
-    chunk.text.length > 180 ? `${chunk.text.slice(0, 180)}...` : chunk.text,
-  ]),
-);
+const FALLBACK_CONTEXT_JSON = JSON.stringify(FALLBACK_RAG_CHUNKS);
+const FALLBACK_CITATION_PREVIEW_BY_ID = buildCitationPreviewMap(FALLBACK_RAG_CHUNKS);
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -52,14 +50,52 @@ export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm the portfolio assistant. How can I help you? Please wait a moment while the models are downloaded." }
+    { role: 'assistant', content: "Hi! I am your portfolio assistant. Ask me about projects, tools, architecture, or tech stack. If needed, I will download local AI models first." }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
+  const [embedderStatusText, setEmbedderStatusText] = useState<string | null>(null);
+  const [ragContextJSON, setRagContextJSON] = useState(FALLBACK_CONTEXT_JSON);
+  const [citationPreviewById, setCitationPreviewById] = useState<Record<string, string>>(FALLBACK_CITATION_PREVIEW_BY_ID);
   const [isListening, setIsListening] = useState(false);
   const worker = useRef<Worker | null>(null);
+  const retrievalModeNoticeShown = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMarkdownKnowledgeBase = async () => {
+      try {
+        const response = await fetch('/ai-chat/knowledge-base.md', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`KB fetch failed: ${response.status}`);
+        }
+
+        const markdown = await response.text();
+        const ragChunks = buildRAGContextFromMarkdown(markdown, {
+          source: 'public/ai-chat/knowledge-base.md',
+          chunkSize: 520,
+          overlap: 100,
+          kbVersion: KB_VERSION,
+        });
+
+        if (!cancelled && ragChunks.length > 0) {
+          setRagContextJSON(JSON.stringify(ragChunks));
+          setCitationPreviewById(buildCitationPreviewMap(ragChunks));
+        }
+      } catch (error) {
+        console.warn('Using fallback AI knowledge base due to markdown load failure:', error);
+      }
+    };
+
+    loadMarkdownKnowledgeBase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     // Only initialize worker if chat is opened at least once to save resources
@@ -91,6 +127,23 @@ export default function AiChatWidget() {
             break;
           case 'ready':
             setStatus('generating');
+            break;
+          case 'embedder-status':
+            if (typeof data?.text === 'string') {
+              setEmbedderStatusText(data.text);
+            }
+            break;
+          case 'retrieval-mode':
+            if (e.data?.mode === 'keyword-only' && !retrievalModeNoticeShown.current) {
+              retrievalModeNoticeShown.current = true;
+              setMessages(prev => [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: 'Semantic retrieval is temporarily unavailable, so I am using keyword-only grounding for now.',
+                },
+              ]);
+            }
             break;
           case 'update':
             // Streaming update: Update the last message content real-time
@@ -220,9 +273,9 @@ const startListening = useCallback(() => {
     // Post to worker
     worker.current?.postMessage({
       text: userEntry,
-      context: TECH_STACK_CONTEXT
+      context: ragContextJSON
     });
-  }, [input, status]);
+  }, [input, status, ragContextJSON]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -336,8 +389,8 @@ const startListening = useCallback(() => {
                           <span
                             key={`${idx}-${citation}`}
                             className="rounded-full border border-slate-300 bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                            title={CITATION_PREVIEW_BY_ID[citation] || `Source chunk: ${citation}`}
-                            aria-label={CITATION_PREVIEW_BY_ID[citation] || `Source chunk: ${citation}`}
+                            title={citationPreviewById[citation] || `Source chunk: ${citation}`}
+                            aria-label={citationPreviewById[citation] || `Source chunk: ${citation}`}
                           >
                             [{citation}]
                           </span>
@@ -351,7 +404,11 @@ const startListening = useCallback(() => {
               {status === 'loading' && (
                  <div className="flex flex-col gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900/50">
                     <div className="flex justify-between">
-                        <span>{progress === null ? 'Initiating engine...' : 'Downloading model...'}</span>
+                        <span>
+                          {progress === null
+                            ? (embedderStatusText || 'Initiating engine...')
+                            : 'Downloading model...'}
+                        </span>
                         {progress !== null && <span>{Math.round(progress)}%</span>}
                     </div>
                     {progress !== null ? (
