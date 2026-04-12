@@ -785,6 +785,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
                     "If the answer does not exist in context, reply exactly: I do not have enough information in this portfolio knowledge base to answer that question.",
                     "For URL questions, return only the exact URL.",
                     "For list questions, return a concise comma-separated list.",
+                    "For descriptive questions (for example where/how/what/who), return a complete factual sentence from context, not a single-word fragment.",
                     "Return only the final answer text.",
                     "Do not include labels like Question:, Answer:, Context:, or Explanation:.",
                     "Do not add citations in the answer.",
@@ -795,7 +796,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
                 content: [
                     `Context:\n${relevantContext}`,
                     `Question: ${text}`,
-                    'Instruction: Return only the answer text for this one question, with no prefixes or extra sections.',
+                    'Instruction: Return only the answer text for this one question, with no prefixes or extra sections. Use a complete sentence unless the question asks for a URL or list.',
                 ].filter(Boolean).join('\n\n')
             }
         ];

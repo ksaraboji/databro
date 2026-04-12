@@ -61,6 +61,7 @@ If the question asks for libraries, answer with package/library names only and d
 ## Hosting and Infrastructure
 Tags: hosting, hosted, infra, aws, azure, terraform, cloudfront, s3, container apps
 
+The site is hosted on AWS for frontend delivery (S3 + CloudFront) and Azure for backend services (Azure Container Apps).
 The web frontend is hosted on AWS using S3 for static assets and CloudFront as CDN.
 Backend services are deployed on Azure Container Apps and packaged through Azure Container Registry.
 Infrastructure for both AWS and Azure is managed with Terraform.
