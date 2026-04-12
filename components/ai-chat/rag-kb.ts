@@ -47,7 +47,7 @@ interface ChunkOptions {
 const DEFAULT_SOURCE = 'public/ai-chat/knowledge-base.md';
 const DEFAULT_CHUNK_SIZE = 520;
 const DEFAULT_OVERLAP = 100;
-export const KB_VERSION = '2026-04-11.19';
+export const KB_VERSION = '2026-04-11.25';
 export const KB_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 function slugify(input: string): string {

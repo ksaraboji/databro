@@ -3,6 +3,8 @@
 ## Site Owner and Purpose
 Tags: owner, about, portfolio, creator, purpose
 
+Kumar Saraboji is a Data Engineer and the creator of Databro.
+Kumar Saraboji specialises in data engineering, cloud automation, AI integration, and end-to-end serverless architecture.
 Databro is a portfolio and tooling site created by Kumar Saraboji.
 It showcases practical engineering work across data engineering, cloud automation, and AI integration.
 The goal is to provide useful browser-first tools, practical GenAI tools and utilities, and demonstrate end-to-end implementation quality.
@@ -10,6 +12,7 @@ The goal is to provide useful browser-first tools, practical GenAI tools and uti
 ## AI Chatbot Runtime
 Tags: ai-chatbot, chatbot-model, inference-model, webllm, llama, minilm, rag-retrieval, web-worker, browser-inference, embeddings-model, llm-widget
 
+Yes, RAG (retrieval-augmented generation) is implemented in the chatbot.
 The chatbot widget runs entirely in the browser using a web worker with local retrieval-augmented generation.
 Generation model: WebLLM with Llama-3.2-1B-Instruct (quantized, runs locally in browser, no server calls).
 Embeddings model: Xenova all-MiniLM-L6-v2 for semantic similarity scoring.
@@ -21,6 +24,28 @@ Responses are grounded to retrieved chunks and paired with citations.
 Tags: model-names, exact-model-identifiers, chatbot-model-names, llm-names, embeddings-model-names, answer-short
 
 Exact model names used by the chatbot widget: Llama-3.2-1B-Instruct (generation via WebLLM), all-MiniLM-L6-v2 (semantic embeddings via Xenova), and mMiniLMv2-L12-H384-uncased (cross-encoder re-ranker via Xenova).
+
+## AI Chatbot Architecture
+Tags: ai-chatbot-architecture, chatbot-design, rag-pipeline, browser-ai, local-inference, web-worker, knowledge-base, embeddings, bm25, reranker, grounding
+
+The AI chatbot assistant is fully browser-local with no server-side inference.
+It is built as a Next.js React widget backed by a Web Worker so AI processing never blocks the UI.
+
+Pipeline summary: the user question goes through hybrid retrieval (dense semantic search + sparse BM25), then cross-encoder re-ranking, then confidence gating, then context assembly, and finally local LLM generation.
+
+Step 1 — Knowledge Base: a curated Markdown knowledge base (knowledge-base.md) is pre-chunked and embedded at build time into a vector artifact (knowledge-base-vectors.json) shipped with the app.
+
+Step 2 — Hybrid Retrieval: on each query, the embedder (all-MiniLM-L6-v2) encodes the question and scores all KB chunks using a weighted combination of dense cosine similarity and sparse BM25 keyword scoring.
+
+Step 3 — Re-ranking: the top hybrid candidates are re-scored by a cross-encoder (mMiniLMv2-L12-H384-uncased) for precise relevance ordering.
+
+Step 4 — Confidence Gating: chunks below the confidence threshold are dropped so only grounded context reaches the model.
+
+Step 5 — Generation: the top chunks are assembled into a bounded context and passed to Llama-3.2-1B-Instruct running locally via WebLLM. The model generates a grounded response streamed token by token to the UI.
+
+Step 6 — Post-processing: the raw model output is stripped of citation artifacts, deduplicated, and cleaned before display.
+
+The chatbot uses no API keys, no backend calls, and no cloud inference. All models run in the browser using ONNX Runtime Web (WASM) for embeddings and re-ranker, and WebGPU/WASM for LLM generation.
 
 ## Tech Stack (Exact Summary)
 Tags: tech-stack-exact, full-stack-summary, frontend-stack, backend-stack, infra-stack, answer-short
@@ -39,6 +64,7 @@ Tags: hosting, hosted, infra, aws, azure, terraform, cloudfront, s3, container a
 The web frontend is hosted on AWS using S3 for static assets and CloudFront as CDN.
 Backend services are deployed on Azure Container Apps and packaged through Azure Container Registry.
 Infrastructure for both AWS and Azure is managed with Terraform.
+Cloud providers used in this project: AWS and Azure.
 
 ## Architecture
 Tags: architecture, system-design, microservices, browser-first, privacy
@@ -56,6 +82,7 @@ Tags: cicd, github-actions, deployment, workflows, automation
 
 CI/CD is automated with GitHub Actions.
 Workflows cover AWS Terraform, Azure Terraform, web build and deploy, and backend image build and deploy.
+Code deployment is handled by GitHub Actions workflows that deploy the frontend to AWS and backend services to Azure Container Apps.
 
 ## GitHub Actions Workflow Inventory
 Tags: github-actions, workflow-inventory, cicd, automation, deploy-pipeline
@@ -110,6 +137,8 @@ Storage services are used for file and artifact handling in backend flows.
 
 ## Frontend Platform
 Tags: frontend-platform, frontend-stack, nextjs, react, typescript, browser-apis, ui
+
+Frontend tech stack: Next.js, React, TypeScript, Tailwind CSS, and Framer Motion.
 
 ### Frontend Stack and Languages
 - TypeScript is the primary frontend language.
@@ -170,6 +199,7 @@ Representative backend endpoints used by frontend modules:
 Tags: unique, differentiator, privacy, local-processing, browser-first
 
 A major differentiator is browser-first processing for many tools, which keeps user data local.
+Site USP: browser-first processing for many tools, keeping user data local by default.
 The site combines practical utilities, cloud engineering depth, and an in-browser AI assistant in one place.
 This creates a strong balance of privacy, speed, and demonstrable end-to-end engineering capability.
 
@@ -198,7 +228,9 @@ URL for Checksum Calculator tool: https://databro.dev/tools/checksum-calculator
 URL for JSON Formatter tool: https://databro.dev/tools/json-formatter
 URL for JSON Flatten and Unflatten tool: https://databro.dev/tools/json-flatten-unflatten
 URL for YAML and JSON Converter tool: https://databro.dev/tools/yaml-json-converter
-URL for Universal Converter and SQL Query tool: https://databro.dev/tools/universal-converter
+URL for Universal Converter tool: https://databro.dev/tools/universal-converter
+URL for SQL Query tool (Universal Converter): https://databro.dev/tools/universal-converter
+URL of Universal Converter tool: https://databro.dev/tools/universal-converter
 URL for PDF Merger tool: https://databro.dev/tools/pdf-merger
 URL for PDF Splitter and Extractor tool: https://databro.dev/tools/pdf-splitter
 URL for Doc to Markdown tool: https://databro.dev/tools/doc-to-markdown
@@ -221,6 +253,7 @@ URL for Credit Card Validator tool: https://databro.dev/tools/credit-card-valida
 URL for UPC Validator tool: https://databro.dev/tools/upc-validator
 URL for Aadhaar Validator tool: https://databro.dev/tools/aadhaar-validator
 URL for JWT Debugger tool: https://databro.dev/tools/jwt-debugger
+URL of JWT Debugger tool: https://databro.dev/tools/jwt-debugger
 
 
 ## Workflow Constraints (Canonical Summary)
