@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import VisitorCounter from "@/components/visitor-counter";
 import AiChatWidget from "@/components/ai-chat/widget";
@@ -90,7 +91,9 @@ export default function RootLayout({
         <VisitorCounter />
         {children}
         <Footer />
-        <AiChatWidget />
+        <Suspense>
+          <AiChatWidget />
+        </Suspense>
       </body>
     </html>
   );
