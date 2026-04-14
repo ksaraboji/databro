@@ -54,7 +54,7 @@ export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm your portfolio assistant — ask me anything about this site's USP, architecture, or tech stack. Your first message may take a moment while local AI models load." }
+    { role: 'assistant', content: "Hi! I'm your portfolio assistant. Ask me about this site's USP, architecture, or tech stack. Your first message may take a moment while the local AI models load." }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
