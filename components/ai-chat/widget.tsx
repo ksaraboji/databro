@@ -16,6 +16,23 @@ import {
 
 const FALLBACK_CONTEXT_JSON = JSON.stringify(FALLBACK_RAG_CHUNKS);
 const FALLBACK_CITATION_PREVIEW_BY_ID = buildCitationPreviewMap(FALLBACK_RAG_CHUNKS);
+const EXAMPLE_PROMPTS = [
+  'Give me list of PDF tools.',
+  'Where is the site hosted?',
+  'What libraries are used in frontend?',
+  'What is the github repo?',
+  'Who is the developer?',
+  'What models are used in the chatbot assistant?',
+  'What is backend stack?',
+];
+const INACTIVITY_NUDGE_DELAY_MS = 60_000;
+const INACTIVITY_NUDGE_MESSAGE = 'Want to try a few more prompts?';
+const INACTIVITY_NUDGE_PROMPTS = [
+  'What is the site USP?',
+  'How is the code deployed?',
+  'Give me list of security tools.',
+  'Give me the URL for Parquet inspector plus tool.',
+];
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -54,7 +71,7 @@ export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm your portfolio assistant. Ask me about this site's USP, architecture, or tech stack. Your first message may take a moment while the local AI models load." }
+    { role: 'assistant', content: "Hi! I'm your portfolio assistant. Ask me about this site's USP, architecture, or tech stack. Your first message may take a moment while the local AI models load.\n\nYou can also try one of the example prompts below." }
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'generating' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
@@ -68,6 +85,16 @@ export default function AiChatWidget() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const pendingAssistantOutputRef = useRef<string | null>(null);
   const streamRafRef = useRef<number | null>(null);
+  const inactivityTimerRef = useRef<number | null>(null);
+  const inactivityNudgeShownRef = useRef(false);
+
+  const markUserActivity = useCallback(() => {
+    inactivityNudgeShownRef.current = false;
+    if (inactivityTimerRef.current != null) {
+      window.clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+  }, []);
 
   const flushStreamToUI = useCallback(() => {
     const output = pendingAssistantOutputRef.current;
@@ -98,6 +125,39 @@ export default function AiChatWidget() {
       setIsOpen(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (inactivityTimerRef.current != null) {
+        window.clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (status !== 'idle' || inactivityNudgeShownRef.current) {
+      return;
+    }
+
+    inactivityTimerRef.current = window.setTimeout(() => {
+      inactivityTimerRef.current = null;
+      inactivityNudgeShownRef.current = true;
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last.content === INACTIVITY_NUDGE_MESSAGE) {
+          return prev;
+        }
+        return [...prev, { role: 'assistant', content: INACTIVITY_NUDGE_MESSAGE }];
+      });
+    }, INACTIVITY_NUDGE_DELAY_MS);
+
+    return () => {
+      if (inactivityTimerRef.current != null) {
+        window.clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+    };
+  }, [isOpen, status, messages.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -250,6 +310,7 @@ export default function AiChatWidget() {
     };
   }, [flushStreamToUI, isOpen, scheduleStreamFlush]);
 const startListening = useCallback(() => {
+  markUserActivity();
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         alert("Speech recognition is not supported in this browser.");
         return;
@@ -306,11 +367,15 @@ const startListening = useCallback(() => {
         setIsListening(false);
         recognitionRef.current = null;
     }
-  }, []);
+  }, [markUserActivity]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+        if (inactivityTimerRef.current != null) {
+          window.clearTimeout(inactivityTimerRef.current);
+          inactivityTimerRef.current = null;
+        }
         worker.current?.terminate();
     }
   }, []);
@@ -322,10 +387,14 @@ const startListening = useCallback(() => {
     }
   }, [messages, isOpen]);
 
-  const handleSend = useCallback(() => {
-    if (!input.trim() || status === 'loading' || status === 'generating') return;
+  const handleSend = useCallback((prompt?: string) => {
+    if (status === 'loading' || status === 'generating') return;
 
-    const userEntry = input.trim();
+    const userEntry = (prompt ?? input).trim();
+    if (!userEntry) return;
+
+    markUserActivity();
+
     setMessages(prev => [...prev, { role: 'user', content: userEntry }]);
     setInput('');
     setStatus('loading');
@@ -335,7 +404,7 @@ const startListening = useCallback(() => {
       text: userEntry,
       context: ragContextJSON,
     });
-  }, [input, status, ragContextJSON]);
+  }, [input, status, ragContextJSON, markUserActivity]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -454,6 +523,20 @@ const startListening = useCallback(() => {
                       : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 rounded-tl-sm'
                   }`}>
                     <div className="whitespace-pre-line wrap-break-word">{renderContent(msg.content)}</div>
+                    {msg.role === 'assistant' && msg.content === INACTIVITY_NUDGE_MESSAGE && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {INACTIVITY_NUDGE_PROMPTS.map((prompt) => (
+                          <button
+                            key={`${idx}-${prompt}`}
+                            type="button"
+                            onClick={() => handleSend(prompt)}
+                            className="rounded-full border border-slate-300 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-purple-700 dark:hover:bg-purple-900/20"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {msg.role === 'assistant' && Array.isArray(msg.citations) && msg.citations.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {msg.citations.map((citation) => (
@@ -471,6 +554,21 @@ const startListening = useCallback(() => {
                   </div>
                 </div>
               ))}
+
+              {messages.length === 1 && messages[0]?.role === 'assistant' && status === 'idle' && (
+                <div className="flex flex-wrap gap-2 pl-9 pr-1">
+                  {EXAMPLE_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => handleSend(prompt)}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-purple-700 dark:hover:bg-purple-900/20"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {status === 'loading' && (
                  <div className="flex flex-col gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900/50">
@@ -530,7 +628,10 @@ const startListening = useCallback(() => {
                <div className="relative">
                   <input
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                      markUserActivity();
+                      setInput(e.target.value);
+                    }}
                     onKeyDown={handleKeyDown}
                     placeholder="Ask a question..."
                     className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-20 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
@@ -547,7 +648,7 @@ const startListening = useCallback(() => {
                     <Mic size={16} />
                   </button>
                   <button
-                    onClick={handleSend}
+                    onClick={() => handleSend()}
                     disabled={!input.trim() || status === 'loading' || status === 'generating'}
                     className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-600 text-white transition-colors hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700"
                   >
