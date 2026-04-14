@@ -114,8 +114,8 @@ const RETRIEVAL_CONFIG: RetrievalConfig = {
     topKReRank: 12,               // accuracy-first: re-rank more candidates
     semanticWeight: 0.52,
     sparseWeight: 0.43,
-    minConfidence: 0.28,
-    minMeanTop3: 0.22,
+    minConfidence: 0.33,
+    minMeanTop3: 0.26,
 };
 
 const STREAM_UPDATE_MIN_INTERVAL_MS = 48;
@@ -418,7 +418,6 @@ function calculateMeanTop3(candidates: ScoredCandidate[]): number {
 }
 
 function passesConfidenceGate(topScore: number, meanTop3: number, cfg: RetrievalConfig): boolean {
-    if (topScore >= 0.34) return true;
     if (topScore >= cfg.minConfidence && meanTop3 >= cfg.minMeanTop3) return true;
     return false;
 }
@@ -764,7 +763,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
         
         if (!relevantContext) {
             const fallback = retrieval.topScore > 0
-                ? `I do not have enough reliable context for that (confidence ${retrieval.topScore.toFixed(2)}). Please rephrase your question or ask about portfolio topics, architecture, hosting, and tools.`
+                ? 'I do not have enough grounded information in this portfolio knowledge base to answer that question.'
                 : "I can mostly answer questions about the tech stack, hosting, architecture, and tools used in this portfolio.";
             const retrievalMode = AI.embedderUnavailable ? 'sparse-only' : 'hybrid';
             const reRankStatus = AI.reRankerUnavailable ? '' : '+rerank';
@@ -781,14 +780,14 @@ self.addEventListener('message', async (event: MessageEvent) => {
             {
                 role: "system" as const,
                 content: [
-                    "You are a grounded assistant for this portfolio website.",
-                    "Use ONLY the provided context chunks.",
-                    "Answer ONLY the exact question asked.",
-                    "For direct fact questions, prioritize one best chunk and avoid blending unrelated chunks.",
-                    "When context contains a literal value (for example URL, version, model name, identifier), copy it exactly as written.",
-                    "If retrieved chunks conflict or the fact is missing, say you do not have enough information.",
-                    "Do not invent any facts.",
-                    "Write exactly 1 concise prose sentence and do not output citations in text.",
+                    "You answer only from the provided context chunks.",
+                    "If the answer exists in context, return it directly and copy literal values exactly.",
+                    "If the answer does not exist in context, reply exactly: I do not have enough information in this portfolio knowledge base to answer that question.",
+                    "For URL questions, return only the exact URL.",
+                    "For list questions, return a concise comma-separated list.",
+                    "Return only the final answer text.",
+                    "Do not include labels like Question:, Answer:, Context:, or Explanation:.",
+                    "Do not add citations in the answer.",
                 ].filter(Boolean).join(' ')
             },
             {
@@ -796,11 +795,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
                 content: [
                     `Context:\n${relevantContext}`,
                     `Question: ${text}`,
-                    'Instruction:',
-                    '- Write exactly 1 plain prose sentence.',
-                    '- Use only facts from context and answer only what was asked.',
-                    '- Copy literal values exactly when they are part of the answer.',
-                    '- If information is missing or conflicting, say you do not have enough information.',
+                    'Instruction: Return only the answer text for this one question, with no prefixes or extra sections.',
                 ].filter(Boolean).join('\n\n')
             }
         ];
@@ -808,7 +803,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
         const completion = await engine.chat.completions.create({
             messages,
             stream: true,
-            temperature: 0.1, // Low temperature for factual answers
+            temperature: 0.0, // Deterministic factual answers
             max_tokens: 130,  // Cap at ~1 prose sentence
         });
 
