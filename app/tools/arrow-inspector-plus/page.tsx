@@ -10,7 +10,7 @@ import {
   Upload,
   Home,
 } from "lucide-react";
-import { tableFromIPC, Table } from "apache-arrow";
+import { tableFromIPC, Table, RecordBatchReader, RecordBatch, Data, MetadataVersion } from "apache-arrow";
 
 type SampleRow = Record<string, unknown>;
 
@@ -27,12 +27,164 @@ type ArrowInspectorResult = {
   fields: ArrowFieldSummary[];
   schemaMetadata: { key: string; value: string }[];
   sampleRows: SampleRow[];
+  recordBatches: ArrowRecordBatchSummary[];
+  bufferInternals: ArrowBufferSummary[];
+  footerInternals: ArrowFooterSummary | null;
+  totalBufferBytes: number;
+};
+
+type ArrowRecordBatchSummary = {
+  index: number;
+  numRows: number;
+  numCols: number;
+  nullCount: number;
+  byteLength: number;
+  columns: {
+    name: string;
+    type: string;
+    nullCount: number;
+    byteLength: number;
+  }[];
+};
+
+type ArrowBufferSummary = {
+  batchIndex: number;
+  path: string;
+  type: string;
+  totalBytes: number;
+  validityBytes: number;
+  offsetBytes: number;
+  dataBytes: number;
+  typeIdBytes: number;
+  childCount: number;
+};
+
+type ArrowFooterSummary = {
+  metadataVersion: string;
+  numRecordBatches: number;
+  numDictionaries: number;
+  recordBatchBlocks: {
+    index: number;
+    offset: number;
+    metaDataLength: number;
+    bodyLength: number;
+  }[];
+  dictionaryBlocks: {
+    index: number;
+    offset: number;
+    metaDataLength: number;
+    bodyLength: number;
+  }[];
 };
 
 const SAMPLE_ROW_LIMIT = 20;
 const SAFE_FILE_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 
 const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+function getByteLength(value: unknown): number {
+  if (!value || typeof value !== "object") return 0;
+  const maybe = value as { byteLength?: unknown };
+  return typeof maybe.byteLength === "number" ? maybe.byteLength : 0;
+}
+
+function getMetadataVersionLabel(value: number): string {
+  return MetadataVersion[value] ?? `V${value}`;
+}
+
+function toSafeNumber(value: number | bigint): number {
+  if (typeof value === "bigint") {
+    return Number(value <= BigInt(Number.MAX_SAFE_INTEGER) ? value : BigInt(Number.MAX_SAFE_INTEGER));
+  }
+  return value;
+}
+
+function collectBufferSummaries(
+  data: Data,
+  batchIndex: number,
+  path: string,
+  summaries: ArrowBufferSummary[]
+) {
+  const summary: ArrowBufferSummary = {
+    batchIndex,
+    path,
+    type: data.type.toString(),
+    totalBytes: data.byteLength,
+    validityBytes: getByteLength(data.nullBitmap),
+    offsetBytes: getByteLength(data.valueOffsets),
+    dataBytes: getByteLength(data.values),
+    typeIdBytes: getByteLength(data.typeIds),
+    childCount: data.children.length,
+  };
+  summaries.push(summary);
+
+  data.children.forEach((child, childIndex) => {
+    collectBufferSummaries(child, batchIndex, `${path}.${childIndex}`, summaries);
+  });
+}
+
+function summarizeRecordBatch(batch: RecordBatch, index: number): ArrowRecordBatchSummary {
+  const columns = batch.schema.fields.map((field, fieldIndex) => {
+    const childData = batch.data.children[fieldIndex];
+    return {
+      name: field.name,
+      type: field.type.toString(),
+      nullCount: childData?.nullCount ?? 0,
+      byteLength: childData?.byteLength ?? 0,
+    };
+  });
+
+  return {
+    index,
+    numRows: batch.numRows,
+    numCols: batch.numCols,
+    nullCount: batch.nullCount,
+    byteLength: batch.data.byteLength,
+    columns,
+  };
+}
+
+function summarizeFooter(ipcBytes: Uint8Array): ArrowFooterSummary | null {
+  const reader = RecordBatchReader.from(ipcBytes);
+  if (reader.isAsync()) return null;
+
+  reader.open();
+  if (!reader.isFile() || !reader.footer) {
+    reader.cancel();
+    return null;
+  }
+
+  const footer = reader.footer;
+  const recordBatchBlocks = Array.from(footer.recordBatches()).map((block, index) => ({
+    index,
+    offset: toSafeNumber(block.offset),
+    metaDataLength: toSafeNumber(block.metaDataLength),
+    bodyLength: toSafeNumber(block.bodyLength),
+  }));
+
+  const dictionaryBlocks = Array.from(footer.dictionaryBatches()).map((block, index) => ({
+    index,
+    offset: toSafeNumber(block.offset),
+    metaDataLength: toSafeNumber(block.metaDataLength),
+    bodyLength: toSafeNumber(block.bodyLength),
+  }));
+
+  const summary: ArrowFooterSummary = {
+    metadataVersion: getMetadataVersionLabel(footer.version),
+    numRecordBatches: footer.numRecordBatches,
+    numDictionaries: footer.numDictionaries,
+    recordBatchBlocks,
+    dictionaryBlocks,
+  };
+
+  reader.cancel();
+  return summary;
+}
 
 function formatValue(value: unknown) {
   if (value == null) return "-";
@@ -49,7 +201,7 @@ function formatValue(value: unknown) {
   return String(value);
 }
 
-function summarizeArrow(table: Table): ArrowInspectorResult {
+function summarizeArrow(table: Table, ipcBytes: Uint8Array): ArrowInspectorResult {
   const fields: ArrowFieldSummary[] = table.schema.fields.map((field) => ({
     name: field.name,
     type: field.type.toString(),
@@ -68,12 +220,25 @@ function summarizeArrow(table: Table): ArrowInspectorResult {
     .slice(0, SAMPLE_ROW_LIMIT)
     .map((row) => row.toJSON() as SampleRow);
 
+  const recordBatches = table.batches.map((batch, index) => summarizeRecordBatch(batch, index));
+  const bufferInternals: ArrowBufferSummary[] = [];
+  table.batches.forEach((batch, batchIndex) => {
+    collectBufferSummaries(batch.data, batchIndex, `batch${batchIndex}.root`, bufferInternals);
+  });
+
+  const footerInternals = summarizeFooter(ipcBytes);
+  const totalBufferBytes = bufferInternals.reduce((sum, node) => sum + node.totalBytes, 0);
+
   return {
     numRows: table.numRows,
     numCols: table.numCols,
     fields,
     schemaMetadata,
     sampleRows,
+    recordBatches,
+    bufferInternals,
+    footerInternals,
+    totalBufferBytes,
   };
 }
 
@@ -82,6 +247,7 @@ export default function ArrowInspectorPlusPage() {
   const [result, setResult] = useState<ArrowInspectorResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bufferView, setBufferView] = useState<"compact" | "expanded">("compact");
 
   const sampleColumns = useMemo(
     () => (result?.sampleRows.length ? Object.keys(result.sampleRows[0]) : []),
@@ -111,8 +277,9 @@ export default function ArrowInspectorPlusPage() {
     setLoading(true);
     try {
       const buffer = await selectedFile.arrayBuffer();
-      const table = tableFromIPC(new Uint8Array(buffer));
-      setResult(summarizeArrow(table));
+      const ipcBytes = new Uint8Array(buffer);
+      const table = tableFromIPC(ipcBytes);
+      setResult(summarizeArrow(table, ipcBytes));
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to inspect arrow file.");
@@ -138,7 +305,7 @@ export default function ArrowInspectorPlusPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Arrow Inspector Plus</h1>
-                <p className="text-slate-500 text-sm">Inspect Arrow schema, field metadata, and sample rows</p>
+                <p className="text-slate-500 text-sm">Inspect Arrow schema, record batches, buffers, footer internals, and sample rows</p>
               </div>
             </div>
           </div>
@@ -204,7 +371,7 @@ export default function ArrowInspectorPlusPage() {
 
         {result && (
           <div className="space-y-8">
-            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
               <div className="bg-white rounded-xl border border-slate-200 p-5">
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Rows</p>
                 <p className="text-2xl font-bold text-slate-900 mt-2">{result.numRows}</p>
@@ -223,6 +390,217 @@ export default function ArrowInspectorPlusPage() {
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Schema Metadata Entries</p>
                 <p className="text-2xl font-bold text-slate-900 mt-2">{result.schemaMetadata.length}</p>
               </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Record Batches</p>
+                <p className="text-2xl font-bold text-slate-900 mt-2">{result.recordBatches.length}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Buffer Bytes</p>
+                <p className="text-2xl font-bold text-slate-900 mt-2">{formatBytes(result.totalBufferBytes)}</p>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-xl font-bold text-slate-900">IPC Footer Internals</h2>
+                <p className="text-sm text-slate-500 mt-1">Footer metadata version and block-level offsets for record and dictionary batches.</p>
+              </div>
+              {result.footerInternals ? (
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Metadata Version</p>
+                      <p className="text-lg font-bold text-slate-900 mt-1">{result.footerInternals.metadataVersion}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Record Batch Blocks</p>
+                      <p className="text-lg font-bold text-slate-900 mt-1">{result.footerInternals.numRecordBatches}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Dictionary Blocks</p>
+                      <p className="text-lg font-bold text-slate-900 mt-1">{result.footerInternals.numDictionaries}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">Record Batch Blocks</h3>
+                    {result.footerInternals.recordBatchBlocks.length ? (
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-slate-50 text-slate-600 uppercase tracking-wide text-xs">
+                            <tr>
+                              <th className="text-left px-4 py-3">Index</th>
+                              <th className="text-left px-4 py-3">Offset</th>
+                              <th className="text-left px-4 py-3">Metadata Length</th>
+                              <th className="text-left px-4 py-3">Body Length</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {result.footerInternals.recordBatchBlocks.map((block) => (
+                              <tr key={`rb-${block.index}`} className="border-t border-slate-100">
+                                <td className="px-4 py-3 text-slate-700">{block.index}</td>
+                                <td className="px-4 py-3 text-slate-700">{block.offset}</td>
+                                <td className="px-4 py-3 text-slate-700">{formatBytes(block.metaDataLength)}</td>
+                                <td className="px-4 py-3 text-slate-700">{formatBytes(block.bodyLength)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No record batch blocks found in footer.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">Dictionary Blocks</h3>
+                    {result.footerInternals.dictionaryBlocks.length ? (
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-slate-50 text-slate-600 uppercase tracking-wide text-xs">
+                            <tr>
+                              <th className="text-left px-4 py-3">Index</th>
+                              <th className="text-left px-4 py-3">Offset</th>
+                              <th className="text-left px-4 py-3">Metadata Length</th>
+                              <th className="text-left px-4 py-3">Body Length</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {result.footerInternals.dictionaryBlocks.map((block) => (
+                              <tr key={`dict-${block.index}`} className="border-t border-slate-100">
+                                <td className="px-4 py-3 text-slate-700">{block.index}</td>
+                                <td className="px-4 py-3 text-slate-700">{block.offset}</td>
+                                <td className="px-4 py-3 text-slate-700">{formatBytes(block.metaDataLength)}</td>
+                                <td className="px-4 py-3 text-slate-700">{formatBytes(block.bodyLength)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No dictionary blocks found in footer.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-sm text-slate-500">
+                  Footer internals are not available for this IPC input (stream-like data may not include a file footer).
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-xl font-bold text-slate-900">Record Batch Internals</h2>
+                <p className="text-sm text-slate-500 mt-1">Batch-level row/column counts, null counts, and in-memory byte lengths.</p>
+              </div>
+              {result.recordBatches.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-600 uppercase tracking-wide text-xs">
+                      <tr>
+                        <th className="text-left px-4 py-3">Batch</th>
+                        <th className="text-left px-4 py-3">Rows</th>
+                        <th className="text-left px-4 py-3">Columns</th>
+                        <th className="text-left px-4 py-3">Null Count</th>
+                        <th className="text-left px-4 py-3">Batch Bytes</th>
+                        <th className="text-left px-4 py-3">Columns (Bytes)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.recordBatches.map((batch) => (
+                        <tr key={`batch-${batch.index}`} className="border-t border-slate-100 align-top">
+                          <td className="px-4 py-3 text-slate-700">{batch.index}</td>
+                          <td className="px-4 py-3 text-slate-700">{batch.numRows}</td>
+                          <td className="px-4 py-3 text-slate-700">{batch.numCols}</td>
+                          <td className="px-4 py-3 text-slate-700">{batch.nullCount}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatBytes(batch.byteLength)}</td>
+                          <td className="px-4 py-3 text-slate-700">
+                            <div className="space-y-1">
+                              {batch.columns.map((column) => (
+                                <div key={`${batch.index}-${column.name}`} className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                                  <span className="font-semibold">{column.name}</span> ({column.type}) - {formatBytes(column.byteLength)}, nulls: {column.nullCount}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-sm text-slate-500">No record batches found.</div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Buffer Internals</h2>
+                  <p className="text-sm text-slate-500 mt-1">Per-node buffer breakdown (validity, offsets, data, type IDs).</p>
+                </div>
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 self-start">
+                  <button
+                    type="button"
+                    onClick={() => setBufferView("compact")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                      bufferView === "compact"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Compact
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBufferView("expanded")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                      bufferView === "expanded"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Expanded
+                  </button>
+                </div>
+              </div>
+              {result.bufferInternals.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-600 uppercase tracking-wide text-xs">
+                      <tr>
+                        <th className="text-left px-4 py-3">Batch</th>
+                        <th className="text-left px-4 py-3">Path</th>
+                        <th className="text-left px-4 py-3">Type</th>
+                        <th className="text-left px-4 py-3">Total</th>
+                        {bufferView === "expanded" && <th className="text-left px-4 py-3">Validity</th>}
+                        {bufferView === "expanded" && <th className="text-left px-4 py-3">Offsets</th>}
+                        {bufferView === "expanded" && <th className="text-left px-4 py-3">Data</th>}
+                        {bufferView === "expanded" && <th className="text-left px-4 py-3">Type IDs</th>}
+                        <th className="text-left px-4 py-3">Children</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.bufferInternals.map((node) => (
+                        <tr key={`${node.batchIndex}-${node.path}`} className="border-t border-slate-100">
+                          <td className="px-4 py-3 text-slate-700">{node.batchIndex}</td>
+                          <td className="px-4 py-3 text-slate-700 font-mono text-xs">{node.path}</td>
+                          <td className="px-4 py-3 text-slate-700">{node.type}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatBytes(node.totalBytes)}</td>
+                          {bufferView === "expanded" && <td className="px-4 py-3 text-slate-700">{formatBytes(node.validityBytes)}</td>}
+                          {bufferView === "expanded" && <td className="px-4 py-3 text-slate-700">{formatBytes(node.offsetBytes)}</td>}
+                          {bufferView === "expanded" && <td className="px-4 py-3 text-slate-700">{formatBytes(node.dataBytes)}</td>}
+                          {bufferView === "expanded" && <td className="px-4 py-3 text-slate-700">{formatBytes(node.typeIdBytes)}</td>}
+                          <td className="px-4 py-3 text-slate-700">{node.childCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-sm text-slate-500">No buffer internals available.</div>
+              )}
             </section>
 
             <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
