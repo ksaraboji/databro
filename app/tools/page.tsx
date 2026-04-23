@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight, Image as ImageIcon, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
 
@@ -162,6 +162,14 @@ const toolCategories: Category[] = [
         description: "Compress files into password-protected ZIP archives.",
         icon: <FileArchive className="w-8 h-8 text-amber-600" />,
         href: "/tools/secure-zip",
+        color: "bg-amber-50 hover:bg-amber-100",
+        browserOnly: true,
+      },
+      {
+        name: "Text Refiner",
+        description: "Refine and rephrase text by tone (professional, casual, commanding), fix spelling/grammar, add emojis or bullet points.",
+        icon: <Zap className="w-8 h-8 text-amber-600" />,
+        href: "/tools/text-refiner",
         color: "bg-amber-50 hover:bg-amber-100",
         browserOnly: true,
       },
