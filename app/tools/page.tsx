@@ -66,6 +66,22 @@ const toolCategories: Category[] = [
         browserOnly: true,
       },
       {
+        name: "TOON ⇄ JSON Converter",
+        description: "Convert between JSON and Token-Oriented Object Notation (TOON) — a compact, human-readable format designed to reduce token usage in LLM prompts.",
+        icon: <FileJson className="w-8 h-8 text-violet-600" />,
+        href: "/tools/toon-json-converter",
+        color: "bg-violet-50 hover:bg-violet-100",
+        browserOnly: true,
+      },
+      {
+        name: "DynamoDB JSON Converter",
+        description: "Convert DynamoDB AttributeValue JSON into regular JSON using the AWS SDK toolkit.",
+        icon: <Database className="w-8 h-8 text-teal-600" />,
+        href: "/tools/dynamodb-json-converter",
+        color: "bg-teal-50 hover:bg-teal-100",
+        browserOnly: true,
+      },
+      {
         name: "PDF to Image Converter",
         description: "Convert all pages of a PDF into high-quality images (PNG, JPEG, or WebP).",
         icon: <ImageIcon className="w-8 h-8 text-purple-600" />,
