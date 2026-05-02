@@ -4,6 +4,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Database, Download, Home, Trash2, Upload, WandSparkles } from "lucide-react";
 import Link from "next/link";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
+import type { AttributeValue } from "@aws-sdk/client-dynamodb";
 import { cn } from "@/lib/utils";
 
 const ATTRIBUTE_TYPES = new Set(["S", "N", "B", "BOOL", "NULL", "M", "L", "SS", "NS", "BS"]);
@@ -30,11 +31,11 @@ function convertDynamoJson(value: unknown): unknown {
   }
 
   if (isAttributeValue(value)) {
-    return unmarshall({ value } as Record<string, unknown>).value;
+    return unmarshall({ value } as unknown as Record<string, AttributeValue>).value;
   }
 
   if (isItemMap(value)) {
-    return unmarshall(value as Record<string, unknown>);
+    return unmarshall(value as unknown as Record<string, AttributeValue>);
   }
 
   if (isRecord(value)) {
