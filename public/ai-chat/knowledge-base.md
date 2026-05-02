@@ -255,6 +255,10 @@ URL for UPC Validator tool: https://databro.dev/tools/upc-validator
 URL for Aadhaar Validator tool: https://databro.dev/tools/aadhaar-validator
 URL for JWT Debugger tool: https://databro.dev/tools/jwt-debugger
 URL of JWT Debugger tool: https://databro.dev/tools/jwt-debugger
+URL for DynamoDB JSON Converter tool: https://databro.dev/tools/dynamodb-json-converter
+URL for TOON JSON Converter tool: https://databro.dev/tools/toon-json-converter
+URL for TOON to JSON Converter tool: https://databro.dev/tools/toon-json-converter
+URL for JSON to TOON Converter tool: https://databro.dev/tools/toon-json-converter
 
 
 ## Workflow Constraints (Canonical Summary)
@@ -275,9 +279,37 @@ Tags: pdf, document, markdown, summarizer, image
 Document-oriented tools include Doc to Markdown, PDF Merger, PDF Splitter and Extractor, PDF to Image Converter, Image to PDF Converter, and Document Summarizer.
 
 ## Format, Conversion, and Generator Tools
-Tags: format, conversion, generators, sql, json, yaml, base64, uuid, timestamps, cron, calculator
+Tags: format, conversion, generators, sql, json, yaml, base64, uuid, timestamps, cron, calculator, dynamodb, toon, aws
 
-Format, conversion, and generator tools include SQL Formatter, JSON Formatter, JSON Flatten and Unflatten, YAML and JSON Converter, Base64 Converter, UUID/CUID/Hash Generator, QR Code Generator, Timestamp/Timezone Converter, Cron and Time Window Simulator, and Future Income Calculator.
+Format, conversion, and generator tools include SQL Formatter, JSON Formatter, JSON Flatten and Unflatten, YAML and JSON Converter, DynamoDB JSON Converter, TOON and JSON Converter, Base64 Converter, UUID/CUID/Hash Generator, QR Code Generator, Timestamp/Timezone Converter, Cron and Time Window Simulator, and Future Income Calculator.
+
+## DynamoDB JSON Converter Tool
+Tags: dynamodb, dynamodb-json, aws, aws-sdk, unmarshall, attributevalue, json-converter, tool
+
+The DynamoDB JSON Converter converts DynamoDB AttributeValue JSON into plain, human-readable JSON using the AWS SDK `unmarshall` function from `@aws-sdk/util-dynamodb`.
+It runs entirely in the browser with no server calls.
+It supports single AttributeValue objects (e.g. `{ "S": "hello" }`), full DynamoDB item maps, wrapped API payloads like `{ "Item": { ... } }` and `{ "Items": [...] }`, and deeply nested structures.
+DynamoDB attribute type tokens supported: S (string), N (number), B (binary), BOOL (boolean), NULL (null), M (map), L (list), SS (string set), NS (number set), BS (binary set).
+The tool accepts paste input or file upload and provides live conversion, copy, and download.
+Route: /tools/dynamodb-json-converter
+
+## TOON and JSON Converter Tool
+Tags: toon, token-oriented-object-notation, json-to-toon, toon-to-json, llm, token-efficiency, compact-format, tool
+
+The TOON and JSON Converter converts between JSON and TOON (Token-Oriented Object Notation).
+TOON is a compact, human-readable alternative to JSON designed to reduce token usage when feeding structured data into LLM prompts.
+Instead of JSON brackets and quotes, TOON uses indented key-value lines and inline array notation.
+The tool supports both directions: JSON to TOON and TOON to JSON.
+JSON to TOON uses `encode()` from `@toon-format/toon`; TOON to JSON uses `decode()` then JSON pretty-print.
+The tool auto-detects file mode from `.toon` and `.json` extensions on upload.
+Route: /tools/toon-json-converter
+
+Example TOON format for `{ "name": "Alice", "age": 30, "tags": ["dev", "aws"] }`:
+```
+name: Alice
+age: 30
+tags[2]: dev,aws
+```
 
 ## Security and Validation Tools
 Tags: security, validators, jwt, checksum, zip, credit-card, aadhaar, upc, ids
