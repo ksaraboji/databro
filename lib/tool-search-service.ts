@@ -31,13 +31,18 @@ export class ToolSearchService {
   private state: ToolSearchServiceState = 'idle';
   private initError: string | null = null;
   private ftsAvailable = false;
-  // Dynamic import to avoid SSR bundling issues
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private db: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private conn: any = null;
 
   static getInstance(): ToolSearchService {
     if (!_instance) _instance = new ToolSearchService();
     return _instance;
+  }
+
+  isFtsAvailable(): boolean {
+    return this.ftsAvailable;
   }
 
   getState(): ToolSearchServiceState {
@@ -68,20 +73,23 @@ export class ToolSearchService {
 
     try {
       const duckdb = await import('@duckdb/duckdb-wasm');
-      const bundles = duckdb.getJsDelivrBundles();
-      const bundle = await duckdb.selectBundle(bundles);
 
-      const workerUrl = URL.createObjectURL(
-        new Blob([`importScripts("${bundle.mainWorker!}");`], { type: 'text/javascript' })
-      );
+      // Use locally-served bundles (public/_duckdb/) to avoid CDN CORS/COEP issues.
+      // Always use the EH bundle — avoids the 33 MB COI/pthread WASM and thread
+      // complexity while still supporting modern browsers (EH = exception-handling).
+      // Absolute URLs are required so the Worker can fetch the WASM from the same origin.
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const EH_BUNDLE = {
+        mainModule: `${origin}/_duckdb/duckdb-eh.wasm`,
+        mainWorker: `${origin}/_duckdb/duckdb-browser-eh.worker.js`,
+      };
 
-      const worker = new Worker(workerUrl);
+      const worker = new Worker(EH_BUNDLE.mainWorker);
       const logger = new duckdb.ConsoleLogger();
-      const db = new duckdb.AsyncDuckDB(logger, worker);
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(workerUrl);
+      this.db = new duckdb.AsyncDuckDB(logger, worker);
+      await this.db.instantiate(EH_BUNDLE.mainModule, undefined);
 
-      this.conn = await db.connect();
+      this.conn = await this.db.connect();
 
       await this._loadIndex(sourceUrl);
       await this._trySetupFts();
@@ -123,14 +131,18 @@ export class ToolSearchService {
     const rows = result.toArray();
     return rows.map(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (row: any): ToolSearchResult => ({
-        toolId: row.tool_id ?? '',
-        toolName: row.tool_name ?? '',
-        toolUrl: row.tool_url ?? '',
-        categoryTitle: row.category_title ?? '',
-        description: row.description ?? '',
-        score: Number(row.score ?? 0),
-      })
+      (row: any): ToolSearchResult => {
+        // Arrow RecordBatch rows expose fields via get() or toJSON()
+        const r = typeof row.toJSON === 'function' ? row.toJSON() : row;
+        return {
+          toolId: r['tool_id'] ?? '',
+          toolName: r['tool_name'] ?? '',
+          toolUrl: r['tool_url'] ?? '',
+          categoryTitle: r['category_title'] ?? '',
+          description: r['description'] ?? '',
+          score: Number(r['score'] ?? 0),
+        };
+      }
     );
   }
 
@@ -149,18 +161,10 @@ export class ToolSearchService {
         const resp = await fetch(sourceUrl);
         if (!resp.ok) throw new Error(`Failed to fetch ${sourceUrl}: ${resp.status}`);
         const buffer = new Uint8Array(await resp.arrayBuffer());
-        const db = this.conn._db ?? (await this.conn.db);
-        // Use DuckDB registerFileBuffer if available, otherwise fall back to HTTP read
-        if (db?.registerFileBuffer) {
-          await db.registerFileBuffer('tool_search.parquet', buffer);
-          await this.conn.query(
-            `CREATE TABLE ${TABLE_NAME} AS SELECT * FROM read_parquet('tool_search.parquet')`
-          );
-        } else {
-          await this.conn.query(
-            `CREATE TABLE ${TABLE_NAME} AS SELECT * FROM read_parquet('${sourceUrl}')`
-          );
-        }
+        await this.db.registerFileBuffer('tool_search.parquet', buffer);
+        await this.conn.query(
+          `CREATE TABLE ${TABLE_NAME} AS SELECT * FROM read_parquet('tool_search.parquet')`
+        );
       } else if (isRelative) {
         // Local Next.js public path — fetch via absolute URL at runtime
         const absoluteUrl =
@@ -194,18 +198,7 @@ export class ToolSearchService {
     buffer: Uint8Array,
     isParquet: boolean
   ): Promise<void> {
-    // Access the AsyncDuckDB instance from the connection internals
-    // The connection exposes _db in duckdb-wasm >= 1.x
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db: any = (this.conn as any)._db;
-    if (db?.registerFileBuffer) {
-      await db.registerFileBuffer(filename, buffer);
-    } else {
-      throw new Error(
-        'DuckDB connection does not expose registerFileBuffer. ' +
-          'Use DuckDBClient.registerFile() pattern from lib/duckdb.ts instead.'
-      );
-    }
+    await this.db.registerFileBuffer(filename, buffer);
 
     const readFn = isParquet
       ? `read_parquet('${filename}')`
@@ -224,20 +217,54 @@ export class ToolSearchService {
    * all searches fall through to the LIKE-based scorer.
    */
   private async _trySetupFts(): Promise<void> {
+    const step = async (label: string, fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+        if (process.env.NODE_ENV !== 'production') console.debug(`[FTS] ${label} OK`);
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`[FTS] ${label} FAILED:`, e);
+        throw e;
+      }
+    };
     try {
-      // INSTALL/LOAD are no-ops in wasm if already present; harmless if absent.
-      await this.conn.query(`INSTALL fts`);
-      await this.conn.query(`LOAD fts`);
+      // Log the DuckDB core version so we can identify the right extension build.
+      const verResult = await this.conn.query(`SELECT version() AS v`);
+      const dbVersion = verResult.toArray()[0]?.toJSON()?.v ?? 'unknown';
+      if (process.env.NODE_ENV !== 'production') console.debug('[FTS] DuckDB version:', dbVersion);
+
+      await step('SET autoinstall_extension_repository', () =>
+        this.conn.query(`SET autoinstall_extension_repository='https://extensions.duckdb.org'`)
+      );
+      await step('SET autoload_known_extensions', () =>
+        this.conn.query(`SET autoload_known_extensions=true`)
+      );
+      await step('SET autoinstall_known_extensions', () =>
+        this.conn.query(`SET autoinstall_known_extensions=true`)
+      );
+      await step('INSTALL fts', () => this.conn.query(`INSTALL fts`));
+      await step('LOAD fts', () => this.conn.query(`LOAD fts`));
+
       // Build a BM25 index covering name, keywords, and full search_text.
       // stemmer='english' improves recall for inflected forms.
-      await this.conn.query(
-        `PRAGMA create_fts_index(
-          '${TABLE_NAME}',
-          'tool_id',
-          'tool_name', 'keywords', 'search_text',
-          stemmer='english',
-          overwrite=1
-        )`
+      await step('create_fts_index', () =>
+        this.conn.query(
+          `PRAGMA create_fts_index(
+            '${TABLE_NAME}',
+            'tool_id',
+            'tool_name', 'keywords', 'search_text',
+            stemmer='english',
+            overwrite=1
+          )`
+        )
+      );
+
+      // Probe: match_bm25 is a scalar function — call it from the base table,
+      // not as a FROM-clause table function.
+      await step('probe match_bm25', () =>
+        this.conn.query(
+          `SELECT fts_main_${TABLE_NAME}.match_bm25(tool_id, 'test') AS score
+           FROM ${TABLE_NAME} LIMIT 1`
+        )
       );
       this.ftsAvailable = true;
     } catch {
@@ -253,13 +280,10 @@ export class ToolSearchService {
    */
   private _buildFtsQuery(rawQuery: string, limit: number): string {
     const escaped = rawQuery.replace(/'/g, "''");
-    // match_bm25 returns (tool_id, score) — score is already BM25, higher = better.
+    // match_bm25 is a scalar function — call it from the base table.
+    // fields := restricts scoring to the specified columns.
     return `
-      WITH bm25 AS (
-        SELECT tool_id, score AS bm25_score
-        FROM fts_main_${TABLE_NAME}.match_bm25('tool_id', '${escaped}', fields := 'tool_name,keywords,search_text')
-      ),
-      pop_max AS (
+      WITH pop_max AS (
         SELECT MAX(popularity_weight) AS mx FROM ${TABLE_NAME}
       )
       SELECT
@@ -269,13 +293,13 @@ export class ToolSearchService {
         t.category_title,
         t.description,
         (
-          b.bm25_score
+          fts_main_${TABLE_NAME}.match_bm25(t.tool_id, '${escaped}', fields := 'tool_name,keywords,search_text')
           + CASE WHEN lower(t.tool_name) LIKE '%${escaped.toLowerCase()}%' THEN 2.0 ELSE 0.0 END
           + (t.popularity_weight / pop_max.mx) * 0.5
         ) AS score
       FROM ${TABLE_NAME} t
-      JOIN bm25 b ON t.tool_id = b.tool_id
       CROSS JOIN pop_max
+      WHERE fts_main_${TABLE_NAME}.match_bm25(t.tool_id, '${escaped}', fields := 'tool_name,keywords,search_text') IS NOT NULL
       ORDER BY score DESC
       LIMIT ${limit}
     `;

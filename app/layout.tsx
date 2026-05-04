@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import VisitorCounter from "@/components/visitor-counter";
 import AiChatWidget from "@/components/ai-chat/widget";
 import Footer from "@/components/footer";
@@ -87,6 +88,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Script
+          data-goatcounter="https://databro.goatcounter.com/count"
+          async
+          src="https://gc.zgo.at/count.js"
+          strategy="afterInteractive"
+        />
         {/* <ClientOnlyPostit /> */}
         <VisitorCounter />
         {children}

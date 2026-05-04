@@ -1,9 +1,16 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight, Image as ImageIcon, Zap } from "lucide-react";
+import { ArrowLeft, FileJson, Construction, Database, Hash, FileSpreadsheet, FileText, FileMinus, Binary, FileArchive, Activity, TrendingUp, CreditCard, ShoppingCart, Fingerprint, Key, QrCode, Clock, Braces, ArrowLeftRight, Image as ImageIcon, Search, X, Loader2, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import FloatingHomeButton from "@/components/floating-home-button";
+import {
+  initToolSearchService,
+  ToolSearchService,
+  type ToolSearchResult,
+  validateToolUrl,
+} from "@/lib/tool-search-service";
 
 type Tool = {
   name: string;
@@ -287,7 +294,175 @@ const toolCategories: Category[] = [
   },
 ];
 
+type IndexedTool = Tool & {
+  categoryTitle: string;
+};
+
+function fallbackSearchTools(
+  indexedTools: IndexedTool[],
+  rawQuery: string,
+  limit: number
+): ToolSearchResult[] {
+  const query = rawQuery.trim().toLowerCase();
+  const tokens = query.split(/[^a-z0-9]+/).filter((token) => token.length > 1);
+
+  if (!query || tokens.length === 0) return [];
+
+  const scored = indexedTools
+    .map((tool) => {
+      const haystack = `${tool.name} ${tool.description} ${tool.categoryTitle}`.toLowerCase();
+      const fullMatch = haystack.includes(query) ? 3 : 0;
+      const tokenMatches = tokens.reduce(
+        (count, token) => (haystack.includes(token) ? count + 1 : count),
+        0
+      );
+      const score = fullMatch + tokenMatches;
+
+      if (score === 0) return null;
+
+      return {
+        toolId: tool.href.replace(/^\/tools\//, ""),
+        toolName: tool.name,
+        toolUrl: tool.href,
+        categoryTitle: tool.categoryTitle,
+        description: tool.description,
+        score,
+      } satisfies ToolSearchResult;
+    })
+    .filter((item): item is ToolSearchResult => item !== null)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  return scored;
+}
+
 export default function ToolsPage() {
+  const [query, setQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [results, setResults] = useState<ToolSearchResult[]>([]);
+  const [searchReady, setSearchReady] = useState(false);
+  // true = DuckDB index unavailable (failed or not yet ready), distinct from "returned 0 results"
+  const [indexUnavailable, setIndexUnavailable] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  const indexedTools = useMemo(
+    () =>
+      toolCategories.flatMap((category) =>
+        category.tools.map((tool) => ({ ...tool, categoryTitle: category.title }))
+      ),
+    []
+  );
+
+  const toolsByHref = useMemo(
+    () => new Map(indexedTools.map((tool) => [tool.href, tool])),
+    [indexedTools]
+  );
+
+  const trimmedQuery = query.trim();
+  const isSearchMode = trimmedQuery.length >= 2;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    initToolSearchService()
+      .then(() => {
+        if (!cancelled) {
+          setSearchReady(true);
+          setIndexUnavailable(false);
+          setInitError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSearchReady(false);
+          setIndexUnavailable(true);
+          setInitError(err instanceof Error ? err.message : String(err));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      setIndexUnavailable(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+
+      try {
+        if (searchReady) {
+          // DuckDB index is ready — use it; even 0 results is a valid indexed answer
+          const serviceResults = await ToolSearchService.getInstance().search(trimmedQuery, 12);
+          if (cancelled) return;
+          setResults(serviceResults);
+          setIndexUnavailable(false);
+        } else {
+          // Index not ready yet — fall back to in-memory scoring
+          if (cancelled) return;
+          setResults(fallbackSearchTools(indexedTools, trimmedQuery, 12));
+          setIndexUnavailable(true);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setResults(fallbackSearchTools(indexedTools, trimmedQuery, 12));
+        setIndexUnavailable(true);
+        setInitError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [trimmedQuery, indexedTools, searchReady]);
+
+  const renderToolCard = (
+    tool: Tool,
+    categoryTitle?: string,
+    key?: string
+  ): React.ReactElement => (
+    <Link key={key ?? tool.name} href={tool.href} className="block h-full">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.04 }}
+        className={`h-full p-6 pb-20 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] ${tool.color} group relative overflow-hidden`}
+      >
+        <div className="relative z-10 space-y-4">
+          <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
+            {tool.icon}
+          </div>
+          <div>
+            {tool.browserOnly ? (
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-800 mr-2">
+                Browser-only
+              </span>
+            ) : null}
+            {categoryTitle ? (
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
+                {categoryTitle}
+              </span>
+            ) : null}
+            <h3 className="text-xl font-bold text-slate-900 mt-2">{tool.name}</h3>
+            <p className="text-slate-600 mt-2 text-sm leading-relaxed">{tool.description}</p>
+          </div>
+        </div>
+
+        <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/40 rounded-full blur-2xl group-hover:bg-white/60 transition-colors" />
+      </motion.div>
+    </Link>
+  );
+
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-4 sm:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-12 py-12">
@@ -309,81 +484,120 @@ export default function ToolsPage() {
             </h1>
             <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
               Lightweight browser tools that run entirely on your machine. 
-              No, really—turn off your WiFi and they'll still work.
+              {"No, really—turn off your WiFi and they'll still work."}
             </p>
+
+            <div className="max-w-3xl pt-3">
+              <label htmlFor="tool-search" className="block text-sm font-semibold text-slate-700 mb-2">
+                Search tools
+              </label>
+              <div className="rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-xs transition-all focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100/70">
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <div className="rounded-xl bg-slate-100 p-2 text-slate-500">
+                    <Search className="w-4 h-4" />
+                  </div>
+                <input
+                  id="tool-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Try: json, pdf, cron, validator..."
+                    className="w-full min-w-0 bg-transparent px-1 py-2 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                      className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                ) : null}
+              </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                {indexUnavailable
+                  ? `Index unavailable — using local keyword search.${initError ? ` (${initError})` : ''}`
+                  : searchReady
+                  ? `Indexed search active (${ToolSearchService.getInstance().isFtsAvailable() ? 'BM25' : 'keyword'}).`
+                  : "Loading search index…"}
+              </p>
+            </div>
           </motion.div>
         </header>
 
-        <div className="space-y-16">
-          {toolCategories.map((category, catIndex) => (
-            <section key={category.id} className="space-y-6">
-              <motion.div
-                 initial={{ opacity: 0, x: -20 }}
-                 whileInView={{ opacity: 1, x: 0 }}
-                 viewport={{ once: true }}
-                 transition={{ delay: catIndex * 0.1 }}
-              >
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                  {category.title}
-                  <div className="h-px bg-slate-200 grow ml-4"></div>
-                </h2>
-              </motion.div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {category.tools.length > 0 ? (
-                  category.tools.map((tool, index) => (
-                    <Link key={tool.name} href={tool.href} className="block h-full">
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: index * 0.05 }}
-                        className={`h-full p-6 pb-20 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] ${tool.color} group relative overflow-hidden`}
-                      >
-                        <div className="relative z-10 space-y-4">
-                          <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
-                            {tool.icon}
-                          </div>
-                          <div>
-                            {tool.browserOnly ? (
-                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                                Browser-only
-                              </span>
-                            ) : null}
-                            <h3 className="text-xl font-bold text-slate-900">
-                              {tool.name}
-                            </h3>
-                            <p className="text-slate-600 mt-2 text-sm leading-relaxed">
-                              {tool.description}
-                            </p>
-                          </div>
-                        </div>
+        {isSearchMode ? (
+          <section className="space-y-6">
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                Search Results
+                <div className="h-px bg-slate-200 grow ml-4"></div>
+              </h2>
+            </motion.div>
 
-                        {/* Decorative background element */}
-                        <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/40 rounded-full blur-2xl group-hover:bg-white/60 transition-colors" />
-                      </motion.div>
-                    </Link>
-                  ))
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }} 
-                    className="col-span-1 p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 flex flex-col items-center justify-center text-center gap-3 h-48"
-                  >
-                    <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
-                        <Construction className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-slate-900 font-medium">Coming Soon</p>
-                        <p className="text-slate-500 text-sm">More tools are being forged.</p>
-                    </div>
-                  </motion.div>
-                )}
+            {isSearching ? (
+              <div className="p-10 rounded-2xl border border-slate-200 bg-white/70 flex items-center justify-center gap-2 text-slate-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Searching tools...
               </div>
-            </section>
-          ))}
-        </div>
+            ) : results.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {results.map((result) => {
+                  const safeUrl = validateToolUrl(result.toolUrl);
+                  if (!safeUrl) return null;
+
+                  const indexed = toolsByHref.get(safeUrl);
+                  if (!indexed) return null;
+
+                  return renderToolCard(indexed, result.categoryTitle, `${result.toolId}-${result.score}`);
+                })}
+              </div>
+            ) : (
+              <div className="p-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 text-center text-slate-600">
+                {'No tools found for "'}{trimmedQuery}{'". Try broader keywords.'}
+              </div>
+            )}
+          </section>
+        ) : (
+          <div className="space-y-16">
+            {toolCategories.map((category, catIndex) => (
+              <section key={category.id} className="space-y-6">
+                <motion.div
+                   initial={{ opacity: 0, x: -20 }}
+                   whileInView={{ opacity: 1, x: 0 }}
+                   viewport={{ once: true }}
+                   transition={{ delay: catIndex * 0.1 }}
+                >
+                  <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                    {category.title}
+                    <div className="h-px bg-slate-200 grow ml-4"></div>
+                  </h2>
+                </motion.div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {category.tools.length > 0 ? (
+                    category.tools.map((tool) => renderToolCard(tool))
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      whileInView={{ opacity: 1 }}
+                      viewport={{ once: true }}
+                      className="col-span-1 p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 flex flex-col items-center justify-center text-center gap-3 h-48"
+                    >
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
+                          <Construction className="w-6 h-6" />
+                      </div>
+                      <div>
+                          <p className="text-slate-900 font-medium">Coming Soon</p>
+                          <p className="text-slate-500 text-sm">More tools are being forged.</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
         
         <FloatingHomeButton />
       </div>
