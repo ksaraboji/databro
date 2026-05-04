@@ -1,3 +1,4 @@
 {
-    "azureTerraform.checkTerraformCmd": false
+    "azureTerraform.checkTerraformCmd": false,
+    "chat.mcp.autostart": true
 }

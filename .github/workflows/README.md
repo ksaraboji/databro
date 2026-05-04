@@ -56,6 +56,18 @@ Common behavior:
 
 Manual utility workflow for Terraform import in Azure (`workflow_dispatch` only).
 
+### 6. `upload-tool-search-manifest.yml`
+
+Builds and uploads tool-search artifacts to AWS S3.
+
+- Triggers:
+   - `push` on `develop`/`main` when tool-search source/build/upload files change
+   - `workflow_dispatch` with an explicit `environment` input (`dev` or `prod`)
+- Behavior:
+   - Builds manifest artifacts via `npm run build:tool-search-manifest`
+   - Uploads only `parquet,csv` formats via `npm run upload:tool-search-manifest`
+   - Resolves target bucket based on environment (`develop`->dev, `main`->prod)
+
 ## Execution Strategy
 
 - App-only changes:
@@ -73,6 +85,7 @@ This avoids deploying app changes before infrastructure is ready.
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION` (optional; defaults to `us-east-2` in manifest upload workflow)
 
 Optional fallback values used by web deploy workflow:
 
@@ -81,6 +94,11 @@ Optional fallback values used by web deploy workflow:
 - `PROD_S3_BUCKET_NAME`
 - `PROD_CLOUDFRONT_DISTRIBUTION_ID`
 - `PROD_CLOUDFRONT_DOMAIN`
+
+Required by `upload-tool-search-manifest.yml`:
+
+- `DEV_S3_BUCKET_NAME`
+- `PROD_S3_BUCKET_NAME`
 
 ### Azure
 

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md,yml,yaml}\"",
-    "build:kb-vectors": "node scripts/build-kb-vectors.mjs"
+    "build:kb-vectors": "node scripts/build-kb-vectors.mjs",
+    "build:tool-search-manifest": "node scripts/build-tool-search-manifest.mjs",
+    "upload:tool-search-manifest": "node scripts/upload-tool-search-manifest.mjs"
   },
   "dependencies": {
     "@aws-sdk/util-dynamodb": "^3.996.2",
