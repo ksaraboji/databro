@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "copy:duckdb-assets": "node -e \"const fs=require('fs');const src='node_modules/@duckdb/duckdb-wasm/dist';const dst='public/_duckdb';fs.mkdirSync(dst,{recursive:true});['duckdb-mvp.wasm','duckdb-eh.wasm','duckdb-coi.wasm','duckdb-browser-mvp.worker.js','duckdb-browser-eh.worker.js','duckdb-browser-coi.worker.js','duckdb-browser-coi.pthread.worker.js'].forEach(f=>fs.copyFileSync(src+'/'+f,dst+'/'+f));console.log('duckdb assets copied')\"",
+    "predev": "npm run copy:duckdb-assets && npm run build:tool-search-manifest",
     "dev": "next dev --webpack",
+    "prebuild": "npm run copy:duckdb-assets && npm run build:tool-search-manifest",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
