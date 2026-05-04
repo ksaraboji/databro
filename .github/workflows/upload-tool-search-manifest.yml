@@ -1,0 +1,108 @@
+name: Upload Tool Search Manifest
+
+'on':
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'app/tools/page.tsx'
+      - 'scripts/build-tool-search-manifest.mjs'
+      - 'scripts/upload-tool-search-manifest.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/upload-tool-search-manifest.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.environment || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  upload-manifest:
+    name: Build and Upload Manifest
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+    permissions:
+      contents: read
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-2' }}
+      TOOL_SEARCH_S3_PREFIX: search/
+      TOOL_SEARCH_UPLOAD_FILES: parquet,csv
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+          terraform_wrapper: false
+
+      - name: Try to get Terraform outputs
+        id: tf-outputs
+        run: |
+          set -e
+          cd terraform/aws || exit 0
+
+          if [ "$DEPLOY_ENV" = "prod" ]; then
+            terraform init -backend-config=backend-prod.hcl -input=false
+          else
+            terraform init -backend-config=backend-dev.hcl -input=false
+          fi
+
+          S3=$(terraform output -raw s3_bucket_name)
+          echo "TF_S3_BUCKET=$S3" >> "$GITHUB_ENV"
+        continue-on-error: true
+
+      - name: Build tool search manifest files
+        run: npm run build:tool-search-manifest
+
+      - name: Resolve target S3 bucket
+        run: |
+          BUCKET="${TF_S3_BUCKET}"
+
+          if [ -z "$BUCKET" ]; then
+            echo "Unable to resolve S3 bucket from Terraform output for DEPLOY_ENV=$DEPLOY_ENV" >&2
+            exit 1
+          fi
+
+          echo "TOOL_SEARCH_S3_BUCKET=$BUCKET" >> "$GITHUB_ENV"
+          echo "Resolved upload target: s3://$BUCKET/$TOOL_SEARCH_S3_PREFIX"
+
+      - name: Upload parquet and csv manifest files
+        run: npm run upload:tool-search-manifest
+
+      - name: Workflow summary
+        run: |
+          echo "## Tool Search Manifest Upload" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: $DEPLOY_ENV" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bucket: $TOOL_SEARCH_S3_BUCKET" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Prefix: $TOOL_SEARCH_S3_PREFIX" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Uploaded: $TOOL_SEARCH_UPLOAD_FILES" >> "$GITHUB_STEP_SUMMARY"

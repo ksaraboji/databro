@@ -205,7 +205,7 @@ jobs:
             aws s3 sync out/_next s3://$DEV_BUCKET/_next --delete --cache-control "public, max-age=31536000, immutable"
           fi
           # Sync everything else with short cache
-          aws s3 sync out s3://$DEV_BUCKET --delete --exclude "_next/*" --cache-control "public, max-age=0, must-revalidate"
+          aws s3 sync out s3://$DEV_BUCKET --delete --exclude "_next/*" --exclude "search/tool-search-manifest.*" --cache-control "public, max-age=0, must-revalidate"
           echo "✅ Dev S3 deployment completed"
 
       - name: Invalidate Dev CloudFront cache
@@ -311,7 +311,7 @@ jobs:
             aws s3 sync out/_next s3://$PROD_BUCKET/_next --delete --cache-control "public, max-age=31536000, immutable"
           fi
           # Sync everything else with short cache
-          aws s3 sync out s3://$PROD_BUCKET --delete --exclude "_next/*" --cache-control "public, max-age=0, must-revalidate"
+          aws s3 sync out s3://$PROD_BUCKET --delete --exclude "_next/*" --exclude "search/tool-search-manifest.*" --cache-control "public, max-age=0, must-revalidate"
           echo "✅ Prod S3 deployment completed"
 
       - name: Invalidate Prod CloudFront cache
