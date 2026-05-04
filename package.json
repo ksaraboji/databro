@@ -13,6 +13,7 @@
     "upload:tool-search-manifest": "node scripts/upload-tool-search-manifest.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1042.0",
     "@aws-sdk/util-dynamodb": "^3.996.2",
     "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "@mlc-ai/web-llm": "^0.2.82",
