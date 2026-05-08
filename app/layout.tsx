@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import VisitorCounter from "@/components/visitor-counter";
+import GoatCounterRouteTracker from "@/components/goatcounter-route-tracker";
 import AiChatWidget from "@/components/ai-chat/widget";
 import Footer from "@/components/footer";
 import "./globals.css";
@@ -94,6 +95,7 @@ export default function RootLayout({
           src="https://gc.zgo.at/count.js"
           strategy="afterInteractive"
         />
+        <GoatCounterRouteTracker />
         {/* <ClientOnlyPostit /> */}
         <VisitorCounter />
         {children}
