@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../databro-poc"
+		},
+		{
+			"path": "../../databro-lab"
+		}
+	],
+	"settings": {
+		"azureTerraform.checkTerraformCmd": false,
+		"chat.mcp.autostart": true
+	}
+}
