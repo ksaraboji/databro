@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings, Share2, Download, Home } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -21,7 +22,13 @@ const SAFE_FILE_SIZE_LIMIT_BYTES = 50 * 1024 * 1024;
 
 const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
+const isValidMode = (value: string | null): value is ConversionMode =>
+    value === "universal" || value === "view_query" || value === "view_metadata";
+
 export default function GenericConverterPage() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
   const [mode, setMode] = useState<ConversionMode>("universal");
   const [file, setFile] = useState<File | null>(null);
   const [fileSize, setFileSize] = useState<string>("");
@@ -40,6 +47,34 @@ export default function GenericConverterPage() {
   const [metadataResult, setMetadataResult] = useState<any | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
+    useEffect(() => {
+        const modeFromUrl = searchParams.get("mode");
+        if (isValidMode(modeFromUrl) && modeFromUrl !== mode) {
+            setMode(modeFromUrl);
+            setFile(null);
+            setFileSize("");
+            setError(null);
+            setSuccessMessage(null);
+            setQueryResult(null);
+            setQueryColumns([]);
+            setMetadataResult(null);
+            setQuery("SELECT * FROM 'data.parquet' LIMIT 10;");
+            return;
+        }
+
+        if (!modeFromUrl && mode !== "universal") {
+            setMode("universal");
+            setFile(null);
+            setFileSize("");
+            setError(null);
+            setSuccessMessage(null);
+            setQueryResult(null);
+            setQueryColumns([]);
+            setMetadataResult(null);
+            setQuery("SELECT * FROM 'data.parquet' LIMIT 10;");
+        }
+    }, [mode, searchParams]);
+
   const handleModeChange = (newMode: ConversionMode) => {
     setMode(newMode);
     setFile(null);
@@ -50,6 +85,15 @@ export default function GenericConverterPage() {
     setQueryColumns([]);
     setMetadataResult(null);
     setQuery("SELECT * FROM 'data.parquet' LIMIT 10;");
+
+        const next = new URLSearchParams(searchParams.toString());
+        if (newMode === "universal") {
+            next.delete("mode");
+        } else {
+            next.set("mode", newMode);
+        }
+        const query = next.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
  
   const detectFormat = (filename: string): Format => {
