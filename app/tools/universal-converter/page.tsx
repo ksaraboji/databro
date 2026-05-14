@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Upload, FileSpreadsheet, Loader2, AlertCircle, FileType, Settings, Share2, Download, Home } from "lucide-react";
@@ -25,7 +25,7 @@ const formatSizeMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} M
 const isValidMode = (value: string | null): value is ConversionMode =>
     value === "universal" || value === "view_query" || value === "view_metadata";
 
-export default function GenericConverterPage() {
+function GenericConverterPageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -975,4 +975,12 @@ export default function GenericConverterPage() {
       </div>
     </div>
   );
+}
+
+export default function GenericConverterPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50 p-4 sm:p-8 font-sans" />}>
+            <GenericConverterPageContent />
+        </Suspense>
+    );
 }
