@@ -62,6 +62,7 @@ jobs:
           filters: |
             services_ai:
               - 'services/ai/**'
+              - '.github/workflows/build-ai-backend-gcp.yml'
 
       - name: Default path filter output for non-diff events
         if: github.event_name != 'push' && github.event_name != 'pull_request'
