@@ -32,6 +32,23 @@ type ChatMessage = {
   sql?: string;
 };
 
+type AskDataResponse = {
+  user_intent: string;
+  generated_sql: string;
+  schema: {
+    file_type: string;
+    row_count: number;
+    schema: Array<{ column: string; type: string; nullable: boolean }>;
+  };
+  result: {
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+    row_count: number;
+    returned_rows: number;
+    truncated: boolean;
+  };
+};
+
 const acceptedFiles = ".csv,.xls,.xlsx,.parquet,.json,.arrow,.ipc";
 
 const starterPrompts = [
@@ -77,6 +94,21 @@ FROM '${sourceName}'
 LIMIT 25;`;
 }
 
+function formatAssistantMessage(response: AskDataResponse) {
+  const fileType = response.schema.file_type.toUpperCase();
+  const rowCount = response.schema.row_count;
+  const returnedRows = response.result.returned_rows;
+  const totalRows = response.result.row_count;
+  const truncationNote = response.result.truncated ? " The result was truncated to the configured maximum rows." : "";
+
+  return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${truncationNote}`;
+}
+
+function resolveEdgeFunctionUrl(rawUrl: string) {
+  const normalized = rawUrl.replace(/\/$/, "");
+  return normalized.endsWith("/ask-data") ? normalized : `${normalized}/ask-data`;
+}
+
 export default function AiDataChatPage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -89,6 +121,7 @@ export default function AiDataChatPage() {
   ]);
   const [prompt, setPrompt] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const edgeFunctionBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL;
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming || incoming.length === 0) return;
@@ -113,9 +146,9 @@ export default function AiDataChatPage() {
     setFiles((current) => current.filter((entry) => entry.id !== id));
   };
 
-  const sendPrompt = (value: string) => {
+  const sendPrompt = async (value: string) => {
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || isThinking) return;
 
     setIsThinking(true);
 
@@ -125,21 +158,85 @@ export default function AiDataChatPage() {
       content: trimmed,
     };
 
-    const sql = buildDuckDbSql(trimmed, files);
-    const assistantMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: files.length
-        ? "I’d translate that intent into DuckDB SQL, execute it against the uploaded files, and summarize the findings below."
-        : "No files are attached yet. Upload a supported file first so the backend can query it with DuckDB.",
-      sql,
-    };
+    setMessages((current) => [...current, userMessage]);
 
-    window.setTimeout(() => {
-      setMessages((current) => [...current, userMessage, assistantMessage]);
+    try {
+      if (files.length === 0) {
+        const sql = buildDuckDbSql(trimmed, files);
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: "No files are attached yet. Upload a supported file first so the backend can query it with DuckDB.",
+            sql,
+          },
+        ]);
+        return;
+      }
+
+      if (!edgeFunctionBaseUrl) {
+        const sql = buildDuckDbSql(trimmed, files);
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: "Supabase Edge Function URL is not configured yet, so this stays as a local preview.",
+            sql,
+          },
+        ]);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("user_intent", trimmed);
+      files.forEach((entry) => {
+        formData.append("file", entry.file, entry.file.name);
+      });
+
+      const response = await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl), {
+        method: "POST",
+        body: formData,
+      });
+
+      const responseText = await response.text();
+      let payload: AskDataResponse | { error?: string };
+
+      try {
+        payload = JSON.parse(responseText) as AskDataResponse;
+      } catch {
+        payload = { error: responseText };
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Request failed with status ${response.status}`);
+      }
+
+      const successPayload = payload as AskDataResponse;
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: formatAssistantMessage(successPayload),
+          sql: successPayload.generated_sql,
+        },
+      ]);
       setPrompt("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown edge function error.";
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `I couldn’t reach the edge function: ${message}`,
+        },
+      ]);
+    } finally {
       setIsThinking(false);
-    }, 450);
+    }
   };
 
   return (

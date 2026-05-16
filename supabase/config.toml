@@ -1,0 +1,4 @@
+project_id = "databro"
+
+[functions.ask-data]
+verify_jwt = false
