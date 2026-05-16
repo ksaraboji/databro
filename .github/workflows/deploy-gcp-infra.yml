@@ -48,7 +48,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      services_ai_changed: ${{ steps.filter.outputs.services_ai || steps.default_filter.outputs.services_ai }}
+      ai_or_build_changed: ${{ steps.filter.outputs.ai_or_build || steps.default_filter.outputs.ai_or_build }}
+      infra_gcp_changed: ${{ steps.filter.outputs.infra_gcp || steps.default_filter.outputs.infra_gcp }}
     steps:
       - name: Checkout code
         if: github.event_name == 'push' || github.event_name == 'pull_request'
@@ -62,21 +63,28 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            services_ai:
+            ai_or_build:
               - 'services/ai/**'
               - '.github/workflows/build-ai-backend-gcp.yml'
+            infra_gcp:
+              - 'terraform/gcp/**'
+              - '.github/workflows/deploy-gcp-infra.yml'
 
       - name: Default path filter output for non-diff events
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: default_filter
-        run: echo "services_ai=false" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "ai_or_build=false" >> "$GITHUB_OUTPUT"
+          echo "infra_gcp=false" >> "$GITHUB_OUTPUT"
 
   terraform-dev:
     name: Terraform (gcp dev)
     needs: detect-change-scope
     if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop') ||
-      ((github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')) && needs.detect-change-scope.outputs.services_ai_changed != 'true')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'develop') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.detect-change-scope.outputs.infra_gcp_changed == 'true' && needs.detect-change-scope.outputs.ai_or_build_changed != 'true') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -174,8 +182,10 @@ jobs:
     name: Terraform (gcp prod)
     needs: detect-change-scope
     if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') ||
-      ((github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')) && needs.detect-change-scope.outputs.services_ai_changed != 'true')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-change-scope.outputs.infra_gcp_changed == 'true' && needs.detect-change-scope.outputs.ai_or_build_changed != 'true') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')
     runs-on: ubuntu-latest
     defaults:
       run:
