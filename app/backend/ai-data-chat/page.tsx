@@ -104,9 +104,10 @@ function formatAssistantMessage(response: AskDataResponse) {
   return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${truncationNote}`;
 }
 
-function resolveEdgeFunctionUrl(rawUrl: string) {
+function resolveEdgeFunctionUrl(rawUrl: string, appEnv: "dev" | "prod") {
   const normalized = rawUrl.replace(/\/$/, "");
-  return normalized.endsWith("/ask-data") ? normalized : `${normalized}/ask-data`;
+  const functionName = appEnv === "prod" ? "ask-data-prod" : "ask-data-dev";
+  return normalized.endsWith(`/${functionName}`) ? normalized : `${normalized}/${functionName}`;
 }
 
 export default function AiDataChatPage() {
@@ -198,11 +199,8 @@ export default function AiDataChatPage() {
       const prodDomains = ["data-bro.com", "databro.dev"];
       const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
 
-      const response = await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl), {
+      const response = await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl, appEnv), {
         method: "POST",
-        headers: {
-          "x-app-env": appEnv,
-        },
         body: formData,
       });
 
