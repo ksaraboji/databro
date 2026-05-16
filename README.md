@@ -78,6 +78,23 @@ npm start
 - Terraform in `terraform/gcp` provisions Artifact Registry, Cloud Run, and IAM
 - Next.js should call Supabase Edge Functions, which then call Cloud Run
 
+### Supabase Edge Function
+
+- `supabase/functions/ask-data/index.ts` proxies multipart uploads to Cloud Run
+- It expects `CLOUDRUN_BASE_URL` and `BACKEND_ENVIRONMENT`
+- The frontend resolves `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` to the `ask-data` invoke URL
+- The function forwards `POST /v1/ask-data` requests from the frontend to the GCP backend
+
+### Supabase Deployment Workflow
+
+- `.github/workflows/deploy-supabase.yml` deploys the `ask-data` edge function
+- It uses your existing Supabase account through `SUPABASE_ACCESS_TOKEN`
+- Required GitHub secrets:
+	- `SUPABASE_ACCESS_TOKEN`
+	- `SUPABASE_PROJECT_REF`
+	- `CLOUDRUN_BASE_URL_DEV`
+	- `CLOUDRUN_BASE_URL_PROD`
+
 ## Branch and Environment Mapping
 
 - `develop` -> dev environment
