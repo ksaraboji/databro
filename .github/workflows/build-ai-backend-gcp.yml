@@ -57,14 +57,52 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
 
-      - name: Ensure Artifact Registry repository exists
+      - name: Check Artifact Registry repository
+        id: repo-check
         run: |
           REPO_ID="databro-${ENV_NAME}-ai-repo"
-          gcloud artifacts repositories describe "$REPO_ID" --location "$GCP_REGION" >/dev/null 2>&1 || \
-          gcloud artifacts repositories create "$REPO_ID" \
-            --repository-format=docker \
-            --location="$GCP_REGION" \
-            --description="Databro ai backend images"
+          echo "repo_id=$REPO_ID" >> "$GITHUB_OUTPUT"
+          if gcloud artifacts repositories describe "$REPO_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Repository '$REPO_ID' already exists."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Repository '$REPO_ID' not found. It will be created via Terraform."
+          fi
+
+      - name: Setup Terraform
+        if: steps.repo-check.outputs.exists == 'false'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init (gcp)
+        if: steps.repo-check.outputs.exists == 'false'
+        working-directory: terraform/gcp
+        run: |
+          if [[ "$ENV_NAME" == "prod" ]]; then
+            terraform init -backend-config=backend-prod.hcl
+          else
+            terraform init -backend-config=backend-dev.hcl
+          fi
+
+      - name: Terraform Apply Artifact Registry repository
+        if: steps.repo-check.outputs.exists == 'false'
+        working-directory: terraform/gcp
+        run: |
+          if [[ "$ENV_NAME" == "prod" ]]; then
+            terraform apply -var-file=prod.tfvars \
+              -var="project_id=${GCP_PROJECT_ID}" \
+              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
+              -target="google_artifact_registry_repository.ai_backend" \
+              -no-color -auto-approve -input=false
+          else
+            terraform apply -var-file=dev.tfvars \
+              -var="project_id=${GCP_PROJECT_ID}" \
+              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
+              -target="google_artifact_registry_repository.ai_backend" \
+              -no-color -auto-approve -input=false
+          fi
 
       - name: Set image tags
         id: image-tags
@@ -85,42 +123,9 @@ jobs:
             ${{ steps.image-tags.outputs.image_latest }}
             ${{ steps.image-tags.outputs.image_sha }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: latest
-
-      - name: Terraform Init (gcp)
-        working-directory: terraform/gcp
-        run: |
-          if [[ "$ENV_NAME" == "prod" ]]; then
-            terraform init -backend-config=backend-prod.hcl
-          else
-            terraform init -backend-config=backend-dev.hcl
-          fi
-
-      - name: Terraform Apply Cloud Run image update
-        working-directory: terraform/gcp
-        run: |
-          if [[ "$ENV_NAME" == "prod" ]]; then
-            terraform apply -var-file=prod.tfvars \
-              -var="project_id=${GCP_PROJECT_ID}" \
-              -var="artifact_registry_repository_id=databro-prod-ai-repo" \
-              -var="ai_backend_image=${IMAGE_SHA}" \
-              -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
-              -no-color -auto-approve -input=false
-          else
-            terraform apply -var-file=dev.tfvars \
-              -var="project_id=${GCP_PROJECT_ID}" \
-              -var="artifact_registry_repository_id=databro-dev-ai-repo" \
-              -var="ai_backend_image=${IMAGE_SHA}" \
-              -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
-              -no-color -auto-approve -input=false
-          fi
-
       - name: Deployment summary
         run: |
-          echo "## ✅ GCP AI Backend Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ GCP AI Backend Image Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "- Environment: $ENV_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- Project: $GCP_PROJECT_ID" >> $GITHUB_STEP_SUMMARY
           echo "- Image: $IMAGE_SHA" >> $GITHUB_STEP_SUMMARY
