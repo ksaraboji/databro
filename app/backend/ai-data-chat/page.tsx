@@ -195,8 +195,14 @@ export default function AiDataChatPage() {
         formData.append("file", entry.file, entry.file.name);
       });
 
+      const prodDomains = ["data-bro.com", "databro.dev"];
+      const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
+
       const response = await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl), {
         method: "POST",
+        headers: {
+          "x-app-env": appEnv,
+        },
         body: formData,
       });
 

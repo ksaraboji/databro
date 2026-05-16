@@ -1,6 +1,6 @@
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-app-env',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -31,7 +31,6 @@ Deno.serve(async (request) => {
     return jsonResponse({
       status: 'ok',
       service: 'ask-data',
-      backend_environment: Deno.env.get('BACKEND_ENVIRONMENT') ?? 'unknown',
     });
   }
 
@@ -39,7 +38,10 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  const cloudRunBaseUrl = getRequiredEnv('CLOUDRUN_BASE_URL');
+  const appEnv = request.headers.get('x-app-env') ?? 'dev';
+  const cloudRunBaseUrl = appEnv === 'prod'
+    ? getRequiredEnv('CLOUDRUN_BASE_URL_PROD')
+    : getRequiredEnv('CLOUDRUN_BASE_URL_DEV');
 
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('multipart/form-data')) {
