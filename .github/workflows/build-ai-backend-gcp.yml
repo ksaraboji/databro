@@ -1,13 +1,12 @@
 name: Build and Push AI Backend (GCP)
 
 'on':
-  push:
+  pull_request:
     branches:
       - main
       - develop
     paths:
       - "services/ai/**"
-      - "terraform/gcp/**"
       - ".github/workflows/build-ai-backend-gcp.yml"
   workflow_dispatch: {}
 

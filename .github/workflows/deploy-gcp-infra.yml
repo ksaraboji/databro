@@ -63,8 +63,8 @@ jobs:
 
       - name: Default path filter output for non-diff events
         if: github.event_name != 'push' && github.event_name != 'pull_request'
-        run: echo "services_ai=false" >> "$GITHUB_OUTPUT"
         id: default_filter
+        run: echo "services_ai=false" >> "$GITHUB_OUTPUT"
 
   terraform-dev:
     name: Terraform (gcp dev)
@@ -125,7 +125,7 @@ jobs:
         run: |
           EXTRA_VAR=""
           if [ -n "${{ github.event.inputs.ai_image }}" ]; then
-            EXTRA_VAR="-var=agent_backend_image=${{ github.event.inputs.ai_image }}"
+            EXTRA_VAR="-var=ai_backend_image=${{ github.event.inputs.ai_image }}"
           fi
           terraform plan -var-file=dev.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_DEV }}" \
@@ -153,7 +153,7 @@ jobs:
         run: |
           EXTRA_VAR=""
           if [ -n "${{ github.event.inputs.ai_image }}" ]; then
-            EXTRA_VAR="-var=agent_backend_image=${{ github.event.inputs.ai_image }}"
+            EXTRA_VAR="-var=ai_backend_image=${{ github.event.inputs.ai_image }}"
           fi
           terraform apply -var-file=dev.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_DEV }}" \
@@ -219,7 +219,7 @@ jobs:
         run: |
           EXTRA_VAR=""
           if [ -n "${{ github.event.inputs.ai_image }}" ]; then
-            EXTRA_VAR="-var=agent_backend_image=${{ github.event.inputs.ai_image }}"
+            EXTRA_VAR="-var=ai_backend_image=${{ github.event.inputs.ai_image }}"
           fi
           terraform plan -var-file=prod.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_PROD }}" \
@@ -247,7 +247,7 @@ jobs:
         run: |
           EXTRA_VAR=""
           if [ -n "${{ github.event.inputs.ai_image }}" ]; then
-            EXTRA_VAR="-var=agent_backend_image=${{ github.event.inputs.ai_image }}"
+            EXTRA_VAR="-var=ai_backend_image=${{ github.event.inputs.ai_image }}"
           fi
           terraform apply -var-file=prod.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_PROD }}" \
