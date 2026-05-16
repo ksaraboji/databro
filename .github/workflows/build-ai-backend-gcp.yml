@@ -1,13 +1,12 @@
 name: Build and Push AI Backend (GCP)
 
 'on':
-  push:
+  pull_request:
     branches:
       - main
       - develop
     paths:
       - "services/ai/**"
-      - "terraform/gcp/**"
       - ".github/workflows/build-ai-backend-gcp.yml"
   workflow_dispatch: {}
 
@@ -27,7 +26,13 @@ jobs:
 
       - name: Set Environment Variables
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TARGET_BRANCH="${{ github.base_ref }}"
+          else
+            TARGET_BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
             echo "ENV_NAME=prod" >> $GITHUB_ENV
             echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID_PROD }}" >> $GITHUB_ENV
           else
@@ -37,7 +42,7 @@ jobs:
 
       - id: auth-dev
         name: Authenticate to Google Cloud (dev)
-        if: github.ref == 'refs/heads/develop'
+        if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop')
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}
@@ -45,7 +50,7 @@ jobs:
 
       - id: auth-prod
         name: Authenticate to Google Cloud (prod)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
@@ -112,6 +117,22 @@ jobs:
           echo "image_sha=$IMAGE_SHA" >> $GITHUB_OUTPUT
           echo "image_latest=$IMAGE_LATEST" >> $GITHUB_OUTPUT
           echo "IMAGE_SHA=$IMAGE_SHA" >> $GITHUB_ENV
+
+      - name: Delete previous ai-backend images
+        run: |
+          IMAGE_BASE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${{ steps.repo-check.outputs.repo_id }}/ai-backend"
+          DIGESTS=$(gcloud artifacts docker images list "$IMAGE_BASE" --format='get(digest)' || true)
+
+          if [[ -z "$DIGESTS" ]]; then
+            echo "No existing ai-backend images found to delete."
+            exit 0
+          fi
+
+          while IFS= read -r digest; do
+            if [[ -n "$digest" ]]; then
+              gcloud artifacts docker images delete "${IMAGE_BASE}@${digest}" --delete-tags --quiet
+            fi
+          done <<< "$DIGESTS"
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
