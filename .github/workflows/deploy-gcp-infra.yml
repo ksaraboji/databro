@@ -14,6 +14,8 @@ name: Deploy GCP Infrastructure
       - develop
     paths:
       - "terraform/gcp/**"
+      - ".github/workflows/deploy-gcp-infra.yml"
+      - ".github/workflows/build-ai-backend-gcp.yml"
   workflow_run:
     workflows:
       - "Build and Push AI Backend (GCP)"
