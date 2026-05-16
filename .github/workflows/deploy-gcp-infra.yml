@@ -120,11 +120,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Debug WIF Provider
-        run: |
-            echo "Provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}"
-            echo "Service Account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}"
             
       - id: auth
         name: Authenticate to Google Cloud
@@ -135,6 +130,17 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+
+      - name: Debug active GCP identity (dev)
+        run: |
+          gcloud auth list
+          gcloud config list account
+
+      - name: Verify Terraform backend bucket access (dev)
+        run: |
+          DEV_BACKEND_BUCKET="$(awk -F'"' '/^bucket =/ {print $2}' backend-dev.hcl)"
+          echo "Checking access to gs://${DEV_BACKEND_BUCKET}"
+          gcloud storage ls "gs://${DEV_BACKEND_BUCKET}" >/dev/null
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -234,6 +240,17 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+
+      - name: Debug active GCP identity (prod)
+        run: |
+          gcloud auth list
+          gcloud config list account
+
+      - name: Verify Terraform backend bucket access (prod)
+        run: |
+          PROD_BACKEND_BUCKET="$(awk -F'"' '/^bucket =/ {print $2}' backend-prod.hcl)"
+          echo "Checking access to gs://${PROD_BACKEND_BUCKET}"
+          gcloud storage ls "gs://${PROD_BACKEND_BUCKET}" >/dev/null
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
