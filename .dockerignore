@@ -1,0 +1,16 @@
+# Secrets and local environment files
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Local virtual environments and caches
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+
+# VCS and editor metadata
+.git
+.gitignore
+.vscode

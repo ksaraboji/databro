@@ -1,9 +1,10 @@
 # Terraform Infrastructure
 
-This folder contains two independent Terraform stacks:
+This folder contains three independent Terraform stacks:
 
 - `terraform/aws` for web hosting infrastructure (S3 + CloudFront)
 - `terraform/azure` for backend/service infrastructure
+- `terraform/gcp` for agent backend infrastructure (Artifact Registry + Cloud Run)
 
 ## Folder Layout
 
@@ -33,6 +34,14 @@ terraform/
     ├── acr.tf
     ├── cosmosdb.tf
     └── storage.tf
+└── gcp/
+    ├── backend-dev.hcl
+    ├── backend-prod.hcl
+    ├── dev.tfvars
+    ├── prod.tfvars
+    ├── main.tf
+    ├── variables.tf
+    └── outputs.tf
 ```
 
 ## Prerequisites
@@ -40,6 +49,7 @@ terraform/
 - Terraform >= 1.5
 - AWS CLI configured (for AWS stack)
 - Azure CLI configured (for Azure stack)
+- Google Cloud CLI configured (for GCP stack)
 
 ## AWS Stack (`terraform/aws`)
 
@@ -97,6 +107,39 @@ terraform apply -var-file=prod.tfvars -input=false
 - Storage account(s)
 - Supporting networking/config resources
 
+## GCP Stack (`terraform/gcp`)
+
+### Typical Workflow
+
+```bash
+cd terraform/gcp
+terraform fmt -check -recursive
+terraform init -backend-config=backend-dev.hcl
+terraform validate
+terraform plan -var-file=dev.tfvars -input=false
+terraform apply -var-file=dev.tfvars -input=false
+```
+
+Use production backend/vars on `main`:
+
+```bash
+terraform init -reconfigure -backend-config=backend-prod.hcl
+terraform plan -var-file=prod.tfvars -input=false
+terraform apply -var-file=prod.tfvars -input=false
+```
+
+### Typical Resources Managed
+
+- Google Artifact Registry Docker repository
+- Cloud Run service for agent backend
+- IAM invoker bindings for Cloud Run
+
+### Key Outputs
+
+- `artifact_registry_repository_url`
+- `cloud_run_service_uri`
+- `supabase_edge_function_env`
+
 ## State and Environment Conventions
 
 - `develop` branch -> dev backend/vars
@@ -129,6 +172,7 @@ Terraform is automated via GitHub Actions:
 
 - AWS infra: `.github/workflows/deploy-aws-infra.yml`
 - Azure infra: `.github/workflows/deploy-azure-infra.yml`
+- GCP infra: `.github/workflows/deploy-gcp-infra.yml`
 - Manual import helper: `.github/workflows/manual-import.yml`
 
 ## Troubleshooting

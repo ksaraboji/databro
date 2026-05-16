@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+crewai
+duckdb
+pandas
+pyarrow
+python-multipart
+python-dotenv
