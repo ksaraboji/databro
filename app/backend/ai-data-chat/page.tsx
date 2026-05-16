@@ -214,7 +214,8 @@ export default function AiDataChatPage() {
       }
 
       if (!response.ok) {
-        throw new Error(payload.error ?? `Request failed with status ${response.status}`);
+        const errorMessage = "error" in payload ? payload.error : undefined;
+        throw new Error(errorMessage ?? `Request failed with status ${response.status}`);
       }
 
       const successPayload = payload as AskDataResponse;
