@@ -48,8 +48,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      ai_or_build_changed: ${{ steps.filter.outputs.ai_or_build || steps.default_filter.outputs.ai_or_build }}
-      infra_gcp_changed: ${{ steps.filter.outputs.infra_gcp || steps.default_filter.outputs.infra_gcp }}
+      ai_or_build_changed: ${{ steps.detect.outputs.ai_or_build_changed || steps.default_filter.outputs.ai_or_build_changed }}
+      infra_gcp_changed: ${{ steps.detect.outputs.infra_gcp_changed || steps.default_filter.outputs.infra_gcp_changed }}
     steps:
       - name: Checkout code
         if: github.event_name == 'push' || github.event_name == 'pull_request'
@@ -58,30 +58,51 @@ jobs:
           fetch-depth: 0
 
       - name: Detect changed paths
-        id: filter
+        id: detect
         if: github.event_name == 'push' || github.event_name == 'pull_request'
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            ai_or_build:
-              - 'services/ai/**'
-              - '.github/workflows/build-ai-backend-gcp.yml'
-            infra_gcp:
-              - 'terraform/gcp/**'
-              - '.github/workflows/deploy-gcp-infra.yml'
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          fi
+
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          AI_OR_BUILD_CHANGED=false
+          INFRA_GCP_CHANGED=false
+
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+
+            if [[ "$file" == services/ai/* || "$file" == .github/workflows/build-ai-backend-gcp.yml ]]; then
+              AI_OR_BUILD_CHANGED=true
+            fi
+
+            if [[ "$file" == terraform/gcp/* || "$file" == .github/workflows/deploy-gcp-infra.yml ]]; then
+              INFRA_GCP_CHANGED=true
+            fi
+          done <<< "$CHANGED_FILES"
+
+          echo "ai_or_build_changed=$AI_OR_BUILD_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "infra_gcp_changed=$INFRA_GCP_CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Default path filter output for non-diff events
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: default_filter
         run: |
-          echo "ai_or_build=false" >> "$GITHUB_OUTPUT"
-          echo "infra_gcp=false" >> "$GITHUB_OUTPUT"
+          echo "ai_or_build_changed=false" >> "$GITHUB_OUTPUT"
+          echo "infra_gcp_changed=false" >> "$GITHUB_OUTPUT"
 
   terraform-dev:
     name: Terraform (gcp dev)
     needs: detect-change-scope
     if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'develop') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop') ||
       (github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.detect-change-scope.outputs.infra_gcp_changed == 'true' && needs.detect-change-scope.outputs.ai_or_build_changed != 'true') ||
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')
@@ -182,7 +203,7 @@ jobs:
     name: Terraform (gcp prod)
     needs: detect-change-scope
     if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-change-scope.outputs.infra_gcp_changed == 'true' && needs.detect-change-scope.outputs.ai_or_build_changed != 'true') ||
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')
