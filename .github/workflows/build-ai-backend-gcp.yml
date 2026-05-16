@@ -25,6 +25,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Normalize WIF providers
+        id: wif-provider
+        shell: bash
+        run: |
+          raw_dev='${{ secrets.GCP_WIF_PROVIDER_DEV }}'
+          raw_prod='${{ secrets.GCP_WIF_PROVIDER_PROD }}'
+          normalized_dev="${raw_dev#//iam.googleapis.com/}"
+          normalized_prod="${raw_prod#//iam.googleapis.com/}"
+          echo "dev=${normalized_dev}" >> "$GITHUB_OUTPUT"
+          echo "prod=${normalized_prod}" >> "$GITHUB_OUTPUT"
+
       - name: Set Environment Variables
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -40,7 +51,7 @@ jobs:
         if: github.ref == 'refs/heads/develop'
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}
+          workload_identity_provider: ${{ steps.wif-provider.outputs.dev }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}
 
       - id: auth-prod
@@ -48,7 +59,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
+          workload_identity_provider: ${{ steps.wif-provider.outputs.prod }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_PROD }}
 
       - name: Set up Cloud SDK
