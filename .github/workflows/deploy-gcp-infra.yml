@@ -50,24 +50,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Normalize WIF provider
-        id: wif-provider
-        shell: bash
-        run: |
-          raw='${{ secrets.GCP_WIF_PROVIDER_DEV }}'
-          normalized="${raw#//iam.googleapis.com/}"
-          echo "value=${normalized}" >> "$GITHUB_OUTPUT"
-
       - name: Debug WIF Provider
         run: |
-            echo "Provider: ${{ steps.wif-provider.outputs.value }}"
+            echo "Provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}"
             echo "Service Account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}"
             
       - id: auth
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ steps.wif-provider.outputs.value }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}
 
       - name: Set up Cloud SDK
@@ -152,19 +144,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Normalize WIF provider
-        id: wif-provider
-        shell: bash
-        run: |
-          raw='${{ secrets.GCP_WIF_PROVIDER_PROD }}'
-          normalized="${raw#//iam.googleapis.com/}"
-          echo "value=${normalized}" >> "$GITHUB_OUTPUT"
-
       - id: auth
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ steps.wif-provider.outputs.value }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_PROD }}
 
       - name: Set up Cloud SDK
