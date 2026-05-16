@@ -1,4 +1,4 @@
-name: Build and Push Agent Backend (GCP)
+name: Build and Push AI Backend (GCP)
 
 'on':
   push:
@@ -106,14 +106,14 @@ jobs:
             terraform apply -var-file=prod.tfvars \
               -var="project_id=${GCP_PROJECT_ID}" \
               -var="artifact_registry_repository_id=databro-prod-ai-repo" \
-              -var="agent_backend_image=${IMAGE_SHA}" \
+              -var="ai_backend_image=${IMAGE_SHA}" \
               -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
               -no-color -auto-approve -input=false
           else
             terraform apply -var-file=dev.tfvars \
               -var="project_id=${GCP_PROJECT_ID}" \
               -var="artifact_registry_repository_id=databro-dev-ai-repo" \
-              -var="agent_backend_image=${IMAGE_SHA}" \
+              -var="ai_backend_image=${IMAGE_SHA}" \
               -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
               -no-color -auto-approve -input=false
           fi

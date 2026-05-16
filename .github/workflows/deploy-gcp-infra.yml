@@ -14,6 +14,11 @@ name: Deploy GCP Infrastructure
       - develop
     paths:
       - "terraform/gcp/**"
+  workflow_run:
+    workflows:
+      - "Build and Push AI Backend (GCP)"
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       target_env:
@@ -34,9 +39,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  detect-change-scope:
+    name: Detect Change Scope
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      services_ai_changed: ${{ steps.filter.outputs.services_ai || steps.default_filter.outputs.services_ai }}
+    steps:
+      - name: Checkout code
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            services_ai:
+              - 'services/ai/**'
+
+      - name: Default path filter output for non-diff events
+        if: github.event_name != 'push' && github.event_name != 'pull_request'
+        run: echo "services_ai=false" >> "$GITHUB_OUTPUT"
+        id: default_filter
+
   terraform-dev:
     name: Terraform (gcp dev)
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')
+    needs: detect-change-scope
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop') ||
+      ((github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')) && needs.detect-change-scope.outputs.services_ai_changed != 'true')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -49,6 +84,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Debug WIF Provider
         run: |
@@ -111,7 +148,7 @@ jobs:
             });
 
       - name: Terraform Apply - GCP Dev
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev')
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'develop')
         id: apply-dev
         run: |
           EXTRA_VAR=""
@@ -130,7 +167,10 @@ jobs:
 
   terraform-prod:
     name: Terraform (gcp prod)
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')
+    needs: detect-change-scope
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') ||
+      ((github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')) && needs.detect-change-scope.outputs.services_ai_changed != 'true')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -143,6 +183,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - id: auth
         name: Authenticate to Google Cloud
@@ -200,7 +242,7 @@ jobs:
             });
 
       - name: Terraform Apply - GCP Prod
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod')
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
         id: apply-prod
         run: |
           EXTRA_VAR=""
