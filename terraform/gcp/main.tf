@@ -77,7 +77,6 @@ resource "google_cloud_run_v2_service" "ai_backend" {
     }
   }
 
-  depends_on = [google_artifact_registry_repository.ai_backend]
 }
 
 resource "google_cloud_run_v2_service_iam_binding" "invoker" {
