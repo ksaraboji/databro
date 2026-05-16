@@ -150,7 +150,7 @@ jobs:
             });
 
       - name: Terraform Apply - GCP Dev
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'pull_request' && github.base_ref == 'develop') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'develop')
+        if: github.event_name != 'pull_request' && ((github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'dev') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'develop'))
         id: apply-dev
         run: |
           EXTRA_VAR=""
@@ -244,7 +244,7 @@ jobs:
             });
 
       - name: Terraform Apply - GCP Prod
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+        if: github.event_name != 'pull_request' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'prod') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'))
         id: apply-prod
         run: |
           EXTRA_VAR=""
