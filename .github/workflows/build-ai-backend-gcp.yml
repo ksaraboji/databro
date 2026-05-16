@@ -112,6 +112,22 @@ jobs:
           echo "image_latest=$IMAGE_LATEST" >> $GITHUB_OUTPUT
           echo "IMAGE_SHA=$IMAGE_SHA" >> $GITHUB_ENV
 
+      - name: Delete previous ai-backend images
+        run: |
+          IMAGE_BASE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${{ steps.repo-check.outputs.repo_id }}/ai-backend"
+          DIGESTS=$(gcloud artifacts docker images list "$IMAGE_BASE" --format='get(digest)' || true)
+
+          if [[ -z "$DIGESTS" ]]; then
+            echo "No existing ai-backend images found to delete."
+            exit 0
+          fi
+
+          while IFS= read -r digest; do
+            if [[ -n "$digest" ]]; then
+              gcloud artifacts docker images delete "${IMAGE_BASE}@${digest}" --delete-tags --quiet
+            fi
+          done <<< "$DIGESTS"
+
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
