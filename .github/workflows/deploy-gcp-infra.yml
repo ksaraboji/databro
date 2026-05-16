@@ -192,6 +192,8 @@ jobs:
           terraform apply -var-file=dev.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_DEV }}" \
             -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
+            -target="google_cloud_run_v2_service.ai_backend" \
+            -target="google_cloud_run_v2_service_iam_binding.invoker" \
             $EXTRA_VAR -no-color -auto-approve -input=false
 
       - name: Terraform Output (gcp dev)
@@ -288,6 +290,8 @@ jobs:
           terraform apply -var-file=prod.tfvars \
             -var="project_id=${{ secrets.GCP_PROJECT_ID_PROD }}" \
             -var="hf_api_token=${{ secrets.HF_API_TOKEN }}" \
+            -target="google_cloud_run_v2_service.ai_backend" \
+            -target="google_cloud_run_v2_service_iam_binding.invoker" \
             $EXTRA_VAR -no-color -auto-approve -input=false
 
       - name: Terraform Output (gcp prod)
