@@ -7,7 +7,7 @@ Databro is a Next.js application with client-side data tools and multi-cloud dep
 - Frontend: Next.js 16 + React 19 + TypeScript
 - UI: Tailwind CSS v4 + Framer Motion + Lucide icons
 - Data tooling: DuckDB WASM, Apache Arrow, Parquet utilities, PDF/image utilities
-- Infrastructure as Code: Terraform for AWS and Azure
+- Infrastructure as Code: Terraform for AWS, Azure, and GCP
 - CI/CD: GitHub Actions for infra deployment, app deployment, and service image builds
 
 ## Repository Structure
@@ -18,8 +18,8 @@ databro/
 ├── components/             # Shared React UI components
 ├── lib/                    # App utilities and integration helpers
 ├── public/                 # Static assets
-├── services/               # Containerized backend services (api_gateway, llm, rag, speech)
-├── terraform/              # Terraform code for AWS and Azure
+├── services/               # Containerized backend services (api_gateway, ai, llm, rag, speech)
+├── terraform/              # Terraform code for AWS, Azure, and GCP
 ├── tests/                  # Test scripts and manual test assets
 ├── .github/workflows/      # CI/CD and infra workflows
 └── package.json            # Project scripts and dependencies
@@ -64,10 +64,19 @@ npm start
 
 ### Backend Services (Azure)
 
-- `services/api_gateway`, `services/llm`, `services/rag`, and `services/speech` are built as container images
+- `services/api_gateway` remains the legacy Azure-facing backend container
+- `services/ai` is the GCP-specific backend container
+- `services/llm`, `services/rag`, and `services/speech` are built as container images
 - Images are pushed to Azure Container Registry (ACR)
 - Workflows deploy to Azure Container Apps
 - Terraform in `terraform/azure` provisions infra
+
+### Agentic Backend (GCP)
+
+- Agent backend container is stored in Google Artifact Registry
+- Cloud Run serves the backend runtime
+- Terraform in `terraform/gcp` provisions Artifact Registry, Cloud Run, and IAM
+- Next.js should call Supabase Edge Functions, which then call Cloud Run
 
 ## Branch and Environment Mapping
 
@@ -87,6 +96,8 @@ Primary workflows are in `.github/workflows`:
 - `build-llm-service.yml` - Build/push/deploy LLM service
 - `build-rag-service.yml` - Build/push/deploy RAG service
 - `build-speech-service.yml` - Build/push/deploy Speech service
+- `deploy-gcp-infra.yml` - Terraform plan/apply for GCP backend infra
+- `build-agent-backend-gcp.yml` - Build/push/deploy agent backend image to Artifact Registry + Cloud Run update
 - `manual-import.yml` - Manual Terraform import helper (Azure)
 
 ## Required Secrets
@@ -111,6 +122,29 @@ Primary workflows are in `.github/workflows`:
 - `INSTAGRAM_ACCESS_TOKEN`
 - `INSTAGRAM_ACCOUNT_ID`
 - `DEVTO_API_KEY`
+
+### GCP-related
+
+- `GCP_PROJECT_ID_DEV`
+- `GCP_PROJECT_ID_PROD`
+- `GCP_WIF_PROVIDER_DEV`
+- `GCP_WIF_PROVIDER_PROD`
+- `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+
+GCP GitHub Actions auth uses Workload Identity Federation with:
+
+- Dev workload identity provider: `GCP_WIF_PROVIDER_DEV`
+- Prod workload identity provider: `GCP_WIF_PROVIDER_PROD`
+- Dev service account: `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- Prod service account: `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+
+### Supabase-related
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_DEV`
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_PROD`
 
 ## Additional References
 
