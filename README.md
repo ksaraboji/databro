@@ -82,6 +82,7 @@ npm start
 
 - `supabase/functions/ask-data-dev/index.ts` and `supabase/functions/ask-data-prod/index.ts` proxy multipart uploads to Cloud Run
 - The dev function reads `CLOUDRUN_BASE_URL_DEV`; the prod function reads `CLOUDRUN_BASE_URL_PROD`
+- The edge functions mint a Google ID token from `GCP_SERVICE_ACCOUNT_KEY_JSON` and send `Authorization: Bearer <id_token>` to Cloud Run
 - The frontend resolves `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` to the `ask-data-dev` or `ask-data-prod` invoke URL based on the site hostname
 - The function forwards `POST /v1/ask-data` requests from the frontend to the GCP backend
 
@@ -94,6 +95,61 @@ npm start
 	- `SUPABASE_PROJECT_REF`
 	- `CLOUDRUN_BASE_URL_DEV`
 	- `CLOUDRUN_BASE_URL_PROD`
+	- `GCP_SERVICE_ACCOUNT_KEY_JSON`
+
+### Cloud Run Invocation Security (Supabase-only)
+
+The backend is configured so Cloud Run is not publicly invokable. Only a dedicated service account can call it.
+
+1. Apply Terraform in `terraform/gcp` (dev/prod) so it creates:
+	- Cloud Run service
+	- dedicated invoker service account (`cloudrun-invoker`)
+	- Cloud Run `roles/run.invoker` binding for that service account
+
+2. Get invoker SA email from Terraform output:
+
+```bash
+terraform -chdir=terraform/gcp output cloud_run_invoker_service_account_email
+```
+
+3. Create a key for that service account (one key per environment/project):
+
+```bash
+gcloud iam service-accounts keys create /tmp/cloudrun-invoker-key.json \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+```
+
+4. Store the full JSON content as GitHub secret `GCP_SERVICE_ACCOUNT_KEY_JSON`.
+
+5. Run `.github/workflows/deploy-supabase.yml` so it pushes:
+	- `CLOUDRUN_BASE_URL_DEV`
+	- `CLOUDRUN_BASE_URL_PROD`
+	- `GCP_SERVICE_ACCOUNT_KEY_JSON`
+	to Supabase secrets and redeploys edge functions.
+
+6. Verify access control:
+	- direct unauthenticated calls to Cloud Run should return `401/403`
+	- calls through Supabase edge function should succeed
+
+#### Key Rotation
+
+Rotate `GCP_SERVICE_ACCOUNT_KEY_JSON` regularly:
+
+1. Create a new key with `gcloud iam service-accounts keys create ...`.
+2. Update GitHub secret `GCP_SERVICE_ACCOUNT_KEY_JSON`.
+3. Re-run `deploy-supabase.yml`.
+4. Delete old key(s):
+
+```bash
+gcloud iam service-accounts keys list \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+
+gcloud iam service-accounts keys delete <old_key_id> \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+```
 
 ## Branch and Environment Mapping
 
@@ -161,6 +217,7 @@ GCP GitHub Actions auth uses Workload Identity Federation with:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` should point to the base Supabase invoke URL, for example `https://<project-ref>.supabase.co/functions/v1`
+- `GCP_SERVICE_ACCOUNT_KEY_JSON` (GitHub secret used by `deploy-supabase-runner.yml`, pushed to Supabase secrets for Cloud Run ID-token auth)
 
 ## Additional References
 

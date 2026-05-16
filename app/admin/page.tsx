@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import AdminVisitorStats from '@/components/admin-visitor-stats';
 import SystemHealth from '@/components/admin/system-health';
 import RagManagement from '@/components/admin/rag-management';
 
@@ -55,15 +54,6 @@ export default function AdminPage() {
            <p className="text-slate-500 text-lg">Manage content, users, and system health.</p>
         </header>
 
-        {/* Visitor Stats */}
-        <section>
-          <div className="flex items-center gap-3 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800">Analytics</h2>
-            <div className="h-px bg-slate-200 grow"></div>
-          </div>
-          <AdminVisitorStats />
-        </section>
-
         {/* System Health */}
         <section>
           <div className="flex items-center gap-3 mb-6">
@@ -88,7 +78,7 @@ export default function AdminPage() {
             <h2 className="text-2xl font-bold text-slate-800">AI Content Studio</h2>
             <div className="h-px bg-slate-200 grow"></div>
           </div>
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 text-white relative overflow-hidden group">
+          <div className="bg-linear-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 text-white relative overflow-hidden group">
               <div className="absolute inset-0 bg-white/10 mix-blend-overlay group-hover:scale-105 transition-transform duration-700 pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
                   <div>

@@ -5,12 +5,9 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Bot,
-  FileSpreadsheet,
-  Home,
   Loader2,
   MessageSquare,
   Play,
-  Sparkles,
   Table2,
   Upload,
   X,
@@ -30,6 +27,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   sql?: string;
+  result?: AskDataResponse["result"];
 };
 
 type AskDataResponse = {
@@ -68,32 +66,6 @@ function getTypeLabel(fileName: string) {
   return "Data";
 }
 
-function buildDuckDbSql(prompt: string, files: UploadedFile[]) {
-  const sourceName = files[0]?.file.name || "uploaded_file";
-  const lower = prompt.toLowerCase();
-
-  if (lower.includes("top") || lower.includes("rows")) {
-    return `SELECT * FROM '${sourceName}' LIMIT 10;`;
-  }
-
-  if (lower.includes("count") || lower.includes("summary")) {
-    return `SELECT COUNT(*) AS row_count FROM '${sourceName}';`;
-  }
-
-  if (lower.includes("duplicate")) {
-    return `SELECT *, COUNT(*) OVER (PARTITION BY *) AS duplicate_count FROM '${sourceName}' LIMIT 50;`;
-  }
-
-  if (lower.includes("null")) {
-    return `SELECT COUNT(*) AS row_count, SUM(CASE WHEN * IS NULL THEN 1 ELSE 0 END) AS null_count FROM '${sourceName}';`;
-  }
-
-  return `-- DuckDB SQL draft
-SELECT *
-FROM '${sourceName}'
-LIMIT 25;`;
-}
-
 function formatAssistantMessage(response: AskDataResponse) {
   const fileType = response.schema.file_type.toUpperCase();
   const rowCount = response.schema.row_count;
@@ -102,6 +74,12 @@ function formatAssistantMessage(response: AskDataResponse) {
   const truncationNote = response.result.truncated ? " The result was truncated to the configured maximum rows." : "";
 
   return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${truncationNote}`;
+}
+
+function formatCellValue(value: unknown) {
+  if (value === null || value === undefined) return "NULL";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 function resolveEdgeFunctionUrl(rawUrl: string, appEnv: "dev" | "prod") {
@@ -117,7 +95,7 @@ export default function AiDataChatPage() {
       id: crypto.randomUUID(),
       role: "assistant",
       content:
-        "Upload one or more files and ask a question. The backend will translate your intent into DuckDB SQL, run it against the uploaded data, and return insights here.",
+        "Upload a file and ask a question. The backend will analyze the uploaded data and return the answer here.",
     },
   ]);
   const [prompt, setPrompt] = useState("");
@@ -127,20 +105,14 @@ export default function AiDataChatPage() {
   const addFiles = (incoming: FileList | null) => {
     if (!incoming || incoming.length === 0) return;
 
-    const nextFiles = Array.from(incoming).map((file) => ({
+    const file = incoming[0];
+    const nextFile = {
       id: `${file.name}-${file.size}-${file.lastModified}`,
       file,
       typeLabel: getTypeLabel(file.name),
-    }));
+    };
 
-    setFiles((current) => {
-      const seen = new Set(current.map((entry) => entry.id));
-      const merged = [...current];
-      nextFiles.forEach((entry) => {
-        if (!seen.has(entry.id)) merged.push(entry);
-      });
-      return merged;
-    });
+    setFiles([nextFile]);
   };
 
   const removeFile = (id: string) => {
@@ -163,28 +135,24 @@ export default function AiDataChatPage() {
 
     try {
       if (files.length === 0) {
-        const sql = buildDuckDbSql(trimmed, files);
         setMessages((current) => [
           ...current,
           {
             id: crypto.randomUUID(),
             role: "assistant",
             content: "No files are attached yet. Upload a supported file first so the backend can query it with DuckDB.",
-            sql,
           },
         ]);
         return;
       }
 
       if (!edgeFunctionBaseUrl) {
-        const sql = buildDuckDbSql(trimmed, files);
         setMessages((current) => [
           ...current,
           {
             id: crypto.randomUUID(),
             role: "assistant",
             content: "Supabase Edge Function URL is not configured yet, so this stays as a local preview.",
-            sql,
           },
         ]);
         return;
@@ -226,6 +194,7 @@ export default function AiDataChatPage() {
           role: "assistant",
           content: formatAssistantMessage(successPayload),
           sql: successPayload.generated_sql,
+          result: successPayload.result,
         },
       ]);
       setPrompt("");
@@ -261,28 +230,24 @@ export default function AiDataChatPage() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-3"
           >
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-indigo-700 shadow-sm backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5" />
-              UI Prototype
-            </div>
             <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
               AI Data Chat
             </h1>
             <p className="max-w-3xl text-lg leading-relaxed text-slate-600 md:text-xl">
-              Upload CSV, Excel, Parquet, JSON, or Arrow files, ask a question in natural language, and let the backend turn the intent into DuckDB SQL over your data.
+              Upload a CSV, Excel, Parquet, JSON, or Arrow file, ask a question in natural language, and get a direct answer from the backend.
             </p>
           </motion.div>
         </header>
 
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
           <section className="space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="space-y-2">
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <Upload className="h-5 w-5 text-indigo-600" />
-                Upload Files
+                Upload File
               </h2>
               <p className="text-sm leading-relaxed text-slate-500">
-                The UI accepts multiple files at once so the backend can query across datasets later.
+                Upload a single file to analyze it in the chat.
               </p>
             </div>
 
@@ -293,7 +258,6 @@ export default function AiDataChatPage() {
               <input
                 type="file"
                 accept={acceptedFiles}
-                multiple
                 className="sr-only"
                 onChange={(event) => addFiles(event.target.files)}
               />
@@ -313,7 +277,7 @@ export default function AiDataChatPage() {
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Attached files
+                Attached file
               </p>
               <div className="mt-3 space-y-3">
                 <AnimatePresence initial={false}>
@@ -352,22 +316,6 @@ export default function AiDataChatPage() {
                 </AnimatePresence>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Supported", "CSV / Excel / Parquet / JSON / Arrow"],
-                ["Query engine", "DuckDB SQL"],
-                ["Mode", "Chat-first analysis"],
-                ["Status", "Backend-ready UI"],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                    {label}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-                </div>
-              ))}
-            </div>
           </section>
 
           <section className="flex min-h-195 flex-col rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
@@ -379,12 +327,8 @@ export default function AiDataChatPage() {
                     Chat Interface
                   </h2>
                   <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
-                    Type an intent like “show me the top 10 customers by revenue” and the backend can convert it to DuckDB SQL.
+                    Type a question like “give me the row count” and the backend will analyze the uploaded file and reply here.
                   </p>
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-                  <Bot className="h-4 w-4" />
-                  Agentic backend UI
                 </div>
               </div>
             </div>
@@ -418,11 +362,58 @@ export default function AiDataChatPage() {
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
 
                     {message.sql && (
-                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-950 p-3 text-left text-xs text-slate-100">
-                        <p className="mb-2 font-semibold text-slate-300">DuckDB SQL draft</p>
-                        <pre className="overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed text-slate-100">
-                          {message.sql}
+                      <div className="mt-3 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-left">
+                        <div className="border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          SQL Executed
+                        </div>
+                        <pre className="overflow-x-auto px-3 py-3 text-xs leading-relaxed text-slate-100">
+                          <code>{message.sql}</code>
                         </pre>
+                      </div>
+                    )}
+
+                    {message.result && (
+                      <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            SQL Output
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {message.result.returned_rows} row{message.result.returned_rows === 1 ? "" : "s"}
+                          </p>
+                        </div>
+
+                        {message.result.rows.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 text-xs text-slate-700">
+                              <thead className="bg-white">
+                                <tr>
+                                  {message.result.columns.map((column) => (
+                                    <th
+                                      key={column}
+                                      className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600"
+                                    >
+                                      {column}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200 bg-white">
+                                {message.result.rows.map((row, rowIndex) => (
+                                  <tr key={`${message.id}-row-${rowIndex}`}>
+                                    {message.result?.columns.map((column) => (
+                                      <td key={`${message.id}-${rowIndex}-${column}`} className="px-3 py-2 align-top">
+                                        {formatCellValue(row[column])}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="px-3 py-3 text-xs text-slate-500">No rows returned.</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -450,6 +441,12 @@ export default function AiDataChatPage() {
                   <textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void sendPrompt(prompt);
+                      }
+                    }}
                     placeholder="Ask a question about the uploaded files..."
                     className="min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white"
                   />
@@ -472,97 +469,6 @@ export default function AiDataChatPage() {
               </div>
             </div>
           </section>
-
-          <aside className="space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
-            <div className="space-y-2">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                <Sparkles className="h-5 w-5 text-indigo-600" />
-                Analysis Workspace
-              </h2>
-              <p className="text-sm leading-relaxed text-slate-500">
-                This panel previews the kind of output the backend can return once connected.
-              </p>
-            </div>
-
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-linear-to-br from-indigo-50 to-sky-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Intent to SQL</p>
-              <div className="rounded-2xl border border-white/60 bg-white/80 p-4 text-sm text-slate-700 shadow-sm">
-                <p className="font-semibold text-slate-900">SQL draft preview</p>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-700">
-{files.length > 0
-  ? buildDuckDbSql(prompt || "show me the top 10 rows", files)
-  : "SELECT * FROM 'uploaded_file' LIMIT 10;"}
-                </pre>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Suggested insights</p>
-              <ul className="mt-3 space-y-3 text-sm text-slate-600">
-                {[
-                  "Row counts, null rates, and duplicate detection",
-                  "Top-N, averages, and distribution checks",
-                  "Schema-aware queries for CSV, Excel, JSON, Parquet, and Arrow",
-                ].map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Backend flow</p>
-              <ol className="mt-3 space-y-3 text-sm text-slate-600">
-                {[
-                  "Upload data file",
-                  "Capture user intent in chat",
-                  "Translate intent into DuckDB SQL",
-                  "Run SQL on uploaded file",
-                  "Return insights to chat",
-                ].map((step, index) => (
-                  <li key={step} className="flex items-start gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white font-bold text-indigo-600 shadow-sm ring-1 ring-slate-200">
-                      {index + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                Supported now
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[
-                  "CSV",
-                  "Excel",
-                  "Parquet",
-                  "JSON",
-                  "Arrow",
-                ].map((label) => (
-                  <span
-                    key={label}
-                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <Link
-              href="/backend"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-700"
-            >
-              <Home className="h-4 w-4" />
-              Return to backend hub
-            </Link>
-          </aside>
         </div>
 
         <FloatingHomeButton />

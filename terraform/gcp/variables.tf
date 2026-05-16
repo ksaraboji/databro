@@ -36,6 +36,18 @@ variable "cloud_run_service_name" {
   default     = "ai-backend"
 }
 
+variable "cloud_run_invoker_service_account_id" {
+  description = "Dedicated service account id used by Supabase to invoke Cloud Run"
+  type        = string
+  default     = "cloudrun-invoker"
+}
+
+variable "cloud_run_invoker_service_account_display_name" {
+  description = "Display name for the dedicated Cloud Run invoker service account"
+  type        = string
+  default     = "Cloud Run Invoker"
+}
+
 variable "cloud_run_ingress" {
   description = "Cloud Run ingress setting"
   type        = string
@@ -52,9 +64,9 @@ variable "cloud_run_ingress" {
 }
 
 variable "cloud_run_invoker_members" {
-  description = "IAM members with Cloud Run invoker role, for example allUsers or serviceAccount:xyz@project.iam.gserviceaccount.com"
+  description = "Additional IAM members with Cloud Run invoker role. Leave empty to use only the dedicated invoker service account."
   type        = list(string)
-  default     = ["allUsers"]
+  default     = []
 }
 
 variable "cloud_run_min_instances" {

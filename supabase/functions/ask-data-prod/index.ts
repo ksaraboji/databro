@@ -11,5 +11,6 @@ Deno.serve(
   createAskDataHandler({
     functionName: 'ask-data-prod',
     cloudRunBaseUrlEnv: 'CLOUDRUN_BASE_URL_PROD',
+    googleServiceAccountKeyJsonEnv: 'GCP_SERVICE_ACCOUNT_KEY_JSON',
   }),
 );
