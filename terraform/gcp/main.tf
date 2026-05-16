@@ -16,22 +16,10 @@ provider "google" {
   region  = var.region
 }
 
-resource "google_project_service" "iamcredentials" {
-  project            = var.project_id
-  service            = "iamcredentials.googleapis.com"
-  disable_on_destroy = false
-}
-
 resource "google_service_account" "cloudrun_invoker" {
   account_id   = var.cloud_run_invoker_service_account_id
   display_name = var.cloud_run_invoker_service_account_display_name
   description  = "Invokes the Databro Cloud Run AI backend from Supabase Edge Functions"
-}
-
-resource "google_service_account_iam_member" "cloudrun_invoker_token_creator_self" {
-  service_account_id = google_service_account.cloudrun_invoker.name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:${google_service_account.cloudrun_invoker.email}"
 }
 
 locals {

@@ -100,8 +100,9 @@ async function mintCloudRunIdToken(audience: string, serviceAccountKey: GoogleSe
 
   const jwtClaims = {
     iss: serviceAccountKey.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    sub: serviceAccountKey.client_email,
     aud: 'https://oauth2.googleapis.com/token',
+    target_audience: audience,
     exp: now + 3600,
     iat: now,
   };
@@ -110,7 +111,7 @@ async function mintCloudRunIdToken(audience: string, serviceAccountKey: GoogleSe
   const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', signingKey, new TextEncoder().encode(unsignedJwt));
   const assertion = `${unsignedJwt}.${base64UrlEncode(signature)}`;
 
-  const accessTokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+  const idTokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -121,47 +122,24 @@ async function mintCloudRunIdToken(audience: string, serviceAccountKey: GoogleSe
     }),
   });
 
-  if (!accessTokenResponse.ok) {
-    const errorDetails = await accessTokenResponse.text();
-    throw new Error(`Failed to mint Google access token: ${accessTokenResponse.status} (${errorDetails || 'no response body'})`);
-  }
-
-  const accessTokenPayload = await accessTokenResponse.json() as { access_token?: string };
-  const accessToken = accessTokenPayload.access_token;
-
-  if (!accessToken) {
-    throw new Error('Google access token response did not include access_token.');
-  }
-
-  const idTokenResponse = await fetch(`https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(serviceAccountKey.client_email)}:generateIdToken`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify({
-      audience,
-      includeEmail: true,
-    }),
-  });
-
   if (!idTokenResponse.ok) {
     const errorDetails = await idTokenResponse.text();
-    throw new Error(
-      `Failed to mint Cloud Run ID token: ${idTokenResponse.status} for ${serviceAccountKey.client_email} (${errorDetails || 'no response body'})`,
-    );
+    throw new Error(`Failed to mint Cloud Run ID token: ${idTokenResponse.status} (${errorDetails || 'no response body'})`);
   }
 
-  const idTokenPayload = await idTokenResponse.json() as { token?: string };
-  const idToken = idTokenPayload.token;
+  const idTokenPayload = await idTokenResponse.json() as { id_token?: string; expires_in?: number };
+  const idToken = idTokenPayload.id_token;
 
   if (!idToken) {
-    throw new Error('Cloud Run ID token response did not include token.');
+    throw new Error('Cloud Run ID token response did not include id_token.');
   }
+
+  const expiresIn = typeof idTokenPayload.expires_in === 'number' ? idTokenPayload.expires_in : 3600;
+  const cacheTtl = Math.max(60, Math.min(expiresIn - 300, 3300));
 
   cachedGoogleToken = {
     token: idToken,
-    expiresAt: now + 3300,
+    expiresAt: now + cacheTtl,
   };
 
   return idToken;
