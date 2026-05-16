@@ -48,6 +48,9 @@ jobs:
 
     steps:
       - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Debug WIF Provider
         run: |
             echo "Provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}"
             echo "Service Account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}"
