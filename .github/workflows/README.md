@@ -151,8 +151,7 @@ GCP GitHub Actions auth uses Workload Identity Federation with:
 
 ### Supabase
 
-- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_DEV`
-- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_PROD`
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL`
 
 ### Service/API Keys (used in service deploys)
 

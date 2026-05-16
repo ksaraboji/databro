@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-05-15T23:57:17.928Z",
+  "generatedAt": "2026-05-16T05:15:42.707Z",
   "source": "app/tools/page.tsx",
   "recordCount": 30,
   "records": [
@@ -36,7 +36,7 @@
       ],
       "searchText": "File Converter & SQL Query Tool Data Conversion Convert between Parquet, CSV, Excel, Arrow, and Avro formats, or query files directly with SQL. and arrow avro between conversion convert converter csv data directly excel file files formats or parquet query sql tool universal with",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.927Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "pdf-merger",
@@ -59,7 +59,7 @@
       ],
       "searchText": "PDF Merger Data Conversion Combine multiple PDF files into a single document. combine conversion data document files into merger multiple pdf single",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.927Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "pdf-splitter",
@@ -86,7 +86,7 @@
       ],
       "searchText": "PDF Splitter & Extractor Data Conversion Extract, reorder, and save specific pages from your PDF documents. and conversion data documents extract extractor from pages pdf reorder save specific splitter your",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "doc-to-markdown",
@@ -113,7 +113,7 @@
       ],
       "searchText": "Doc to Markdown Data Conversion Convert Word documents and PDFs into clean Markdown for LLMs. and clean conversion convert data doc documents for into llms markdown pdfs to word",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "yaml-json-converter",
@@ -139,7 +139,7 @@
       ],
       "searchText": "YAML / JSON Converter Data Conversion Convert YAML to JSON or JSON to YAML with validation and instant output. and conversion convert converter data instant json or output to validation with yaml",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "toon-json-converter",
@@ -175,7 +175,7 @@
       ],
       "searchText": "TOON ⇄ JSON Converter Data Conversion Convert between JSON and Token-Oriented Object Notation (TOON) — a compact, human-readable format designed to reduce token usage in LLM prompts. and between compact conversion convert converter data designed format human in json llm notation object oriented prompts readable reduce to token toon usage",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "dynamodb-json-converter",
@@ -202,7 +202,7 @@
       ],
       "searchText": "DynamoDB JSON Converter Data Conversion Convert DynamoDB AttributeValue JSON into regular JSON using the AWS SDK toolkit. attributevalue aws conversion convert converter data dynamodb into json regular sdk the toolkit using",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "pdf-to-image",
@@ -233,7 +233,7 @@
       ],
       "searchText": "PDF to Image Converter Data Conversion Convert all pages of a PDF into high-quality images (PNG, JPEG, or WebP). all conversion convert converter data high image images into jpeg of or pages pdf png quality to webp",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "image-to-pdf",
@@ -262,7 +262,7 @@
       ],
       "searchText": "Image to PDF Converter Data Conversion Combine multiple images (PNG, JPEG, WebP, GIF) into a single PDF document. combine conversion converter data document gif image images into jpeg multiple pdf png single to webp",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "json-formatter",
@@ -288,7 +288,7 @@
       ],
       "searchText": "JSON Pretty Print Data Inspection Format, validate, and beautify your raw JSON data instantly. and beautify data format formatter inspection instantly json pretty print raw validate your",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "sql-formatter",
@@ -313,7 +313,7 @@
       ],
       "searchText": "SQL Formatter Data Inspection Beautify complex SQL queries for Snowflake, Postgres, and more. and beautify complex data for formatter inspection more postgres queries snowflake sql",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "parquet-inspector-plus",
@@ -343,7 +343,7 @@
       ],
       "searchText": "Parquet Inspector Plus Data Inspection Inspect row groups, codecs, schema, footer metadata, and sample rows in Parquet files. and codecs data files footer groups in inspect inspection inspector metadata parquet plus row rows sample schema",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "arrow-inspector-plus",
@@ -372,7 +372,7 @@
       ],
       "searchText": "Arrow Inspector Plus Data Inspection Inspect Arrow schema fields, field metadata, and sample rows in IPC files. and arrow data field fields files in inspect inspection inspector ipc metadata plus rows sample schema",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "json-schema-inferrer",
@@ -402,7 +402,7 @@
       ],
       "searchText": "JSON Schema Inferrer Data Inspection Paste any JSON and instantly generate a JSON Schema (Draft-07) inferred from its structure and types. 07 and any data draft from generate inferred inferrer inspection instantly its json paste schema structure types",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "schema-diff",
@@ -436,7 +436,7 @@
       ],
       "searchText": "Schema Diff Tool Data Inspection Compare two JSON schemas or objects side-by-side and see exactly what was added, removed, or changed. added and by changed compare data diff exactly inspection json objects or removed schema schemas see side tool two was what",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "json-flatten-unflatten",
@@ -463,7 +463,7 @@
       ],
       "searchText": "JSON Flatten / Unflatten Data Inspection Flatten nested JSON into key paths or reconstruct nested JSON from flattened keys. data flatten flattened from inspection into json key keys nested or paths reconstruct unflatten",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "base64-converter",
@@ -491,7 +491,7 @@
       ],
       "searchText": "Base64 Encoder / Decoder Utilities & Encoding Convert text to Base64 and back instantly with UTF-8 support. and back base64 convert converter decoder encoder encoding instantly support text to utf utilities with",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "secure-zip",
@@ -515,7 +515,7 @@
       ],
       "searchText": "Secure Zip Creator Utilities & Encoding Compress files into password-protected ZIP archives. archives compress creator encoding files into password protected secure utilities zip",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "text-refiner",
@@ -548,7 +548,7 @@
       ],
       "searchText": "Text Refiner Utilities & Encoding Refine and rephrase text by tone (professional, casual, commanding), fix spelling/grammar, add emojis or bullet points. add and bullet by casual commanding emojis encoding fix grammar or points professional refine refiner rephrase spelling text tone utilities",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "checksum-calculator",
@@ -576,7 +576,7 @@
       ],
       "searchText": "File Checksum Utilities & Encoding Generate MD5/SHA256 hashes and count lines for text files. and calculator checksum count encoding file files for generate hashes lines md5 sha256 text utilities",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "credit-card-validator",
@@ -601,7 +601,7 @@
       ],
       "searchText": "Credit Card / Luhn Validator Utilities & Encoding Validate credit card numbers using the Luhn checksum algorithm. algorithm card checksum credit encoding luhn numbers the using utilities validate validator",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "upc-validator",
@@ -627,7 +627,7 @@
       ],
       "searchText": "UPC / EAN Validator Utilities & Encoding Verify retail barcodes (UPC-A, EAN-13, etc.) check digits instantly. 13 barcodes check digits ean encoding etc instantly retail upc utilities validator verify",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "aadhaar-validator",
@@ -651,7 +651,7 @@
       ],
       "searchText": "Aadhaar Validator Utilities & Encoding Validate Indian Aadhaar numbers using the Verhoeff algorithm. aadhaar algorithm encoding indian numbers the using utilities validate validator verhoeff",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "jwt-debugger",
@@ -677,7 +677,7 @@
       ],
       "searchText": "JWT Debugger Utilities & Encoding Decode and inspect JSON Web Tokens (JWT) headers and payloads securely. and debugger decode encoding headers inspect json jwt payloads securely tokens utilities web",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "qr-code-generator",
@@ -706,7 +706,7 @@
       ],
       "searchText": "QR Code Generator Utilities & Encoding Create customizable QR codes for links, text, or Wi-Fi credentials instantly. code codes create credentials customizable encoding fi for generator instantly links or qr text utilities wi",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "uuid-cuid-hash-generator",
@@ -737,7 +737,7 @@
       ],
       "searchText": "UUID / CUID / Hash Generator Utilities & Encoding Generate UUIDs (RFC 4122), CUID identifiers, or cryptographic hash keys for APIs and databases. 4122 and apis cryptographic cuid databases encoding for generate generator hash identifiers keys or rfc utilities uuid uuids",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "timestamp-timezone-converter",
@@ -768,7 +768,7 @@
       ],
       "searchText": "Timestamp / Timezone Converter Utilities & Encoding Convert between Unix timestamps and readable dates, or transform times across timezones instantly. across and between convert converter dates encoding instantly or readable times timestamp timestamps timezone timezones transform unix utilities",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "cron-time-window-simulator",
@@ -800,7 +800,7 @@
       ],
       "searchText": "Cron and Time Window Simulator Utilities & Encoding Simulate cron schedules, preview next run times, and measure execution volume inside custom windows. and cron custom encoding execution inside measure next preview run schedules simulate simulator time times utilities volume window windows",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "data-profiler",
@@ -830,7 +830,7 @@
       ],
       "searchText": "Data Profiler & Explorer Visualization & Analysis Upload your dataset to instantly see stats, distributions, and missing value reports. analysis and data dataset distributions explorer instantly missing profiler reports see stats to upload value visualization your",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     },
     {
       "toolId": "future-income-calculator",
@@ -863,7 +863,7 @@
       ],
       "searchText": "Detailed Financial Planner Visualization & Analysis Project your financial freedom timeline, inflation impact, and investment gaps in USD & INR. analysis and calculator detailed financial freedom future gaps impact in income inflation inr investment planner project timeline usd visualization your",
       "popularityWeight": 1,
-      "updatedAt": "2026-05-15T23:57:17.928Z"
+      "updatedAt": "2026-05-16T05:15:42.706Z"
     }
   ]
 }

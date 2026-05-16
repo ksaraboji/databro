@@ -80,14 +80,14 @@ npm start
 
 ### Supabase Edge Function
 
-- `supabase/functions/ask-data/index.ts` proxies multipart uploads to Cloud Run
-- It expects `CLOUDRUN_BASE_URL` and `BACKEND_ENVIRONMENT`
-- The frontend resolves `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` to the `ask-data` invoke URL
+- `supabase/functions/ask-data-dev/index.ts` and `supabase/functions/ask-data-prod/index.ts` proxy multipart uploads to Cloud Run
+- The dev function reads `CLOUDRUN_BASE_URL_DEV`; the prod function reads `CLOUDRUN_BASE_URL_PROD`
+- The frontend resolves `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` to the `ask-data-dev` or `ask-data-prod` invoke URL based on the site hostname
 - The function forwards `POST /v1/ask-data` requests from the frontend to the GCP backend
 
 ### Supabase Deployment Workflow
 
-- `.github/workflows/deploy-supabase.yml` deploys the `ask-data` edge function
+- `.github/workflows/deploy-supabase.yml` deploys the `ask-data-dev` and `ask-data-prod` edge functions
 - It uses your existing Supabase account through `SUPABASE_ACCESS_TOKEN`
 - Required GitHub secrets:
 	- `SUPABASE_ACCESS_TOKEN`
@@ -160,8 +160,7 @@ GCP GitHub Actions auth uses Workload Identity Federation with:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_DEV`
-- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL_PROD`
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` should point to the base Supabase invoke URL, for example `https://<project-ref>.supabase.co/functions/v1`
 
 ## Additional References
 

@@ -59,9 +59,14 @@ jobs:
             CLOUDRUN_BASE_URL_PROD="${{ secrets.CLOUDRUN_BASE_URL_PROD }}" \
             --project-ref "$SUPABASE_PROJECT_REF"
 
-      - name: Deploy ask-data edge function
+      - name: Deploy ask-data-dev edge function
         run: |
-          supabase functions deploy ask-data \
+          supabase functions deploy ask-data-dev \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy ask-data-prod edge function
+        run: |
+          supabase functions deploy ask-data-prod \
             --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deployment summary
@@ -69,4 +74,4 @@ jobs:
           echo "## Supabase deployment complete" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: $ENV_NAME" >> "$GITHUB_STEP_SUMMARY"
           echo "- Project ref: $SUPABASE_PROJECT_REF" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Function: ask-data" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Functions: ask-data-dev, ask-data-prod" >> "$GITHUB_STEP_SUMMARY"
