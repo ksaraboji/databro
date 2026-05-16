@@ -48,8 +48,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
+        run: |
+            echo "Provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}"
+            echo "Service Account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}"
+            
       - id: auth
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
