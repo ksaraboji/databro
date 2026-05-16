@@ -2,11 +2,6 @@ name: Deploy Supabase Edge Functions Runner
 
 'on':
   workflow_call:
-    inputs:
-      target_env:
-        description: Target environment
-        required: true
-        type: string
     secrets:
       SUPABASE_ACCESS_TOKEN:
         required: true
@@ -37,12 +32,7 @@ jobs:
       - name: Set Environment Variables
         run: |
           echo "SUPABASE_PROJECT_REF=${{ secrets.SUPABASE_PROJECT_REF }}" >> "$GITHUB_ENV"
-
-          if [[ "${{ inputs.target_env }}" == "prod" ]]; then
-            echo "ENV_NAME=prod" >> "$GITHUB_ENV"
-          else
-            echo "ENV_NAME=dev" >> "$GITHUB_ENV"
-          fi
+          echo "ENV_NAME=shared" >> "$GITHUB_ENV"
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
