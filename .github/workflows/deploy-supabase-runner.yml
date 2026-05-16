@@ -36,10 +36,8 @@ jobs:
 
           if [[ "${{ inputs.target_env }}" == "prod" ]]; then
             echo "ENV_NAME=prod" >> "$GITHUB_ENV"
-            echo "CLOUDRUN_BASE_URL=${{ secrets.CLOUDRUN_BASE_URL_PROD }}" >> "$GITHUB_ENV"
           else
             echo "ENV_NAME=dev" >> "$GITHUB_ENV"
-            echo "CLOUDRUN_BASE_URL=${{ secrets.CLOUDRUN_BASE_URL_DEV }}" >> "$GITHUB_ENV"
           fi
 
       - name: Setup Supabase CLI
@@ -57,8 +55,8 @@ jobs:
       - name: Push Supabase secrets
         run: |
           supabase secrets set \
-            CLOUDRUN_BASE_URL="$CLOUDRUN_BASE_URL" \
-            BACKEND_ENVIRONMENT="$ENV_NAME" \
+            CLOUDRUN_BASE_URL_DEV="${{ secrets.CLOUDRUN_BASE_URL_DEV }}" \
+            CLOUDRUN_BASE_URL_PROD="${{ secrets.CLOUDRUN_BASE_URL_PROD }}" \
             --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy ask-data edge function
