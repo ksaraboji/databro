@@ -2,26 +2,12 @@ name: Deploy Supabase Edge Functions
 
 'on':
   push:
-    branches:
-      - main
-      - develop
     paths:
       - "supabase/**"
       - ".github/workflows/deploy-supabase.yml"
   workflow_dispatch:
-    inputs:
-      target_env:
-        description: "Target environment"
-        required: true
-        default: dev
-        type: choice
-        options:
-          - dev
-          - prod
 
 jobs:
   deploy:
     uses: ./.github/workflows/deploy-supabase-runner.yml
-    with:
-      target_env: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_env || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
     secrets: inherit

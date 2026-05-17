@@ -1,2 +1,2 @@
-bucket = "databro-gcp-tf-state-bucket"
+bucket = "databro-prod-gcp-tf-state-bucket"
 prefix = "prod"
