@@ -122,7 +122,8 @@ async function mintCloudRunIdToken(audience: string, serviceAccountKey: GoogleSe
   });
 
   if (!accessTokenResponse.ok) {
-    throw new Error(`Failed to mint Google access token: ${accessTokenResponse.status}`);
+    const errorDetails = await accessTokenResponse.text();
+    throw new Error(`Failed to mint Google access token: ${accessTokenResponse.status} (${errorDetails || 'no response body'})`);
   }
 
   const accessTokenPayload = await accessTokenResponse.json() as { access_token?: string };
@@ -145,7 +146,10 @@ async function mintCloudRunIdToken(audience: string, serviceAccountKey: GoogleSe
   });
 
   if (!idTokenResponse.ok) {
-    throw new Error(`Failed to mint Cloud Run ID token: ${idTokenResponse.status}`);
+    const errorDetails = await idTokenResponse.text();
+    throw new Error(
+      `Failed to mint Cloud Run ID token: ${idTokenResponse.status} for ${serviceAccountKey.client_email} (${errorDetails || 'no response body'})`,
+    );
   }
 
   const idTokenPayload = await idTokenResponse.json() as { token?: string };
