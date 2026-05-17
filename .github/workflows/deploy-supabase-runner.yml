@@ -1,0 +1,73 @@
+name: Deploy Supabase Edge Functions Runner
+
+'on':
+  workflow_call:
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        required: true
+      SUPABASE_PROJECT_REF:
+        required: true
+      CLOUDRUN_BASE_URL_DEV:
+        required: true
+      CLOUDRUN_BASE_URL_PROD:
+        required: true
+      GCP_SERVICE_ACCOUNT_KEY_JSON_DEV:
+        required: true
+      GCP_SERVICE_ACCOUNT_KEY_JSON_PROD:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        run: |
+          echo "SUPABASE_PROJECT_REF=${{ secrets.SUPABASE_PROJECT_REF }}" >> "$GITHUB_ENV"
+          echo "ENV_NAME=shared" >> "$GITHUB_ENV"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate Supabase project ref
+        run: |
+          if [[ -z "$SUPABASE_PROJECT_REF" ]]; then
+            echo "SUPABASE_PROJECT_REF is missing"
+            exit 1
+          fi
+
+      - name: Push Supabase secrets
+        run: |
+          supabase secrets set \
+            CLOUDRUN_BASE_URL_DEV="${{ secrets.CLOUDRUN_BASE_URL_DEV }}" \
+            CLOUDRUN_BASE_URL_PROD="${{ secrets.CLOUDRUN_BASE_URL_PROD }}" \
+            GCP_SERVICE_ACCOUNT_KEY_JSON_DEV='${{ secrets.GCP_SERVICE_ACCOUNT_KEY_JSON_DEV }}' \
+            GCP_SERVICE_ACCOUNT_KEY_JSON_PROD='${{ secrets.GCP_SERVICE_ACCOUNT_KEY_JSON_PROD }}' \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy ask-data-dev edge function
+        run: |
+          supabase functions deploy ask-data-dev \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy ask-data-prod edge function
+        run: |
+          supabase functions deploy ask-data-prod \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deployment summary
+        run: |
+          echo "## Supabase deployment complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: $ENV_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project ref: $SUPABASE_PROJECT_REF" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Functions: ask-data-dev, ask-data-prod" >> "$GITHUB_STEP_SUMMARY"

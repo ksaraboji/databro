@@ -2,6 +2,8 @@
 
 This folder contains CI/CD workflows for AWS web deployment, Azure infrastructure, and backend service image deployments.
 
+It also includes GCP workflows for Artifact Registry + Cloud Run backend deployment.
+
 ## Workflow Inventory
 
 ### 1. `multi-env-deploy.yml`
@@ -38,7 +40,30 @@ Runs Terraform for Azure infrastructure in `terraform/azure`.
    - `terraform-dev`: fmt/validate/plan/apply using `backend-dev.hcl` and `dev.tfvars`
    - `terraform-prod`: fmt/validate/plan/apply using `backend-prod.hcl` and `prod.tfvars`
 
-### 4. Service Build/Deploy Workflows
+### 4. `deploy-gcp-infra.yml`
+
+Runs Terraform for GCP infrastructure in `terraform/gcp`.
+
+- Triggers:
+   - `push`/`pull_request` on `main`/`develop` for `terraform/gcp/**`
+   - `workflow_dispatch` (manual target env and optional image override)
+- Core jobs:
+   - `terraform-dev`: fmt/validate/plan/apply for `develop` and PRs
+   - `terraform-prod`: fmt/validate/plan/apply for `main`
+
+### 5. `build-agent-backend-gcp.yml`
+
+Builds and pushes the agent backend container to Google Artifact Registry and applies Terraform to update Cloud Run image.
+
+- Trigger:
+   - `push` on `main`/`develop` for `services/api_gateway/**`
+   - `workflow_dispatch`
+- Core behavior:
+   - Auth to GCP using Workload Identity Federation
+   - Build/push image from `services/ai` to `REGION-docker.pkg.dev/<project>/databro-<env>-agent/agent-backend`
+   - Terraform apply in `terraform/gcp` with the new image URI
+
+### 6. Azure Service Build/Deploy Workflows
 
 - `build-api-gateway.yml`
 - `build-llm-service.yml`
@@ -52,11 +77,11 @@ Common behavior:
 - Build and push image to env-specific ACR (`databro{env}acr.azurecr.io/...`)
 - Deploy/update Azure Container App
 
-### 5. `manual-import.yml`
+### 7. `manual-import.yml`
 
 Manual utility workflow for Terraform import in Azure (`workflow_dispatch` only).
 
-### 6. `upload-tool-search-manifest.yml`
+### 8. `upload-tool-search-manifest.yml`
 
 Builds and uploads tool-search artifacts to AWS S3.
 
@@ -106,6 +131,27 @@ Required by `upload-tool-search-manifest.yml`:
 - `ARM_CLIENT_SECRET`
 - `ARM_SUBSCRIPTION_ID`
 - `ARM_TENANT_ID`
+
+### GCP
+
+- `GCP_PROJECT_ID_DEV`
+- `GCP_PROJECT_ID_PROD`
+- `GCP_WIF_PROVIDER_DEV`
+- `GCP_WIF_PROVIDER_PROD`
+- `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+
+GCP GitHub Actions auth uses Workload Identity Federation with:
+
+- Dev workload identity provider: `GCP_WIF_PROVIDER_DEV`
+- Prod workload identity provider: `GCP_WIF_PROVIDER_PROD`
+- Dev service account: `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- Prod service account: `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+- Repository principal for `roles/iam.workloadIdentityUser`: `principalSet://iam.googleapis.com/projects/830624303497/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/ksaraboji/databro`
+
+### Supabase
+
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL`
 
 ### Service/API Keys (used in service deploys)
 

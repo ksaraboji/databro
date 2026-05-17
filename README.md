@@ -7,7 +7,7 @@ Databro is a Next.js application with client-side data tools and multi-cloud dep
 - Frontend: Next.js 16 + React 19 + TypeScript
 - UI: Tailwind CSS v4 + Framer Motion + Lucide icons
 - Data tooling: DuckDB WASM, Apache Arrow, Parquet utilities, PDF/image utilities
-- Infrastructure as Code: Terraform for AWS and Azure
+- Infrastructure as Code: Terraform for AWS, Azure, and GCP
 - CI/CD: GitHub Actions for infra deployment, app deployment, and service image builds
 
 ## Repository Structure
@@ -18,8 +18,8 @@ databro/
 ├── components/             # Shared React UI components
 ├── lib/                    # App utilities and integration helpers
 ├── public/                 # Static assets
-├── services/               # Containerized backend services (api_gateway, llm, rag, speech)
-├── terraform/              # Terraform code for AWS and Azure
+├── services/               # Containerized backend services (api_gateway, ai, llm, rag, speech)
+├── terraform/              # Terraform code for AWS, Azure, and GCP
 ├── tests/                  # Test scripts and manual test assets
 ├── .github/workflows/      # CI/CD and infra workflows
 └── package.json            # Project scripts and dependencies
@@ -64,10 +64,92 @@ npm start
 
 ### Backend Services (Azure)
 
-- `services/api_gateway`, `services/llm`, `services/rag`, and `services/speech` are built as container images
+- `services/api_gateway` remains the legacy Azure-facing backend container
+- `services/ai` is the GCP-specific backend container
+- `services/llm`, `services/rag`, and `services/speech` are built as container images
 - Images are pushed to Azure Container Registry (ACR)
 - Workflows deploy to Azure Container Apps
 - Terraform in `terraform/azure` provisions infra
+
+### Agentic Backend (GCP)
+
+- Agent backend container is stored in Google Artifact Registry
+- Cloud Run serves the backend runtime
+- Terraform in `terraform/gcp` provisions Artifact Registry, Cloud Run, and IAM
+- Next.js should call Supabase Edge Functions, which then call Cloud Run
+
+### Supabase Edge Function
+
+- `supabase/functions/ask-data-dev/index.ts` and `supabase/functions/ask-data-prod/index.ts` proxy multipart uploads to Cloud Run
+- The dev function reads `CLOUDRUN_BASE_URL_DEV`; the prod function reads `CLOUDRUN_BASE_URL_PROD`
+- The edge functions mint a Google ID token from `GCP_SERVICE_ACCOUNT_KEY_JSON` and send `Authorization: Bearer <id_token>` to Cloud Run
+- The frontend resolves `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` to the `ask-data-dev` or `ask-data-prod` invoke URL based on the site hostname
+- The function forwards `POST /v1/ask-data` requests from the frontend to the GCP backend
+
+### Supabase Deployment Workflow
+
+- `.github/workflows/deploy-supabase.yml` deploys the `ask-data-dev` and `ask-data-prod` edge functions
+- It uses your existing Supabase account through `SUPABASE_ACCESS_TOKEN`
+- Required GitHub secrets:
+	- `SUPABASE_ACCESS_TOKEN`
+	- `SUPABASE_PROJECT_REF`
+	- `CLOUDRUN_BASE_URL_DEV`
+	- `CLOUDRUN_BASE_URL_PROD`
+	- `GCP_SERVICE_ACCOUNT_KEY_JSON`
+
+### Cloud Run Invocation Security (Supabase-only)
+
+The backend is configured so Cloud Run is not publicly invokable. Only a dedicated service account can call it.
+
+1. Apply Terraform in `terraform/gcp` (dev/prod) so it creates:
+	- Cloud Run service
+	- dedicated invoker service account (`cloudrun-invoker`)
+	- Cloud Run `roles/run.invoker` binding for that service account
+
+2. Get invoker SA email from Terraform output:
+
+```bash
+terraform -chdir=terraform/gcp output cloud_run_invoker_service_account_email
+```
+
+3. Create a key for that service account (one key per environment/project):
+
+```bash
+gcloud iam service-accounts keys create /tmp/cloudrun-invoker-key.json \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+```
+
+4. Store the full JSON content as GitHub secret `GCP_SERVICE_ACCOUNT_KEY_JSON`.
+
+5. Run `.github/workflows/deploy-supabase.yml` so it pushes:
+	- `CLOUDRUN_BASE_URL_DEV`
+	- `CLOUDRUN_BASE_URL_PROD`
+	- `GCP_SERVICE_ACCOUNT_KEY_JSON`
+	to Supabase secrets and redeploys edge functions.
+
+6. Verify access control:
+	- direct unauthenticated calls to Cloud Run should return `401/403`
+	- calls through Supabase edge function should succeed
+
+#### Key Rotation
+
+Rotate `GCP_SERVICE_ACCOUNT_KEY_JSON` regularly:
+
+1. Create a new key with `gcloud iam service-accounts keys create ...`.
+2. Update GitHub secret `GCP_SERVICE_ACCOUNT_KEY_JSON`.
+3. Re-run `deploy-supabase.yml`.
+4. Delete old key(s):
+
+```bash
+gcloud iam service-accounts keys list \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+
+gcloud iam service-accounts keys delete <old_key_id> \
+  --iam-account "<cloud_run_invoker_service_account_email>" \
+  --project "<gcp_project_id>"
+```
 
 ## Branch and Environment Mapping
 
@@ -87,6 +169,8 @@ Primary workflows are in `.github/workflows`:
 - `build-llm-service.yml` - Build/push/deploy LLM service
 - `build-rag-service.yml` - Build/push/deploy RAG service
 - `build-speech-service.yml` - Build/push/deploy Speech service
+- `deploy-gcp-infra.yml` - Terraform plan/apply for GCP backend infra
+- `build-agent-backend-gcp.yml` - Build/push/deploy agent backend image to Artifact Registry + Cloud Run update
 - `manual-import.yml` - Manual Terraform import helper (Azure)
 
 ## Required Secrets
@@ -111,6 +195,29 @@ Primary workflows are in `.github/workflows`:
 - `INSTAGRAM_ACCESS_TOKEN`
 - `INSTAGRAM_ACCOUNT_ID`
 - `DEVTO_API_KEY`
+
+### GCP-related
+
+- `GCP_PROJECT_ID_DEV`
+- `GCP_PROJECT_ID_PROD`
+- `GCP_WIF_PROVIDER_DEV`
+- `GCP_WIF_PROVIDER_PROD`
+- `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+
+GCP GitHub Actions auth uses Workload Identity Federation with:
+
+- Dev workload identity provider: `GCP_WIF_PROVIDER_DEV`
+- Prod workload identity provider: `GCP_WIF_PROVIDER_PROD`
+- Dev service account: `GCP_SERVICE_ACCOUNT_EMAIL_DEV`
+- Prod service account: `GCP_SERVICE_ACCOUNT_EMAIL_PROD`
+
+### Supabase-related
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL` should point to the base Supabase invoke URL, for example `https://<project-ref>.supabase.co/functions/v1`
+- `GCP_SERVICE_ACCOUNT_KEY_JSON` (GitHub secret used by `deploy-supabase-runner.yml`, pushed to Supabase secrets for Cloud Run ID-token auth)
 
 ## Additional References
 

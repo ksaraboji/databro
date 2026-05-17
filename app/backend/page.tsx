@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Bot, Construction } from "lucide-react";
+import { ArrowLeft, Construction, Table2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
@@ -27,20 +27,12 @@ const backendFeatures: Category[] = [
     title: "AI & LLM Services",
     features: [
       {
-        name: "Professor AI",
-        description: "Interactive learning sessions powered by RAG and LLMs. Master complex topics with a personalized tutor.",
-        icon: <Bot className="w-8 h-8 text-indigo-600" />,
-        href: "/backend/professor",
+        name: "AI Data Chat",
+        description: "Upload CSV, Excel, Parquet, JSON, or Arrow files and chat with an AI analyst about the data.",
+        icon: <Table2 className="w-8 h-8 text-indigo-600" />,
+        href: "/backend/ai-data-chat",
         color: "bg-indigo-50 hover:bg-indigo-100",
-        status: "live",
-      },
-      {
-        name: "Document Summarizer",
-        description: "Analyze lengthy PDFs or Word docs with LLM-powered summarization.",
-        icon: <BookOpen className="w-8 h-8 text-indigo-600" />,
-        href: "/backend/document-summarizer",
-        color: "bg-indigo-50 hover:bg-indigo-100",
-        status: "live",
+        status: "building",
       },
     ],
   },
@@ -110,7 +102,6 @@ export default function BackendPage() {
                              <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
                                {feature.icon}
                              </div>
-                             <StatusBadge status={feature.status} />
                           </div>
                           
                           <div>
@@ -155,26 +146,4 @@ export default function BackendPage() {
   );
 }
 
-function StatusBadge({ status }: { status: Feature["status"] }) {
-  const styles = {
-    live: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    building: "bg-amber-100 text-amber-700 border-amber-200",
-    planned: "bg-slate-100 text-slate-500 border-slate-200 dashed border-dashed",
-  };
-
-  const labels = {
-    live: "Live",
-    building: "In Progress",
-    planned: "Concept",
-  };
-
-  return (
-    <span className={cn(
-      "px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold border",
-      styles[status]
-    )}>
-      {labels[status]}
-    </span>
-  );
-}
 

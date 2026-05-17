@@ -1,0 +1,151 @@
+name: Build and Push AI Backend (GCP)
+
+'on':
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "services/ai/**"
+      - ".github/workflows/build-ai-backend-gcp.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build-push-and-apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      GCP_REGION: us-east4
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        run: |
+          TARGET_BRANCH="${GITHUB_REF#refs/heads/}"
+
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
+            echo "ENV_NAME=prod" >> $GITHUB_ENV
+            echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID_PROD }}" >> $GITHUB_ENV
+          else
+            echo "ENV_NAME=dev" >> $GITHUB_ENV
+            echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID_DEV }}" >> $GITHUB_ENV
+          fi
+
+      - id: auth-dev
+        name: Authenticate to Google Cloud (dev)
+        if: github.ref == 'refs/heads/develop'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_DEV }}
+
+      - id: auth-prod
+        name: Authenticate to Google Cloud (prod)
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL_PROD }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
+
+      - name: Check Artifact Registry repository
+        id: repo-check
+        run: |
+          REPO_ID="databro-${ENV_NAME}-ai-repo"
+          echo "repo_id=$REPO_ID" >> "$GITHUB_OUTPUT"
+          if gcloud artifacts repositories describe "$REPO_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Repository '$REPO_ID' already exists."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Repository '$REPO_ID' not found. It will be created via Terraform."
+          fi
+
+      - name: Setup Terraform
+        if: steps.repo-check.outputs.exists == 'false'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init (gcp)
+        if: steps.repo-check.outputs.exists == 'false'
+        working-directory: terraform/gcp
+        run: |
+          if [[ "$ENV_NAME" == "prod" ]]; then
+            terraform init -backend-config=backend-prod.hcl
+          else
+            terraform init -backend-config=backend-dev.hcl
+          fi
+
+      - name: Terraform Apply Artifact Registry repository
+        if: steps.repo-check.outputs.exists == 'false'
+        working-directory: terraform/gcp
+        run: |
+          if [[ "$ENV_NAME" == "prod" ]]; then
+            terraform apply -var-file=prod.tfvars \
+              -var="project_id=${GCP_PROJECT_ID}" \
+              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
+              -target="google_artifact_registry_repository.ai_backend" \
+              -no-color -auto-approve -input=false
+          else
+            terraform apply -var-file=dev.tfvars \
+              -var="project_id=${GCP_PROJECT_ID}" \
+              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
+              -target="google_artifact_registry_repository.ai_backend" \
+              -no-color -auto-approve -input=false
+          fi
+
+      - name: Set image tags
+        id: image-tags
+        run: |
+          IMAGE_SHA="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/databro-${ENV_NAME}-ai-repo/ai-backend:${GITHUB_SHA}"
+          IMAGE_LATEST="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/databro-${ENV_NAME}-ai-repo/ai-backend:latest"
+          echo "image_sha=$IMAGE_SHA" >> $GITHUB_OUTPUT
+          echo "image_latest=$IMAGE_LATEST" >> $GITHUB_OUTPUT
+          echo "IMAGE_SHA=$IMAGE_SHA" >> $GITHUB_ENV
+
+      - name: Delete previous ai-backend images
+        run: |
+          REPO_ID="${{ steps.repo-check.outputs.repo_id }}"
+          PACKAGE_NAME="ai-backend"
+
+          if gcloud artifacts packages describe "$PACKAGE_NAME" \
+            --project="$GCP_PROJECT_ID" \
+            --location="$GCP_REGION" \
+            --repository="$REPO_ID" >/dev/null 2>&1; then
+            echo "Deleting existing package '$PACKAGE_NAME' from '$REPO_ID'."
+            gcloud artifacts packages delete "$PACKAGE_NAME" \
+              --project="$GCP_PROJECT_ID" \
+              --location="$GCP_REGION" \
+              --repository="$REPO_ID" \
+              --quiet
+          else
+            echo "No existing ai-backend images found to delete."
+          fi
+
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/ai/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tags.outputs.image_latest }}
+            ${{ steps.image-tags.outputs.image_sha }}
+
+      - name: Deployment summary
+        run: |
+          echo "## ✅ GCP AI Backend Image Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: $ENV_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- Project: $GCP_PROJECT_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: $IMAGE_SHA" >> $GITHUB_STEP_SUMMARY
