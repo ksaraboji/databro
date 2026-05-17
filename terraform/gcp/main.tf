@@ -16,6 +16,12 @@ provider "google" {
   region  = var.region
 }
 
+resource "google_project_service" "iamcredentials" {
+  project            = var.project_id
+  service            = "iamcredentials.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_service_account" "cloudrun_invoker" {
   account_id   = var.cloud_run_invoker_service_account_id
   display_name = var.cloud_run_invoker_service_account_display_name
