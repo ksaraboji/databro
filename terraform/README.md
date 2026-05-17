@@ -133,7 +133,6 @@ terraform apply -var-file=prod.tfvars -input=false
 - Google Artifact Registry Docker repository
 - Cloud Run service for agent backend
 - IAM invoker bindings for Cloud Run
-- IAM Service Account Token Creator self-binding for Supabase invoker service account
 
 ### Key Outputs
 
