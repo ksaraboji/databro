@@ -18,10 +18,14 @@ output "cloud_run_service_uri" {
   value = google_cloud_run_v2_service.ai_backend.uri
 }
 
+output "cloud_run_invoker_service_account_email" {
+  value = google_service_account.cloudrun_invoker.email
+}
+
 output "supabase_edge_function_env" {
   value = {
     CLOUDRUN_BASE_URL    = google_cloud_run_v2_service.ai_backend.uri
-    BACKEND_ENVIRONMENT  = var.environment
+    BACKEND_ENVIRONMENT   = var.environment
   }
   description = "Environment variables to configure in Supabase Edge Function"
 }

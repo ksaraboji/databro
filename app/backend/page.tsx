@@ -102,7 +102,6 @@ export default function BackendPage() {
                              <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
                                {feature.icon}
                              </div>
-                             <StatusBadge status={feature.status} />
                           </div>
                           
                           <div>
@@ -147,26 +146,4 @@ export default function BackendPage() {
   );
 }
 
-function StatusBadge({ status }: { status: Feature["status"] }) {
-  const styles = {
-    live: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    building: "bg-amber-100 text-amber-700 border-amber-200",
-    planned: "bg-slate-100 text-slate-500 border-slate-200 dashed border-dashed",
-  };
-
-  const labels = {
-    live: "Live",
-    building: "In Progress",
-    planned: "Concept",
-  };
-
-  return (
-    <span className={cn(
-      "px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold border",
-      styles[status]
-    )}>
-      {labels[status]}
-    </span>
-  );
-}
 

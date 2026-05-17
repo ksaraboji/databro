@@ -16,6 +16,16 @@ provider "google" {
   region  = var.region
 }
 
+resource "google_service_account" "cloudrun_invoker" {
+  account_id   = var.cloud_run_invoker_service_account_id
+  display_name = var.cloud_run_invoker_service_account_display_name
+  description  = "Invokes the Databro Cloud Run AI backend from Supabase Edge Functions"
+}
+
+locals {
+  cloud_run_invoker_members = length(var.cloud_run_invoker_members) > 0 ? var.cloud_run_invoker_members : ["serviceAccount:${google_service_account.cloudrun_invoker.email}"]
+}
+
 resource "google_artifact_registry_repository" "ai_backend" {
   location      = var.artifact_registry_location
   repository_id = var.artifact_registry_repository_id
@@ -80,11 +90,11 @@ resource "google_cloud_run_v2_service" "ai_backend" {
 }
 
 resource "google_cloud_run_v2_service_iam_binding" "invoker" {
-  count = length(var.cloud_run_invoker_members) > 0 ? 1 : 0
+  count = length(local.cloud_run_invoker_members) > 0 ? 1 : 0
 
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.ai_backend.name
   role     = "roles/run.invoker"
-  members  = var.cloud_run_invoker_members
+  members  = local.cloud_run_invoker_members
 }

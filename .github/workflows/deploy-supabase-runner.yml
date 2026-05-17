@@ -16,6 +16,8 @@ name: Deploy Supabase Edge Functions Runner
         required: true
       CLOUDRUN_BASE_URL_PROD:
         required: true
+      GCP_SERVICE_ACCOUNT_KEY_JSON:
+        required: true
 
 jobs:
   deploy:
@@ -57,6 +59,7 @@ jobs:
           supabase secrets set \
             CLOUDRUN_BASE_URL_DEV="${{ secrets.CLOUDRUN_BASE_URL_DEV }}" \
             CLOUDRUN_BASE_URL_PROD="${{ secrets.CLOUDRUN_BASE_URL_PROD }}" \
+            GCP_SERVICE_ACCOUNT_KEY_JSON='${{ secrets.GCP_SERVICE_ACCOUNT_KEY_JSON }}' \
             --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy ask-data-dev edge function
