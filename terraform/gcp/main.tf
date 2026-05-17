@@ -22,6 +22,12 @@ resource "google_service_account" "cloudrun_invoker" {
   description  = "Invokes the Databro Cloud Run AI backend from Supabase Edge Functions"
 }
 
+resource "google_service_account_iam_member" "cloudrun_invoker_token_creator_self" {
+  service_account_id = google_service_account.cloudrun_invoker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.cloudrun_invoker.email}"
+}
+
 locals {
   cloud_run_invoker_members = length(var.cloud_run_invoker_members) > 0 ? var.cloud_run_invoker_members : ["serviceAccount:${google_service_account.cloudrun_invoker.email}"]
 }
