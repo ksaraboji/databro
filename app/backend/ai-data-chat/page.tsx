@@ -194,10 +194,15 @@ export default function AiDataChatPage() {
         return;
       }
 
+      const providerModels = providerModelOptions[selectedProvider];
+      const effectiveModel = providerModels.some((model) => model.value === selectedModel)
+        ? selectedModel
+        : providerModels[0].value;
+
       const formData = new FormData();
       formData.append("user_intent", trimmed);
       formData.append("llm_provider", selectedProvider);
-      formData.append("llm_model", selectedModel);
+      formData.append("llm_model", effectiveModel);
       files.forEach((entry) => {
         formData.append("file", entry.file, entry.file.name);
       });
@@ -521,7 +526,11 @@ export default function AiDataChatPage() {
                 <select
                   id="llm-provider"
                   value={selectedProvider}
-                  onChange={(event) => setSelectedProvider(event.target.value as LlmProvider)}
+                  onChange={(event) => {
+                    const nextProvider = event.target.value as LlmProvider;
+                    setSelectedProvider(nextProvider);
+                    setSelectedModel(providerModelOptions[nextProvider][0].value);
+                  }}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value="huggingface">Hugging Face</option>
