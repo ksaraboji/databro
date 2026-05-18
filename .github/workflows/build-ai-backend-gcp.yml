@@ -149,3 +149,5 @@ jobs:
           echo "- Environment: $ENV_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- Project: $GCP_PROJECT_ID" >> $GITHUB_STEP_SUMMARY
           echo "- Image: $IMAGE_SHA" >> $GITHUB_STEP_SUMMARY
+
+          
