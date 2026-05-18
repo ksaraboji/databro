@@ -10,6 +10,7 @@ ai_backend_image = "us-east4-docker.pkg.dev/databro-487622/databro-prod-ai-repo/
 cloud_run_service_name   = "ai-backend"
 cloud_run_ingress        = "INGRESS_TRAFFIC_ALL"
 cloud_run_invoker_members = []
+ai_backend_service_account = "489232030694-compute@developer.gserviceaccount.com"
 cloud_run_min_instances  = 1
 cloud_run_max_instances  = 10
 cloud_run_timeout_seconds = 300

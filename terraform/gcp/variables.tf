@@ -48,6 +48,11 @@ variable "cloud_run_service_name" {
   default     = "ai-backend"
 }
 
+variable "ai_backend_service_account" {
+  description = "Service account email used by the ai-backend Cloud Run service"
+  type        = string
+}
+
 variable "ollama_service_name" {
   description = "Cloud Run service name for Ollama"
   type        = string
@@ -194,6 +199,12 @@ variable "ollama_image" {
   description = "Container image used for the Ollama runtime"
   type        = string
   default     = "ollama/ollama:latest"
+}
+
+variable "ollama_default_model" {
+  description = "Default Ollama model name used by ai-backend when no model is provided"
+  type        = string
+  default     = "llama3.2"
 }
 
 variable "hf_api_token" {

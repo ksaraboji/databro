@@ -49,6 +49,8 @@ resource "google_cloud_run_v2_service" "ai_backend" {
   template {
     timeout = "${var.cloud_run_timeout_seconds}s"
 
+    service_account = var.ai_backend_service_account
+
     scaling {
       min_instance_count = var.cloud_run_min_instances
       max_instance_count = var.cloud_run_max_instances
@@ -82,6 +84,14 @@ resource "google_cloud_run_v2_service" "ai_backend" {
       env {
         name  = "HF_BASE_URL"
         value = var.hf_base_url
+      }
+      env {
+        name  = "OLLAMA_BASE_URL"
+        value = "${google_cloud_run_v2_service.ollama_runtime.uri}/v1"
+      }
+      env {
+        name  = "OLLAMA_DEFAULT_MODEL"
+        value = var.ollama_default_model
       }
       env {
         name  = "LLM_MAX_TOKENS"
@@ -171,5 +181,13 @@ resource "google_cloud_run_v2_service_iam_binding" "invoker" {
   name     = google_cloud_run_v2_service.ai_backend.name
   role     = "roles/run.invoker"
   members  = local.cloud_run_invoker_members
+}
+
+resource "google_cloud_run_v2_service_iam_member" "ollama_invoker" {
+  project  = var.project_id
+  location = var.ollama_region
+  name     = google_cloud_run_v2_service.ollama_runtime.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.ai_backend_service_account}"
 }
 

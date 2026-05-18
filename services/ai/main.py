@@ -35,6 +35,8 @@ async def healthz():
 async def ask_data(
     file: UploadFile = File(...),
     user_intent: str = Form(...),
+    llm_provider: str | None = Form(default=None),
+    llm_model: str | None = Form(default=None),
 ):
     if not user_intent.strip():
         raise HTTPException(status_code=400, detail="user_intent is required.")
@@ -48,15 +50,19 @@ async def ask_data(
             tmp_path = tmp.name
 
         schema_info = inspect_data_file(tmp_path)
-        sql = generate_sql_from_intent(
+        sql, resolved_provider, resolved_model = generate_sql_from_intent(
             user_intent=user_intent,
             schema=schema_info["schema"],
             row_count=schema_info["row_count"],
+            llm_provider=llm_provider,
+            llm_model=llm_model,
         )
         query_result = execute_query(tmp_path, sql, max_rows=max_result_rows())
 
         return {
             "user_intent": user_intent,
+            "llm_provider": resolved_provider,
+            "llm_model": resolved_model,
             "generated_sql": sql,
             "schema": schema_info,
             "result": query_result,
