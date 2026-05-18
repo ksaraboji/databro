@@ -2,10 +2,10 @@ project_id                     = "databro-487622"
 environment                    = "prod"
 region                         = "us-east4"
 artifact_registry_location     = "us-east4"
-artifact_registry_repository_id = "databro-ai-repo"
+artifact_registry_repository_id = "databro-prod-ai-repo"
 
 # Can be overridden from CI with TF_VAR_ai_backend_image
-ai_backend_image = "us-east4-docker.pkg.dev/databro-487622/databro-ai-repo/ai-backend:latest"
+ai_backend_image = "us-east4-docker.pkg.dev/databro-487622/databro-prod-ai-repo/ai-backend:latest"
 
 cloud_run_service_name   = "ai-backend"
 cloud_run_ingress        = "INGRESS_TRAFFIC_ALL"
