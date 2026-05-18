@@ -132,12 +132,15 @@ terraform apply -var-file=prod.tfvars -input=false
 
 - Google Artifact Registry Docker repository
 - Cloud Run service for agent backend
+- Ollama GPU-backed Cloud Run runtime for local model serving
 - IAM invoker bindings for Cloud Run
 
 ### Key Outputs
 
 - `artifact_registry_repository_url`
 - `cloud_run_service_uri`
+- `ollama_artifact_registry_repository_url`
+- `ollama_cloud_run_service_uri`
 - `supabase_edge_function_env`
 
 ## State and Environment Conventions

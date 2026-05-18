@@ -21,4 +21,8 @@ hf_base_url     = "https://router.huggingface.co/v1"
 llm_max_tokens  = 1024
 max_result_rows = 200
 
+# Ollama runtime
+ollama_gcs_bucket              = "databro-gcp-ollama-models-bucket"
+ollama_runtime_service_account = "830624303497-compute@developer.gserviceaccount.com"
+
 

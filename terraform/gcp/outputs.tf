@@ -10,12 +10,28 @@ output "artifact_registry_repository_url" {
   value = "${var.artifact_registry_location}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repository_id}"
 }
 
+output "ollama_artifact_registry_repository" {
+  value = google_artifact_registry_repository.ollama_runtime.name
+}
+
+output "ollama_artifact_registry_repository_url" {
+  value = "${var.ollama_artifact_registry_location}-docker.pkg.dev/${var.project_id}/${var.ollama_artifact_registry_repository_id}"
+}
+
 output "cloud_run_service_name" {
   value = google_cloud_run_v2_service.ai_backend.name
 }
 
 output "cloud_run_service_uri" {
   value = google_cloud_run_v2_service.ai_backend.uri
+}
+
+output "ollama_cloud_run_service_name" {
+  value = google_cloud_run_v2_service.ollama_runtime.name
+}
+
+output "ollama_cloud_run_service_uri" {
+  value = google_cloud_run_v2_service.ollama_runtime.uri
 }
 
 output "cloud_run_invoker_service_account_email" {
