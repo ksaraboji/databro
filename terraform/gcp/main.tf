@@ -92,10 +92,10 @@ resource "google_cloud_run_v2_service" "ai_backend" {
 
 }
 
-# Grant the runtime service account read access to the Ollama models bucket
-resource "google_storage_bucket_iam_member" "ollama_models_reader" {
+# Grant the runtime service account read/write access to the Ollama models bucket
+resource "google_storage_bucket_iam_member" "ollama_models_writer" {
   bucket = var.ollama_gcs_bucket
-  role   = "roles/storage.objectViewer"
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${var.ollama_runtime_service_account}"
 }
 
@@ -121,7 +121,7 @@ resource "google_cloud_run_v2_service" "ollama_runtime" {
 
       gcs {
         bucket    = var.ollama_gcs_bucket
-        read_only = true
+        read_only = false
       }
     }
 
@@ -157,7 +157,7 @@ resource "google_cloud_run_v2_service" "ollama_runtime" {
     }
   }
 
-  depends_on = [google_storage_bucket_iam_member.ollama_models_reader]
+  depends_on = [google_storage_bucket_iam_member.ollama_models_writer]
 }
 
 resource "google_cloud_run_v2_service_iam_binding" "invoker" {
