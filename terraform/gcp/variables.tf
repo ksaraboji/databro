@@ -185,6 +185,12 @@ variable "ollama_container_port" {
   default     = 11434
 }
 
+variable "ollama_base_url" {
+  description = "Optional explicit Ollama base URL for ai-backend; falls back to the deployed Ollama service URI when empty"
+  type        = string
+  default     = ""
+}
+
 variable "ollama_gcs_bucket" {
   description = "GCS bucket name containing pre-downloaded Ollama models, mounted via FUSE"
   type        = string
