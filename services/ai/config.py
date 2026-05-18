@@ -1,7 +1,6 @@
 import os
-import logging
-
-logger = logging.getLogger(__name__)
+import urllib.parse
+import urllib.request
 
 SUPPORTED_LLM_PROVIDERS = {"huggingface", "ollama"}
 
@@ -30,6 +29,49 @@ def ollama_base_url() -> str:
     return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
 
+def ollama_audience() -> str:
+    base = ollama_base_url().strip().rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    return base
+
+
+def ollama_api_key() -> str:
+    """Return auth token for Ollama OpenAI-compatible endpoint.
+
+    - Local/default Ollama: static key "ollama"
+    - Cloud Run Ollama URL: mint an identity token from metadata server
+    """
+    base = ollama_base_url().strip().lower()
+    if "localhost" in base or "127.0.0.1" in base:
+        return "ollama"
+
+    audience = ollama_audience()
+    identity_url = (
+        "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity"
+        f"?audience={urllib.parse.quote(audience, safe='')}&format=full"
+    )
+
+    request = urllib.request.Request(
+        identity_url,
+        headers={"Metadata-Flavor": "Google"},
+        method="GET",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            token = response.read().decode("utf-8").strip()
+    except Exception as exc:
+        raise ValueError(
+            f"Failed to mint Cloud Run identity token for Ollama audience '{audience}': {exc}"
+        ) from exc
+
+    if not token:
+        raise ValueError("Metadata server returned empty identity token for Ollama call.")
+
+    return token
+
+
 def ollama_default_model() -> str:
     return os.getenv("OLLAMA_DEFAULT_MODEL", "llama3.2")
 
@@ -39,46 +81,16 @@ def llm_provider_default() -> str:
     return raw if raw in SUPPORTED_LLM_PROVIDERS else "huggingface"
 
 
-def is_ollama_available() -> bool:
-    """Check if OLLAMA_BASE_URL is set and valid."""
-    url = os.getenv("OLLAMA_BASE_URL", "").strip()
-    available = bool(url and url != "http://localhost:11434/v1")
-    logger.info(f"is_ollama_available: url={repr(url[:50] if len(url) > 50 else url)}, available={available}")
-    return available
-
-
 def resolve_llm_selection(llm_provider: str | None, llm_model: str | None) -> tuple[str, str]:
-    logger.info(f"resolve_llm_selection: input provider={repr(llm_provider)}, model={repr(llm_model)}")
-    
     provider = (llm_provider or llm_provider_default()).strip().lower()
-    logger.info(f"  After normalization: provider={repr(provider)}")
-    
     if provider not in SUPPORTED_LLM_PROVIDERS:
         raise ValueError(f"Unsupported llm_provider: {provider}. Allowed: huggingface, ollama")
 
-    # If Ollama was requested but is not available, fallback to HuggingFace
-    if provider == "ollama":
-        ollama_available = is_ollama_available()
-        logger.info(f"  Ollama requested. is_ollama_available()={ollama_available}")
-        if not ollama_available:
-            logger.info(f"  Ollama not available, falling back to huggingface")
-            provider = "huggingface"
-
     if provider == "huggingface":
         model = (llm_model or hf_model_name()).strip()
-        # Guard against stale Ollama model values (e.g. "gemma:e2b") being sent with HF provider.
-        if ":" in model and "/" not in model:
-            logger.info("  Detected Ollama-style model for huggingface provider; using HF default model")
-            model = hf_model_name()
-        logger.info(f"  HuggingFace: model={repr(model)}")
         return provider, model
 
     model = (llm_model or ollama_default_model()).strip()
-    # Guard against stale HuggingFace model values (e.g. "google/gemma-4-31B-it") for Ollama.
-    if "/" in model:
-        logger.info("  Detected HuggingFace-style model for ollama provider; using Ollama default model")
-        model = ollama_default_model()
-    logger.info(f"  Ollama: model={repr(model)}")
     return provider, model
 
 

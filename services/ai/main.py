@@ -39,7 +39,7 @@ async def healthz():
 @app.get("/debug/config")
 async def debug_config():
     """Diagnostic endpoint to check backend configuration."""
-    from config import is_ollama_available, ollama_base_url, hf_base_url, hf_model_name, ollama_default_model, llm_provider_default
+    from config import hf_base_url, hf_model_name, ollama_default_model, llm_provider_default
     
     hf_token_set = bool(os.getenv("HF_API_TOKEN") or os.getenv("HF_TOKEN"))
     ollama_url = os.getenv("OLLAMA_BASE_URL", "")
@@ -53,7 +53,6 @@ async def debug_config():
             "OLLAMA_BASE_URL": ollama_url,
             "OLLAMA_DEFAULT_MODEL": ollama_default_model(),
             "LLM_PROVIDER_DEFAULT": llm_provider_default(),
-            "OLLAMA_AVAILABLE": is_ollama_available(),
         },
         "note": "This endpoint helps debug configuration issues. Remove in production."
     }

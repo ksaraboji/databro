@@ -3,7 +3,7 @@ import logging
 
 from crewai import Agent, Crew, LLM, Process, Task
 
-from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_base_url, resolve_llm_selection
+from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_api_key, ollama_base_url, resolve_llm_selection
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def _build_llm(provider: str, model: str) -> LLM:
         return LLM(
             provider="openai",
             model=model,
-            api_key="ollama",
+            api_key=ollama_api_key(),
             base_url=base_url,
             temperature=0,
             max_tokens=llm_max_tokens(),

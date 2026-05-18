@@ -67,9 +67,7 @@ type ModelOption = {
 
 const providerModelOptions: Record<LlmProvider, ModelOption[]> = {
   huggingface: [
-    { value: "google/gemma-4-E2B-it", label: "Gemma 4 E2B Instruct" },
     { value: "google/gemma-4-31B-it", label: "Gemma 4 31B Instruct" },
-    { value: "google/gemma-4-E4B-it", label: "Gemma 4 E4B Instruct" },
     { value: "google/gemma-4-26B-A4B-it", label: "Gemma 4 26B A4B Instruct" },
   ],
   ollama: [
@@ -194,15 +192,10 @@ export default function AiDataChatPage() {
         return;
       }
 
-      const providerModels = providerModelOptions[selectedProvider];
-      const effectiveModel = providerModels.some((model) => model.value === selectedModel)
-        ? selectedModel
-        : providerModels[0].value;
-
       const formData = new FormData();
       formData.append("user_intent", trimmed);
       formData.append("llm_provider", selectedProvider);
-      formData.append("llm_model", effectiveModel);
+      formData.append("llm_model", selectedModel);
       files.forEach((entry) => {
         formData.append("file", entry.file, entry.file.name);
       });
@@ -526,11 +519,7 @@ export default function AiDataChatPage() {
                 <select
                   id="llm-provider"
                   value={selectedProvider}
-                  onChange={(event) => {
-                    const nextProvider = event.target.value as LlmProvider;
-                    setSelectedProvider(nextProvider);
-                    setSelectedModel(providerModelOptions[nextProvider][0].value);
-                  }}
+                  onChange={(event) => setSelectedProvider(event.target.value as LlmProvider)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value="huggingface">Hugging Face</option>
