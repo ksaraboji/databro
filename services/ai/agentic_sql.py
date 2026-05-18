@@ -1,8 +1,11 @@
 import re
+import logging
 
 from crewai import Agent, Crew, LLM, Process, Task
 
 from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_base_url, resolve_llm_selection
+
+logger = logging.getLogger(__name__)
 
 
 FORBIDDEN_SQL_KEYWORDS = {
@@ -20,20 +23,24 @@ FORBIDDEN_SQL_KEYWORDS = {
 
 def _build_llm(provider: str, model: str) -> LLM:
     if provider == "ollama":
+        base_url = ollama_base_url()
+        logger.info(f"Creating Ollama LLM with model={model}, base_url={base_url}")
         return LLM(
             provider="openai",
             model=model,
             api_key="ollama",
-            base_url=ollama_base_url(),
+            base_url=base_url,
             temperature=0,
             max_tokens=llm_max_tokens(),
         )
 
+    base_url = hf_base_url()
+    logger.info(f"Creating HuggingFace LLM with model={model}, base_url={base_url}")
     return LLM(
         provider="openai",
         model=model,
         api_key=hf_api_token(),
-        base_url=hf_base_url(),
+        base_url=base_url,
         temperature=0,
         max_tokens=llm_max_tokens(),
     )
@@ -84,11 +91,27 @@ def generate_sql_from_intent(
     llm_provider: str | None = None,
     llm_model: str | None = None,
 ) -> tuple[str, str, str]:
-    provider, model = resolve_llm_selection(llm_provider, llm_model)
+    logger.info(f"=== generate_sql_from_intent START ===")
+    logger.info(f"  Input: provider={repr(llm_provider)}, model={repr(llm_model)}")
+    
+    try:
+        provider, model = resolve_llm_selection(llm_provider, llm_model)
+        logger.info(f"  Resolved: provider={provider}, model={model}")
+    except Exception as e:
+        logger.error(f"  ERROR in resolve_llm_selection: {e}")
+        raise
+    
+    logger.info(f"Resolved LLM selection: provider={provider}, model={model} (requested: provider={llm_provider}, model={llm_model})")
+    
     if provider == "huggingface" and not llm_model:
         model = hf_model_name()
+        logger.info(f"  Using default HF model: {model}")
 
-    llm = _build_llm(provider, model)
+    try:
+        llm = _build_llm(provider, model)
+    except Exception as e:
+        logger.error(f"  ERROR building LLM: {e}", exc_info=True)
+        raise ValueError(f"Failed to initialize {provider} LLM: {e}") from e
 
     agent = Agent(
         role="DuckDB SQL Planner",
@@ -120,6 +143,14 @@ def generate_sql_from_intent(
     )
 
     crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
-    result = crew.kickoff()
+    logger.info(f"Executing crew to generate SQL...")
+    try:
+        result = crew.kickoff()
+    except Exception as e:
+        logger.error(f"  ERROR in crew.kickoff: {e}", exc_info=True)
+        raise ValueError(f"LLM call failed: {e}") from e
+    
     sql = _extract_sql(str(result))
+    logger.info(f"Generated and validated SQL: {sql[:150]}...")
+    logger.info(f"=== generate_sql_from_intent END ===")
     return _validate_sql(sql), provider, model
