@@ -23,6 +23,7 @@ llm_max_tokens  = 1024
 max_result_rows = 200
 
 # Ollama runtime
+ollama_base_url                 = "https://ollama-runtime-830624303497.us-east4.run.app"
 ollama_gcs_bucket              = "databro-gcp-ollama-models-bucket"
 ollama_runtime_service_account = "830624303497-compute@developer.gserviceaccount.com"
 ollama_min_instances           = 1
