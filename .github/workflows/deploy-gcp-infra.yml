@@ -150,6 +150,22 @@ jobs:
         id: init
         run: terraform init -backend-config=backend-dev.hcl
 
+      - name: Import existing Artifact Registry repos (dev)
+        run: |
+          AI_REPO_ID="$(grep -E '^artifact_registry_repository_id\s*=\s*"' dev.tfvars | head -n1 | cut -d'"' -f2)"
+
+          if ! terraform state show google_artifact_registry_repository.ai_backend >/dev/null 2>&1; then
+            if [[ -n "$AI_REPO_ID" ]] && gcloud artifacts repositories describe "$AI_REPO_ID" --location "us-east4" --project "${{ secrets.GCP_PROJECT_ID_DEV }}" >/dev/null 2>&1; then
+              terraform import google_artifact_registry_repository.ai_backend "projects/${{ secrets.GCP_PROJECT_ID_DEV }}/locations/us-east4/repositories/$AI_REPO_ID" || true
+            fi
+          fi
+
+          if ! terraform state show google_artifact_registry_repository.ollama_runtime >/dev/null 2>&1; then
+            if gcloud artifacts repositories describe "ollama-runtime" --location "us-east4" --project "${{ secrets.GCP_PROJECT_ID_DEV }}" >/dev/null 2>&1; then
+              terraform import google_artifact_registry_repository.ollama_runtime "projects/${{ secrets.GCP_PROJECT_ID_DEV }}/locations/us-east4/repositories/ollama-runtime" || true
+            fi
+          fi
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
@@ -245,6 +261,22 @@ jobs:
       - name: Terraform Init
         id: init
         run: terraform init -backend-config=backend-prod.hcl
+
+      - name: Import existing Artifact Registry repos (prod)
+        run: |
+          AI_REPO_ID="$(grep -E '^artifact_registry_repository_id\s*=\s*"' prod.tfvars | head -n1 | cut -d'"' -f2)"
+
+          if ! terraform state show google_artifact_registry_repository.ai_backend >/dev/null 2>&1; then
+            if [[ -n "$AI_REPO_ID" ]] && gcloud artifacts repositories describe "$AI_REPO_ID" --location "us-east4" --project "${{ secrets.GCP_PROJECT_ID_PROD }}" >/dev/null 2>&1; then
+              terraform import google_artifact_registry_repository.ai_backend "projects/${{ secrets.GCP_PROJECT_ID_PROD }}/locations/us-east4/repositories/$AI_REPO_ID" || true
+            fi
+          fi
+
+          if ! terraform state show google_artifact_registry_repository.ollama_runtime >/dev/null 2>&1; then
+            if gcloud artifacts repositories describe "ollama-runtime" --location "us-east4" --project "${{ secrets.GCP_PROJECT_ID_PROD }}" >/dev/null 2>&1; then
+              terraform import google_artifact_registry_repository.ollama_runtime "projects/${{ secrets.GCP_PROJECT_ID_PROD }}/locations/us-east4/repositories/ollama-runtime" || true
+            fi
+          fi
 
       - name: Terraform Validate
         id: validate
