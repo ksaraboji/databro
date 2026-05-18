@@ -3,7 +3,7 @@ output "project_id" {
 }
 
 output "artifact_registry_repository" {
-  value = google_artifact_registry_repository.ai_backend.name
+  value = var.artifact_registry_repository_id
 }
 
 output "artifact_registry_repository_url" {
@@ -11,7 +11,7 @@ output "artifact_registry_repository_url" {
 }
 
 output "ollama_artifact_registry_repository" {
-  value = google_artifact_registry_repository.ollama_runtime.name
+  value = var.ollama_artifact_registry_repository_id
 }
 
 output "ollama_artifact_registry_repository_url" {

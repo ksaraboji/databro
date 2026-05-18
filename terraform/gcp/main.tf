@@ -26,20 +26,6 @@ locals {
   cloud_run_invoker_members = length(var.cloud_run_invoker_members) > 0 ? var.cloud_run_invoker_members : ["serviceAccount:${google_service_account.cloudrun_invoker.email}"]
 }
 
-resource "google_artifact_registry_repository" "ai_backend" {
-  location      = var.artifact_registry_location
-  repository_id = var.artifact_registry_repository_id
-  description   = "Docker images for Databro ai backend"
-  format        = "DOCKER"
-}
-
-resource "google_artifact_registry_repository" "ollama_runtime" {
-  location      = var.ollama_artifact_registry_location
-  repository_id = var.ollama_artifact_registry_repository_id
-  description   = "Docker images for Databro Ollama runtime"
-  format        = "DOCKER"
-}
-
 resource "google_cloud_run_v2_service" "ai_backend" {
   name     = var.cloud_run_service_name
   location = var.region
@@ -121,10 +107,7 @@ resource "google_cloud_run_v2_service" "ollama_runtime" {
 
   template {
     timeout = "${var.ollama_timeout_seconds}s"
-
-    annotations = {
-      "run.googleapis.com/gpu-zonal-redundancy-disabled" = "true"
-    }
+    gpu_zonal_redundancy_disabled = true
 
     service_account = var.ollama_runtime_service_account
 
