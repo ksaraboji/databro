@@ -122,6 +122,10 @@ resource "google_cloud_run_v2_service" "ollama_runtime" {
   template {
     timeout = "${var.ollama_timeout_seconds}s"
 
+    annotations = {
+      "run.googleapis.com/gpu-zonal-redundancy-disabled" = "true"
+    }
+
     service_account = var.ollama_runtime_service_account
 
     scaling {
