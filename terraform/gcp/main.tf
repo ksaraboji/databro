@@ -33,6 +33,13 @@ resource "google_artifact_registry_repository" "ai_backend" {
   format        = "DOCKER"
 }
 
+resource "google_artifact_registry_repository" "ollama_runtime" {
+  location      = var.ollama_artifact_registry_location
+  repository_id = var.ollama_artifact_registry_repository_id
+  description   = "Docker images for Databro Ollama runtime"
+  format        = "DOCKER"
+}
+
 resource "google_cloud_run_v2_service" "ai_backend" {
   name     = var.cloud_run_service_name
   location = var.region
@@ -87,6 +94,73 @@ resource "google_cloud_run_v2_service" "ai_backend" {
     }
   }
 
+}
+
+# Grant the runtime service account read access to the Ollama models bucket
+resource "google_storage_bucket_iam_member" "ollama_models_reader" {
+  bucket = var.ollama_gcs_bucket
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${var.ollama_runtime_service_account}"
+}
+
+resource "google_cloud_run_v2_service" "ollama_runtime" {
+  name     = var.ollama_service_name
+  location = var.ollama_region
+
+  ingress = var.ollama_ingress
+
+  template {
+    timeout = "${var.ollama_timeout_seconds}s"
+
+    service_account = var.ollama_runtime_service_account
+
+    scaling {
+      min_instance_count = var.ollama_min_instances
+      max_instance_count = var.ollama_max_instances
+    }
+
+    volumes {
+      name = "ollama-gcs-models"
+
+      gcs {
+        bucket    = var.ollama_gcs_bucket
+        read_only = true
+      }
+    }
+
+    containers {
+      image = var.ollama_image
+
+      ports {
+        container_port = var.ollama_container_port
+      }
+
+      volume_mounts {
+        name       = "ollama-gcs-models"
+        mount_path = "/gcs-models"
+      }
+
+      resources {
+        limits = {
+          cpu              = tostring(var.ollama_cpu)
+          memory           = var.ollama_memory
+          "nvidia.com/gpu" = tostring(var.ollama_gpu_count)
+        }
+      }
+
+      env {
+        name  = "OLLAMA_HOST"
+        value = "0.0.0.0:${var.ollama_container_port}"
+      }
+
+      env {
+        name  = "OLLAMA_MODELS"
+        value = "/gcs-models"
+      }
+    }
+  }
+
+  depends_on = [google_storage_bucket_iam_member.ollama_models_reader]
 }
 
 resource "google_cloud_run_v2_service_iam_binding" "invoker" {
