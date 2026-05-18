@@ -177,6 +177,8 @@ export function createAskDataHandler(config: AskDataFunctionConfig) {
     const incomingFormData = await request.formData();
     const file = incomingFormData.get('file');
     const userIntent = incomingFormData.get('user_intent');
+    const llmProvider = incomingFormData.get('llm_provider');
+    const llmModel = incomingFormData.get('llm_model');
 
     if (!(file instanceof File)) {
       return jsonResponse({ error: 'file is required.' }, 400);
@@ -189,6 +191,12 @@ export function createAskDataHandler(config: AskDataFunctionConfig) {
     const forwardFormData = new FormData();
     forwardFormData.append('file', file, file.name);
     forwardFormData.append('user_intent', userIntent);
+    if (typeof llmProvider === 'string' && llmProvider.trim()) {
+      forwardFormData.append('llm_provider', llmProvider.trim());
+    }
+    if (typeof llmModel === 'string' && llmModel.trim()) {
+      forwardFormData.append('llm_model', llmModel.trim());
+    }
 
     const idToken = await mintCloudRunIdToken(cloudRunAudience, serviceAccountKey);
 

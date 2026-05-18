@@ -2,7 +2,7 @@ import re
 
 from crewai import Agent, Crew, LLM, Process, Task
 
-from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens
+from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_base_url, resolve_llm_selection
 
 
 FORBIDDEN_SQL_KEYWORDS = {
@@ -18,10 +18,20 @@ FORBIDDEN_SQL_KEYWORDS = {
 }
 
 
-def _build_llm() -> LLM:
+def _build_llm(provider: str, model: str) -> LLM:
+    if provider == "ollama":
+        return LLM(
+            provider="openai",
+            model=model,
+            api_key="ollama",
+            base_url=ollama_base_url(),
+            temperature=0,
+            max_tokens=llm_max_tokens(),
+        )
+
     return LLM(
         provider="openai",
-        model=hf_model_name(),
+        model=model,
         api_key=hf_api_token(),
         base_url=hf_base_url(),
         temperature=0,
@@ -67,8 +77,18 @@ def _validate_sql(sql: str) -> str:
     return normalized
 
 
-def generate_sql_from_intent(user_intent: str, schema: list[dict], row_count: int) -> str:
-    llm = _build_llm()
+def generate_sql_from_intent(
+    user_intent: str,
+    schema: list[dict],
+    row_count: int,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+) -> tuple[str, str, str]:
+    provider, model = resolve_llm_selection(llm_provider, llm_model)
+    if provider == "huggingface" and not llm_model:
+        model = hf_model_name()
+
+    llm = _build_llm(provider, model)
 
     agent = Agent(
         role="DuckDB SQL Planner",
@@ -102,4 +122,4 @@ def generate_sql_from_intent(user_intent: str, schema: list[dict], row_count: in
     crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
     result = crew.kickoff()
     sql = _extract_sql(str(result))
-    return _validate_sql(sql)
+    return _validate_sql(sql), provider, model
