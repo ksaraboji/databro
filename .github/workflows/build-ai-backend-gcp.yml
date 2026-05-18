@@ -68,41 +68,17 @@ jobs:
             echo "Repository '$REPO_ID' already exists."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Repository '$REPO_ID' not found. It will be created via Terraform."
+            echo "Repository '$REPO_ID' not found. It will be created by this workflow."
           fi
 
-      - name: Setup Terraform
+      - name: Create Artifact Registry repository
         if: steps.repo-check.outputs.exists == 'false'
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: latest
-
-      - name: Terraform Init (gcp)
-        if: steps.repo-check.outputs.exists == 'false'
-        working-directory: terraform/gcp
         run: |
-          if [[ "$ENV_NAME" == "prod" ]]; then
-            terraform init -backend-config=backend-prod.hcl
-          else
-            terraform init -backend-config=backend-dev.hcl
-          fi
-
-      - name: Terraform Apply Artifact Registry repository
-        if: steps.repo-check.outputs.exists == 'false'
-        working-directory: terraform/gcp
-        run: |
-          if [[ "$ENV_NAME" == "prod" ]]; then
-            terraform apply -var-file=prod.tfvars \
-              -var="project_id=${GCP_PROJECT_ID}" \
-              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
-              -target="google_artifact_registry_repository.ai_backend" \
-              -no-color -auto-approve -input=false
-          else
-            terraform apply -var-file=dev.tfvars \
-              -var="project_id=${GCP_PROJECT_ID}" \
-              -var="artifact_registry_repository_id=${{ steps.repo-check.outputs.repo_id }}" \
-              -target="google_artifact_registry_repository.ai_backend" \
-              -no-color -auto-approve -input=false
+          if [[ "${{ steps.repo-check.outputs.exists }}" == "false" ]]; then
+            gcloud artifacts repositories create "${{ steps.repo-check.outputs.repo_id }}" \
+              --repository-format=docker \
+              --location="$GCP_REGION" \
+              --description="Docker repository for the Databro AI backend"
           fi
 
       - name: Set image tags
