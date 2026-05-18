@@ -26,7 +26,7 @@ def hf_base_url() -> str:
 
 
 def ollama_base_url() -> str:
-    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 def ollama_audience() -> str:

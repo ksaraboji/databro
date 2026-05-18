@@ -73,7 +73,7 @@ resource "google_cloud_run_v2_service" "ai_backend" {
       }
       env {
         name  = "OLLAMA_BASE_URL"
-        value = "${google_cloud_run_v2_service.ollama_runtime.uri}/v1"
+        value = google_cloud_run_v2_service.ollama_runtime.uri
       }
       env {
         name  = "OLLAMA_DEFAULT_MODEL"

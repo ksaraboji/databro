@@ -26,7 +26,7 @@ def _build_llm(provider: str, model: str) -> LLM:
         base_url = ollama_base_url()
         logger.info(f"Creating Ollama LLM with model={model}, base_url={base_url}")
         return LLM(
-            provider="openai",
+            provider="ollama",
             model=model,
             api_key=ollama_api_key(),
             base_url=base_url,
