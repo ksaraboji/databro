@@ -98,3 +98,4 @@ resource "google_cloud_run_v2_service_iam_binding" "invoker" {
   role     = "roles/run.invoker"
   members  = local.cloud_run_invoker_members
 }
+
