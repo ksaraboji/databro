@@ -89,7 +89,7 @@ async def ask_data(
         
         logger.info(f"Calling generate_sql_from_intent with provider={repr(llm_provider)}, model={repr(llm_model)}")
         try:
-            sql, resolved_provider, resolved_model = generate_sql_from_intent(
+            sql, resolved_provider, resolved_model = await generate_sql_from_intent(
                 user_intent=user_intent,
                 schema=schema_info["schema"],
                 row_count=schema_info["row_count"],
