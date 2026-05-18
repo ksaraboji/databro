@@ -84,7 +84,7 @@ def _validate_sql(sql: str) -> str:
     return normalized
 
 
-def generate_sql_from_intent(
+async def generate_sql_from_intent(
     user_intent: str,
     schema: list[dict],
     row_count: int,
@@ -145,9 +145,9 @@ def generate_sql_from_intent(
     crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
     logger.info(f"Executing crew to generate SQL...")
     try:
-        result = crew.kickoff()
+        result = await crew.kickoff_async()
     except Exception as e:
-        logger.error(f"  ERROR in crew.kickoff: {e}", exc_info=True)
+        logger.error(f"  ERROR in crew.kickoff_async: {e}", exc_info=True)
         raise ValueError(f"LLM call failed: {e}") from e
     
     sql = _extract_sql(str(result))
