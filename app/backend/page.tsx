@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Construction, Table2 } from "lucide-react";
+import { ArrowLeft, Table2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
@@ -32,7 +32,7 @@ const backendFeatures: Category[] = [
         icon: <Table2 className="w-8 h-8 text-indigo-600" />,
         href: "/backend/ai-data-chat",
         color: "bg-indigo-50 hover:bg-indigo-100",
-        status: "building",
+        status: "live",
       },
     ],
   },
@@ -84,57 +84,51 @@ export default function BackendPage() {
               </motion.div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {category.features.length > 0 ? (
-                  category.features.map((feature, index) => (
-                    <Link key={feature.name} href={feature.href} className="block h-full">
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: index * 0.05 }}
-                        className={cn(
-                          "h-full p-6 pb-20 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] group relative overflow-hidden",
-                          feature.color
-                        )}
-                      >
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex justify-between items-start">
-                             <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
-                               {feature.icon}
-                             </div>
+                {category.features.map((feature, index) => (
+                  <Link key={feature.name} href={feature.href} className="block h-full">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.05 }}
+                      className={cn(
+                        "h-full p-6 pb-20 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02] group relative overflow-hidden",
+                        feature.color
+                      )}
+                    >
+                      <div className="relative z-10 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
+                            {feature.icon}
                           </div>
-                          
-                          <div>
-                            <h3 className="text-xl font-bold text-slate-900">
-                              {feature.name}
-                            </h3>
-                            <p className="text-slate-600 mt-2 text-sm leading-relaxed">
-                              {feature.description}
-                            </p>
-                          </div>
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]",
+                              feature.status === "live"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : feature.status === "building"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-slate-100 text-slate-500"
+                            )}
+                          >
+                            {feature.status}
+                          </span>
                         </div>
 
-                        {/* Decorative background element */}
-                        <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/40 rounded-full blur-2xl group-hover:bg-white/60 transition-colors" />
-                      </motion.div>
-                    </Link>
-                  ))
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }} 
-                    className="col-span-1 p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 flex flex-col items-center justify-center text-center gap-3 h-48"
-                  >
-                    <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
-                        <Construction className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-slate-900 font-medium">Coming Soon</p>
-                        <p className="text-slate-500 text-sm">More services are being deployed.</p>
-                    </div>
-                  </motion.div>
-                )}
+                        <div>
+                          <h3 className="text-xl font-bold text-slate-900">
+                            {feature.name}
+                          </h3>
+                          <p className="text-slate-600 mt-2 text-sm leading-relaxed">
+                            {feature.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/40 rounded-full blur-2xl group-hover:bg-white/60 transition-colors" />
+                    </motion.div>
+                  </Link>
+                ))}
               </div>
             </section>
           ))}
