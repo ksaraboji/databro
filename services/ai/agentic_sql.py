@@ -24,7 +24,7 @@ FORBIDDEN_SQL_KEYWORDS = {
 def _build_llm(provider: str, model: str) -> LLM:
     if provider == "ollama":
         base_url = ollama_base_url()
-        model_name = model if model.startswith("ollama/") else f"ollama/{model}"
+        model_name = model.removeprefix("ollama/")
         logger.info(f"Creating Ollama LLM with model={model_name}, base_url={base_url}")
         return LLM(
             provider="ollama",
