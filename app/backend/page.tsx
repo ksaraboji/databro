@@ -12,7 +12,6 @@ type Feature = {
   icon: React.ReactNode;
   href: string;
   color: string;
-  status: "live" | "building" | "planned";
 };
 
 type Category = {
@@ -32,7 +31,6 @@ const backendFeatures: Category[] = [
         icon: <Table2 className="w-8 h-8 text-indigo-600" />,
         href: "/backend/ai-data-chat",
         color: "bg-indigo-50 hover:bg-indigo-100",
-        status: "live",
       },
     ],
   },
@@ -101,17 +99,8 @@ export default function BackendPage() {
                           <div className="bg-white w-fit p-3 rounded-xl shadow-sm border border-slate-100">
                             {feature.icon}
                           </div>
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]",
-                              feature.status === "live"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : feature.status === "building"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-slate-100 text-slate-500"
-                            )}
-                          >
-                            {feature.status}
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-800">
+                            Agentic
                           </span>
                         </div>
 
