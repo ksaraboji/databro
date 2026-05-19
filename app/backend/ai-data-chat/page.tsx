@@ -157,6 +157,7 @@ export default function AiDataChatPage() {
     const trimmed = value.trim();
     if (!trimmed || isThinking) return;
 
+    setPrompt("");
     setIsThinking(true);
 
     const userMessage: ChatMessage = {
@@ -233,7 +234,6 @@ export default function AiDataChatPage() {
           result: successPayload.result,
         },
       ]);
-      setPrompt("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown edge function error.";
       setMessages((current) => [
@@ -272,6 +272,20 @@ export default function AiDataChatPage() {
             <p className="max-w-3xl text-lg leading-relaxed text-slate-600 md:text-xl">
               Upload a CSV, Excel, Parquet, JSON, or Arrow file, ask a question in natural language, and get a direct answer from the backend.
             </p>
+
+            <div className="inline-flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:gap-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                Agentic stack
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-700">
+                  CrewAI
+                </span>
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
+                  Google Cloud
+                </span>
+              </div>
+            </div>
           </motion.div>
         </header>
 
