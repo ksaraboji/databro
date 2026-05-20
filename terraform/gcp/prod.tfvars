@@ -24,5 +24,5 @@ max_result_rows = 200
 
 # Ollama runtime
 ollama_base_url                 = "https://ollama-runtime-489232030694.us-east4.run.app"
-ollama_gcs_bucket              = "databro-prod-ollama-models-bucket"
+ollama_gcs_bucket              = "databro-prod-gcp-ollama-models-bucket"
 ollama_runtime_service_account = "489232030694-compute@developer.gserviceaccount.com"
