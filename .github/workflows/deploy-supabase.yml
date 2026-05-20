@@ -11,3 +11,4 @@ jobs:
   deploy:
     uses: ./.github/workflows/deploy-supabase-runner.yml
     secrets: inherit
+

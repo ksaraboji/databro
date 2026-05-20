@@ -26,13 +26,6 @@ locals {
   cloud_run_invoker_members = length(var.cloud_run_invoker_members) > 0 ? var.cloud_run_invoker_members : ["serviceAccount:${google_service_account.cloudrun_invoker.email}"]
 }
 
-resource "google_artifact_registry_repository" "ai_backend" {
-  location      = var.artifact_registry_location
-  repository_id = var.artifact_registry_repository_id
-  description   = "Docker images for Databro ai backend"
-  format        = "DOCKER"
-}
-
 resource "google_cloud_run_v2_service" "ai_backend" {
   name     = var.cloud_run_service_name
   location = var.region
@@ -41,6 +34,8 @@ resource "google_cloud_run_v2_service" "ai_backend" {
 
   template {
     timeout = "${var.cloud_run_timeout_seconds}s"
+
+    service_account = var.ai_backend_service_account
 
     scaling {
       min_instance_count = var.cloud_run_min_instances
@@ -77,6 +72,14 @@ resource "google_cloud_run_v2_service" "ai_backend" {
         value = var.hf_base_url
       }
       env {
+        name  = "OLLAMA_BASE_URL"
+        value = var.ollama_base_url != "" ? var.ollama_base_url : google_cloud_run_v2_service.ollama_runtime.uri
+      }
+      env {
+        name  = "OLLAMA_DEFAULT_MODEL"
+        value = var.ollama_default_model
+      }
+      env {
         name  = "LLM_MAX_TOKENS"
         value = tostring(var.llm_max_tokens)
       }
@@ -89,6 +92,74 @@ resource "google_cloud_run_v2_service" "ai_backend" {
 
 }
 
+# Grant the runtime service account read/write access to the Ollama models bucket
+resource "google_storage_bucket_iam_member" "ollama_models_writer" {
+  bucket = var.ollama_gcs_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.ollama_runtime_service_account}"
+}
+
+resource "google_cloud_run_v2_service" "ollama_runtime" {
+  name     = var.ollama_service_name
+  location = var.ollama_region
+
+  ingress = var.ollama_ingress
+
+  template {
+    timeout = "${var.ollama_timeout_seconds}s"
+    gpu_zonal_redundancy_disabled = true
+
+    service_account = var.ollama_runtime_service_account
+
+    scaling {
+      min_instance_count = var.ollama_min_instances
+      max_instance_count = var.ollama_max_instances
+    }
+
+    volumes {
+      name = "ollama-gcs-models"
+
+      gcs {
+        bucket    = var.ollama_gcs_bucket
+        read_only = false
+      }
+    }
+
+    containers {
+      image = var.ollama_image
+
+      ports {
+        container_port = var.ollama_container_port
+      }
+
+      volume_mounts {
+        name       = "ollama-gcs-models"
+        mount_path = "/gcs-models"
+      }
+
+      resources {
+        limits = {
+          cpu              = tostring(var.ollama_cpu)
+          memory           = var.ollama_memory
+          "nvidia.com/gpu" = tostring(var.ollama_gpu_count)
+        }
+      }
+
+      env {
+        name  = "OLLAMA_HOST"
+        value = "0.0.0.0:${var.ollama_container_port}"
+      }
+
+      env {
+        name  = "OLLAMA_MODELS"
+        value = "/gcs-models"
+      }
+    }
+  }
+
+  depends_on = [google_storage_bucket_iam_member.ollama_models_writer]
+}
+
 resource "google_cloud_run_v2_service_iam_binding" "invoker" {
   count = length(local.cloud_run_invoker_members) > 0 ? 1 : 0
 
@@ -99,3 +170,10 @@ resource "google_cloud_run_v2_service_iam_binding" "invoker" {
   members  = local.cloud_run_invoker_members
 }
 
+resource "google_cloud_run_v2_service_iam_member" "ollama_invoker" {
+  project  = var.project_id
+  location = var.ollama_region
+  name     = google_cloud_run_v2_service.ollama_runtime.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.ai_backend_service_account}"
+}

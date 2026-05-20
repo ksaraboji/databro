@@ -10,6 +10,7 @@ ai_backend_image = "us-east4-docker.pkg.dev/databro-dev/databro-dev-ai-repo/ai-b
 cloud_run_service_name   = "ai-backend"
 cloud_run_ingress        = "INGRESS_TRAFFIC_ALL"
 cloud_run_invoker_members = []
+ai_backend_service_account = "830624303497-compute@developer.gserviceaccount.com"
 cloud_run_min_instances  = 0
 cloud_run_max_instances  = 3
 cloud_run_timeout_seconds = 300
@@ -20,5 +21,11 @@ hf_model_name   = "google/gemma-4-31B-it"
 hf_base_url     = "https://router.huggingface.co/v1"
 llm_max_tokens  = 1024
 max_result_rows = 200
+
+# Ollama runtime
+ollama_base_url                 = "https://ollama-runtime-830624303497.us-east4.run.app"
+ollama_gcs_bucket              = "databro-gcp-ollama-models-bucket"
+ollama_runtime_service_account = "830624303497-compute@developer.gserviceaccount.com"
+ollama_min_instances           = 0
 
 

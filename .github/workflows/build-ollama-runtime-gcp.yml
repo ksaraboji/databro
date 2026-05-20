@@ -1,17 +1,18 @@
-name: Build and Push AI Backend (GCP)
+name: Build and Push Ollama Runtime (GCP)
 
-'on':
+on:
   push:
     branches:
       - main
       - develop
     paths:
-      - "services/ai/**"
-      - ".github/workflows/build-ai-backend-gcp.yml"
+      - "services/ollama/**"
+      - ".github/workflows/build-ollama-runtime-gcp.yml"
+      - "terraform/gcp/**"
   workflow_dispatch: {}
 
 jobs:
-  build-push-and-apply:
+  build-push-ollama:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -61,7 +62,7 @@ jobs:
       - name: Check Artifact Registry repository
         id: repo-check
         run: |
-          REPO_ID="databro-${ENV_NAME}-ai-repo"
+          REPO_ID="ollama-runtime"
           echo "repo_id=$REPO_ID" >> "$GITHUB_OUTPUT"
           if gcloud artifacts repositories describe "$REPO_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -78,42 +79,23 @@ jobs:
             gcloud artifacts repositories create "${{ steps.repo-check.outputs.repo_id }}" \
               --repository-format=docker \
               --location="$GCP_REGION" \
-              --description="Docker repository for the Databro AI backend"
+              --description="Docker repository for the Databro Ollama runtime"
           fi
 
       - name: Set image tags
         id: image-tags
         run: |
-          IMAGE_SHA="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/databro-${ENV_NAME}-ai-repo/ai-backend:${GITHUB_SHA}"
-          IMAGE_LATEST="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/databro-${ENV_NAME}-ai-repo/ai-backend:latest"
+          IMAGE_SHA="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${{ steps.repo-check.outputs.repo_id }}/ollama-runtime:${GITHUB_SHA}"
+          IMAGE_LATEST="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${{ steps.repo-check.outputs.repo_id }}/ollama-runtime:latest"
           echo "image_sha=$IMAGE_SHA" >> $GITHUB_OUTPUT
           echo "image_latest=$IMAGE_LATEST" >> $GITHUB_OUTPUT
           echo "IMAGE_SHA=$IMAGE_SHA" >> $GITHUB_ENV
 
-      - name: Delete previous ai-backend images
-        run: |
-          REPO_ID="${{ steps.repo-check.outputs.repo_id }}"
-          PACKAGE_NAME="ai-backend"
-
-          if gcloud artifacts packages describe "$PACKAGE_NAME" \
-            --project="$GCP_PROJECT_ID" \
-            --location="$GCP_REGION" \
-            --repository="$REPO_ID" >/dev/null 2>&1; then
-            echo "Deleting existing package '$PACKAGE_NAME' from '$REPO_ID'."
-            gcloud artifacts packages delete "$PACKAGE_NAME" \
-              --project="$GCP_PROJECT_ID" \
-              --location="$GCP_REGION" \
-              --repository="$REPO_ID" \
-              --quiet
-          else
-            echo "No existing ai-backend images found to delete."
-          fi
-
-      - name: Build and Push Docker image
+      - name: Build and Push Ollama Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./services/ai/Dockerfile
+          file: ./services/ollama/Dockerfile
           push: true
           tags: |
             ${{ steps.image-tags.outputs.image_latest }}
@@ -121,7 +103,8 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "## ✅ GCP AI Backend Image Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ GCP Ollama Runtime Image Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "- Environment: $ENV_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- Project: $GCP_PROJECT_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository: ${{ steps.repo-check.outputs.repo_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- Image: $IMAGE_SHA" >> $GITHUB_STEP_SUMMARY

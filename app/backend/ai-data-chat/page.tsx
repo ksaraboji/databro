@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -32,6 +32,8 @@ type ChatMessage = {
 
 type AskDataResponse = {
   user_intent: string;
+  llm_provider?: "huggingface" | "ollama";
+  llm_model?: string;
   generated_sql: string;
   schema: {
     file_type: string;
@@ -56,6 +58,25 @@ const starterPrompts = [
   "Find duplicates and outliers",
 ];
 
+type LlmProvider = "huggingface" | "ollama";
+
+type ModelOption = {
+  value: string;
+  label: string;
+};
+
+const providerModelOptions: Record<LlmProvider, ModelOption[]> = {
+  huggingface: [
+    { value: "google/gemma-4-31B-it", label: "Gemma 4 31B Instruct" },
+    { value: "google/gemma-4-26B-A4B-it", label: "Gemma 4 26B A4B Instruct" },
+  ],
+  ollama: [
+    { value: "gemma:e2b", label: "Gemma E2B" },
+    { value: "gemma4:latest", label: "Gemma 4 Latest" },
+    { value: "gemma4:e4b", label: "Gemma 4 E4B" },
+  ],
+};
+
 function getTypeLabel(fileName: string) {
   const lower = fileName.toLowerCase();
   if (lower.endsWith(".csv")) return "CSV";
@@ -71,9 +92,12 @@ function formatAssistantMessage(response: AskDataResponse) {
   const rowCount = response.schema.row_count;
   const returnedRows = response.result.returned_rows;
   const totalRows = response.result.row_count;
+  const modelNote = response.llm_provider && response.llm_model
+    ? ` Using ${response.llm_provider} (${response.llm_model}).`
+    : "";
   const truncationNote = response.result.truncated ? " The result was truncated to the configured maximum rows." : "";
 
-  return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${truncationNote}`;
+  return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${modelNote}${truncationNote}`;
 }
 
 function formatCellValue(value: unknown) {
@@ -100,7 +124,17 @@ export default function AiDataChatPage() {
   ]);
   const [prompt, setPrompt] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("ollama");
+  const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.ollama[0].value);
   const edgeFunctionBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL;
+
+  const availableModels = useMemo(() => providerModelOptions[selectedProvider], [selectedProvider]);
+
+  useEffect(() => {
+    if (!availableModels.some((model) => model.value === selectedModel)) {
+      setSelectedModel(availableModels[0].value);
+    }
+  }, [availableModels, selectedModel]);
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming || incoming.length === 0) return;
@@ -123,6 +157,7 @@ export default function AiDataChatPage() {
     const trimmed = value.trim();
     if (!trimmed || isThinking) return;
 
+    setPrompt("");
     setIsThinking(true);
 
     const userMessage: ChatMessage = {
@@ -160,6 +195,8 @@ export default function AiDataChatPage() {
 
       const formData = new FormData();
       formData.append("user_intent", trimmed);
+      formData.append("llm_provider", selectedProvider);
+      formData.append("llm_model", selectedModel);
       files.forEach((entry) => {
         formData.append("file", entry.file, entry.file.name);
       });
@@ -197,7 +234,6 @@ export default function AiDataChatPage() {
           result: successPayload.result,
         },
       ]);
-      setPrompt("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown edge function error.";
       setMessages((current) => [
@@ -215,7 +251,7 @@ export default function AiDataChatPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.12),transparent_36%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.10),transparent_28%),linear-gradient(135deg,#f8fafc_0%,#ffffff_40%,#eef2ff_100%)] p-4 sm:p-8 font-sans">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8 py-8">
+      <div className="mx-auto flex w-full max-w-425 flex-col gap-8 py-8">
         <header className="space-y-4">
           <Link
             href="/backend"
@@ -236,11 +272,25 @@ export default function AiDataChatPage() {
             <p className="max-w-3xl text-lg leading-relaxed text-slate-600 md:text-xl">
               Upload a CSV, Excel, Parquet, JSON, or Arrow file, ask a question in natural language, and get a direct answer from the backend.
             </p>
+
+            <div className="inline-flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:gap-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                Agentic stack
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-700">
+                  CrewAI
+                </span>
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
+                  Google Cloud
+                </span>
+              </div>
+            </div>
           </motion.div>
         </header>
 
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <section className="space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="flex gap-6 overflow-x-auto pb-1">
+          <section className="w-80 shrink-0 space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="space-y-2">
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <Upload className="h-5 w-5 text-indigo-600" />
@@ -316,9 +366,10 @@ export default function AiDataChatPage() {
                 </AnimatePresence>
               </div>
             </div>
+
           </section>
 
-          <section className="flex min-h-195 flex-col rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          <section className="flex min-h-195 min-w-180 flex-1 flex-col rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-2">
@@ -466,6 +517,45 @@ export default function AiDataChatPage() {
                   {isThinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   Send
                 </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="h-fit w-80 shrink-0 space-y-3 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              LLM Settings
+            </p>
+            <div className="grid gap-3 xl:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="llm-provider" className="text-xs font-semibold text-slate-600">
+                  Provider
+                </label>
+                <select
+                  id="llm-provider"
+                  value={selectedProvider}
+                  onChange={(event) => setSelectedProvider(event.target.value as LlmProvider)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="huggingface">Hugging Face</option>
+                  <option value="ollama">Ollama</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="llm-model" className="text-xs font-semibold text-slate-600">
+                  Model
+                </label>
+                <select
+                  id="llm-model"
+                  value={selectedModel}
+                  onChange={(event) => setSelectedModel(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </section>
