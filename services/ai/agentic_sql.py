@@ -1,18 +1,11 @@
 import re
 import logging
-import json
-import asyncio
-import urllib.request
 
 from crewai import Agent, Crew, LLM, Process, Task
 
-from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_api_key, ollama_base_url, ollama_warmup_poll_interval_seconds, ollama_warmup_timeout_seconds, resolve_llm_selection
+from config import hf_api_token, hf_base_url, hf_model_name, llm_max_tokens, ollama_api_key, ollama_base_url, resolve_llm_selection
 
 logger = logging.getLogger(__name__)
-
-
-class ServiceNotReadyError(RuntimeError):
-    pass
 
 
 FORBIDDEN_SQL_KEYWORDS = {
@@ -26,57 +19,6 @@ FORBIDDEN_SQL_KEYWORDS = {
     "attach",
     "copy",
 }
-
-
-def _normalize_ollama_base_url(base_url: str) -> str:
-    cleaned = (base_url or "").strip().rstrip("/")
-    if cleaned.endswith("/v1"):
-        cleaned = cleaned[:-3]
-    return cleaned
-
-
-def _ollama_ready_check_sync(base_url: str) -> tuple[bool, str]:
-    health_url = f"{_normalize_ollama_base_url(base_url)}/api/tags"
-    request = urllib.request.Request(health_url, method="GET")
-    try:
-        with urllib.request.urlopen(request, timeout=4) as response:
-            status = getattr(response, "status", None) or response.getcode()
-            body = response.read().decode("utf-8", errors="ignore")
-            if status != 200:
-                return False, f"unexpected_status_{status}"
-            try:
-                payload = json.loads(body) if body else {}
-                if isinstance(payload, dict):
-                    return True, "ready"
-            except json.JSONDecodeError:
-                # If Ollama responded 200 but returned malformed JSON, treat as not ready yet.
-                return False, "invalid_health_payload"
-            return True, "ready"
-    except Exception as exc:
-        return False, str(exc)
-
-
-async def _wait_for_ollama_ready() -> None:
-    timeout_seconds = ollama_warmup_timeout_seconds()
-    poll_interval = ollama_warmup_poll_interval_seconds()
-    base_url = ollama_base_url()
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout_seconds
-    last_error = "unknown"
-
-    while loop.time() < deadline:
-        is_ready, detail = await asyncio.to_thread(_ollama_ready_check_sync, base_url)
-        if is_ready:
-            return
-        last_error = detail
-        await asyncio.sleep(poll_interval)
-
-    raise ServiceNotReadyError(
-        "Ollama service is still warming up. "
-        f"Waited {timeout_seconds:.1f}s for {base_url}. "
-        f"Last probe result: {last_error}"
-    )
 
 
 def _build_llm(provider: str, model: str) -> LLM:
@@ -161,11 +103,6 @@ async def generate_sql_from_intent(
         raise
     
     logger.info(f"Resolved LLM selection: provider={provider}, model={model} (requested: provider={llm_provider}, model={llm_model})")
-
-    if provider == "ollama":
-        logger.info("Waiting for Ollama readiness before SQL generation...")
-        await _wait_for_ollama_ready()
-        logger.info("Ollama readiness check passed.")
     
     if provider == "huggingface" and not llm_model:
         model = hf_model_name()

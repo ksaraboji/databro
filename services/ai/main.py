@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from agentic_sql import ServiceNotReadyError, generate_sql_from_intent
+from agentic_sql import generate_sql_from_intent
 from config import max_result_rows
 from data_tools import execute_query, inspect_data_file
 
@@ -96,9 +96,6 @@ async def ask_data(
                 llm_provider=llm_provider,
                 llm_model=llm_model,
             )
-        except ServiceNotReadyError as not_ready_error:
-            logger.warning(f"Dependent service not ready: {not_ready_error}")
-            raise HTTPException(status_code=503, detail=str(not_ready_error)) from not_ready_error
         except ValueError as config_error:
             logger.error(f"Configuration error during SQL generation: {config_error}")
             raise HTTPException(status_code=400, detail=f"Configuration error: {config_error}") from config_error
