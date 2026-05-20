@@ -4,8 +4,49 @@ from typing import Any
 import duckdb
 import pyarrow.ipc as ipc
 
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover
+    np = None
+
+try:
+    import pandas as pd
+except ImportError:  # pragma: no cover
+    pd = None
+
 
 SUPPORTED_TYPES = {"csv", "json", "ndjson", "parquet", "arrow"}
+
+
+def _normalize_json_value(value: Any) -> Any:
+    if value is None:
+        return None
+
+    if pd is not None:
+        if isinstance(value, pd.Timestamp):
+            return value.isoformat()
+        if value is pd.NaT:
+            return None
+
+    if np is not None:
+        if isinstance(value, np.ndarray):
+            return [_normalize_json_value(item) for item in value.tolist()]
+        if isinstance(value, np.generic):
+            return _normalize_json_value(value.item())
+
+    if isinstance(value, dict):
+        return {str(k): _normalize_json_value(v) for k, v in value.items()}
+
+    if isinstance(value, (list, tuple)):
+        return [_normalize_json_value(item) for item in value]
+
+    if hasattr(value, "isoformat") and callable(value.isoformat):
+        try:
+            return value.isoformat()
+        except TypeError:
+            pass
+
+    return value
 
 
 def detect_file_type(file_path: str) -> str:
@@ -117,7 +158,10 @@ def execute_query(file_path: str, sql: str, max_rows: int) -> dict[str, Any]:
         return {
             "file_type": file_type,
             "columns": list(output_df.columns),
-            "rows": output_df.to_dict(orient="records"),
+            "rows": [
+                {k: _normalize_json_value(v) for k, v in row.items()}
+                for row in output_df.to_dict(orient="records")
+            ],
             "row_count": int(len(dataframe)),
             "returned_rows": int(len(output_df)),
             "truncated": truncated,
