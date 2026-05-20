@@ -177,3 +177,4 @@ resource "google_cloud_run_v2_service_iam_member" "ollama_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${var.ai_backend_service_account}"
 }
+
