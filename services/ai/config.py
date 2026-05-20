@@ -76,22 +76,6 @@ def ollama_default_model() -> str:
     return os.getenv("OLLAMA_DEFAULT_MODEL", "llama3.2")
 
 
-def ollama_warmup_timeout_seconds() -> float:
-    raw = os.getenv("OLLAMA_WARMUP_TIMEOUT_SECONDS", "90")
-    try:
-        return max(1.0, float(raw))
-    except ValueError:
-        return 90.0
-
-
-def ollama_warmup_poll_interval_seconds() -> float:
-    raw = os.getenv("OLLAMA_WARMUP_POLL_INTERVAL_SECONDS", "1.5")
-    try:
-        return max(0.2, float(raw))
-    except ValueError:
-        return 1.5
-
-
 def llm_provider_default() -> str:
     raw = (os.getenv("LLM_PROVIDER_DEFAULT", "huggingface") or "").strip().lower()
     return raw if raw in SUPPORTED_LLM_PROVIDERS else "huggingface"
