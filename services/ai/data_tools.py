@@ -95,12 +95,14 @@ def _load_arrow_table(file_path: str):
 def _source_sql(
     file_type: str,
     file_path: str,
-    csv_options: dict[str, Any] | None = None,
+    *,
+    csv_strict_mode: bool = True,
 ) -> tuple[str | None, list[Any]]:
     if file_type == "csv":
-        header_present = True if csv_options is None else bool(csv_options.get("header", True))
-        delimiter = "," if csv_options is None else str(csv_options.get("delimiter", ","))
-        return "SELECT * FROM read_csv_auto(?, header = ?, delim = ?)", [file_path, header_present, delimiter]
+        return (
+            "SELECT * FROM read_csv_auto(?, strict_mode = ?)",
+            [file_path, csv_strict_mode],
+        )
     if file_type == "json":
         return "SELECT * FROM read_json_auto(?)", [file_path]
     if file_type == "ndjson":
@@ -115,7 +117,6 @@ def _source_sql(
 def load_data_table(
     connection: duckdb.DuckDBPyConnection,
     file_path: str,
-    csv_options: dict[str, Any] | None = None,
 ) -> str:
     file_type = detect_file_type(file_path)
     if file_type not in SUPPORTED_TYPES:
@@ -125,16 +126,27 @@ def load_data_table(
     if file_type == "arrow":
         connection.register("data", _load_arrow_table(file_path))
     else:
-        source_sql, params = _source_sql(file_type, file_path, csv_options=csv_options)
-        connection.execute(f"CREATE TEMP TABLE data AS {source_sql}", params)
+        source_sql, params = _source_sql(file_type, file_path)
+        try:
+            connection.execute(f"CREATE TEMP TABLE data AS {source_sql}", params)
+        except duckdb.InvalidInputException:
+            if file_type != "csv":
+                raise
+
+            retry_sql, retry_params = _source_sql(
+                file_type,
+                file_path,
+                csv_strict_mode=False,
+            )
+            connection.execute(f"CREATE TEMP TABLE data AS {retry_sql}", retry_params)
 
     return file_type
 
 
-def inspect_data_file(file_path: str, csv_options: dict[str, Any] | None = None) -> dict[str, Any]:
+def inspect_data_file(file_path: str) -> dict[str, Any]:
     connection = duckdb.connect(database=":memory:")
     try:
-        file_type = load_data_table(connection, file_path, csv_options=csv_options)
+        file_type = load_data_table(connection, file_path)
         schema_rows = connection.execute("DESCRIBE data").fetchall()
         row_count = int(connection.execute("SELECT COUNT(*) FROM data").fetchone()[0])
 
@@ -160,11 +172,10 @@ def execute_query(
     file_path: str,
     sql: str,
     max_rows: int,
-    csv_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     connection = duckdb.connect(database=":memory:")
     try:
-        file_type = load_data_table(connection, file_path, csv_options=csv_options)
+        file_type = load_data_table(connection, file_path)
         dataframe = connection.execute(sql).fetchdf()
 
         truncated = len(dataframe) > max_rows
