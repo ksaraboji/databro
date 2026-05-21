@@ -18,6 +18,27 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def parse_csv_options(csv_header_present: str | None, csv_delimiter: str | None) -> dict[str, object]:
+    header_present = True
+    if csv_header_present is not None:
+        normalized = csv_header_present.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            header_present = True
+        elif normalized in {"false", "0", "no", "off"}:
+            header_present = False
+        else:
+            raise ValueError("csv_header_present must be true or false.")
+
+    delimiter = "," if csv_delimiter is None else csv_delimiter
+    if len(delimiter) != 1:
+        raise ValueError("csv_delimiter must be exactly one character.")
+
+    return {
+        "header": header_present,
+        "delimiter": delimiter,
+    }
+
 app = FastAPI(title="DataBro AI Data Chat Backend", version="0.1.0")
 
 # Cloud Run should normally receive calls from Supabase Edge Function, not browsers.
@@ -65,6 +86,8 @@ async def ask_data(
     user_intent: str = Form(...),
     llm_provider: str | None = Form(default=None),
     llm_model: str | None = Form(default=None),
+    csv_header_present: str | None = Form(default=None),
+    csv_delimiter: str | None = Form(default=None),
 ):
     if not user_intent.strip():
         raise HTTPException(status_code=400, detail="user_intent is required.")
@@ -75,17 +98,21 @@ async def ask_data(
     logger.info(f"  user_intent: {user_intent}")
     logger.info(f"  llm_provider: {repr(llm_provider)} (type: {type(llm_provider).__name__})")
     logger.info(f"  llm_model: {repr(llm_model)} (type: {type(llm_model).__name__})")
+    logger.info(f"  csv_header_present: {repr(csv_header_present)} (type: {type(csv_header_present).__name__})")
+    logger.info(f"  csv_delimiter: {repr(csv_delimiter)} (type: {type(csv_delimiter).__name__})")
 
     suffix = Path(file.filename or "upload.bin").suffix
     tmp_path = None
 
     try:
+        csv_options = parse_csv_options(csv_header_present, csv_delimiter)
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(await file.read())
             tmp_path = tmp.name
 
         logger.info(f"Inspecting data file: {file.filename}")
-        schema_info = inspect_data_file(tmp_path)
+        schema_info = inspect_data_file(tmp_path, csv_options=csv_options)
         
         logger.info(f"Calling generate_sql_from_intent with provider={repr(llm_provider)}, model={repr(llm_model)}")
         try:
@@ -102,7 +129,7 @@ async def ask_data(
         
         logger.info(f"Generated SQL: {sql[:100]}... (resolved provider={resolved_provider}, model={resolved_model})")
         
-        query_result = execute_query(tmp_path, sql, max_rows=max_result_rows())
+        query_result = execute_query(tmp_path, sql, max_rows=max_result_rows(), csv_options=csv_options)
 
         return {
             "user_intent": user_intent,

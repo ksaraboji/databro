@@ -179,6 +179,8 @@ export function createAskDataHandler(config: AskDataFunctionConfig) {
     const userIntent = incomingFormData.get('user_intent');
     const llmProvider = incomingFormData.get('llm_provider');
     const llmModel = incomingFormData.get('llm_model');
+    const csvHeaderPresent = incomingFormData.get('csv_header_present');
+    const csvDelimiter = incomingFormData.get('csv_delimiter');
 
     if (!(file instanceof File)) {
       return jsonResponse({ error: 'file is required.' }, 400);
@@ -196,6 +198,12 @@ export function createAskDataHandler(config: AskDataFunctionConfig) {
     }
     if (typeof llmModel === 'string' && llmModel.trim()) {
       forwardFormData.append('llm_model', llmModel.trim());
+    }
+    if (typeof csvHeaderPresent === 'string' && csvHeaderPresent.trim()) {
+      forwardFormData.append('csv_header_present', csvHeaderPresent.trim());
+    }
+    if (typeof csvDelimiter === 'string' && csvDelimiter.length > 0) {
+      forwardFormData.append('csv_delimiter', csvDelimiter);
     }
 
     const idToken = await mintCloudRunIdToken(cloudRunAudience, serviceAccountKey);
