@@ -87,6 +87,10 @@ function getTypeLabel(fileName: string) {
   return "Data";
 }
 
+function isCsvFile(fileName: string) {
+  return fileName.toLowerCase().endsWith(".csv");
+}
+
 function formatAssistantMessage(response: AskDataResponse) {
   const fileType = response.schema.file_type.toUpperCase();
   const rowCount = response.schema.row_count;
@@ -124,11 +128,17 @@ export default function AiDataChatPage() {
   ]);
   const [prompt, setPrompt] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("ollama");
-  const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.ollama[0].value);
+  const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("huggingface");
+  const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.huggingface[0].value);
+  const [csvHeaderPresent, setCsvHeaderPresent] = useState(true);
+  const [csvDelimiter, setCsvDelimiter] = useState(",");
   const edgeFunctionBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL;
 
   const availableModels = useMemo(() => providerModelOptions[selectedProvider], [selectedProvider]);
+  const hasCsvFile = useMemo(
+    () => files.some((entry) => isCsvFile(entry.file.name)),
+    [files],
+  );
 
   useEffect(() => {
     if (!availableModels.some((model) => model.value === selectedModel)) {
@@ -197,6 +207,10 @@ export default function AiDataChatPage() {
       formData.append("user_intent", trimmed);
       formData.append("llm_provider", selectedProvider);
       formData.append("llm_model", selectedModel);
+      if (hasCsvFile) {
+        formData.append("csv_header_present", String(csvHeaderPresent));
+        formData.append("csv_delimiter", csvDelimiter || ",");
+      }
       files.forEach((entry) => {
         formData.append("file", entry.file, entry.file.name);
       });
@@ -366,6 +380,36 @@ export default function AiDataChatPage() {
                 </AnimatePresence>
               </div>
             </div>
+
+            {hasCsvFile && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  CSV Options
+                </p>
+                <div className="mt-3 space-y-4">
+                  <label className="flex items-center gap-3 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={csvHeaderPresent}
+                      onChange={(event) => setCsvHeaderPresent(event.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Header present
+                  </label>
+
+                  <label className="block text-sm text-slate-700">
+                    <span className="mb-1 block font-medium text-slate-700">Delimiter</span>
+                    <input
+                      type="text"
+                      value={csvDelimiter}
+                      onChange={(event) => setCsvDelimiter(event.target.value.slice(0, 1))}
+                      placeholder="," 
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-400"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
 
           </section>
 
