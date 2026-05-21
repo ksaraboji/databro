@@ -124,8 +124,8 @@ export default function AiDataChatPage() {
   ]);
   const [prompt, setPrompt] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("ollama");
-  const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.ollama[0].value);
+  const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("huggingface");
+  const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.huggingface[0].value);
   const edgeFunctionBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL;
 
   const availableModels = useMemo(() => providerModelOptions[selectedProvider], [selectedProvider]);
