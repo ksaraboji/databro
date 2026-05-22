@@ -49,6 +49,11 @@ type AskDataResponse = {
   };
 };
 
+type ErrorPayload = {
+  error?: string;
+  detail?: string | { detail?: string };
+};
+
 const acceptedFiles = ".csv,.xls,.xlsx,.parquet,.json,.arrow,.ipc";
 
 const starterPrompts = [
@@ -110,6 +115,26 @@ function resolveEdgeFunctionUrl(rawUrl: string, appEnv: "dev" | "prod") {
   const normalized = rawUrl.replace(/\/$/, "");
   const functionName = appEnv === "prod" ? "ask-data-prod" : "ask-data-dev";
   return normalized.endsWith(`/${functionName}`) ? normalized : `${normalized}/${functionName}`;
+}
+
+function getBackendErrorMessage(payload: ErrorPayload, responseText: string, status: number) {
+  if (payload.error && payload.error.trim()) return payload.error;
+
+  if (typeof payload.detail === "string" && payload.detail.trim()) {
+    return payload.detail;
+  }
+
+  if (payload.detail && typeof payload.detail === "object") {
+    const nestedDetail = payload.detail.detail;
+    if (typeof nestedDetail === "string" && nestedDetail.trim()) {
+      return nestedDetail;
+    }
+  }
+
+  const trimmedText = responseText.trim();
+  if (trimmedText) return trimmedText;
+
+  return `Request failed with status ${status}`;
 }
 
 export default function AiDataChatPage() {
@@ -210,7 +235,7 @@ export default function AiDataChatPage() {
       });
 
       const responseText = await response.text();
-      let payload: AskDataResponse | { error?: string };
+      let payload: AskDataResponse | ErrorPayload;
 
       try {
         payload = JSON.parse(responseText) as AskDataResponse;
@@ -219,8 +244,8 @@ export default function AiDataChatPage() {
       }
 
       if (!response.ok) {
-        const errorMessage = "error" in payload ? payload.error : undefined;
-        throw new Error(errorMessage ?? `Request failed with status ${response.status}`);
+        const errorPayload = payload as ErrorPayload;
+        throw new Error(getBackendErrorMessage(errorPayload, responseText, response.status));
       }
 
       const successPayload = payload as AskDataResponse;
