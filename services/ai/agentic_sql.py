@@ -26,17 +26,26 @@ FORBIDDEN_SQL_KEYWORDS = {
 
 
 # ── Tools ──────────────────────────────────────────────────────────────────────
+# Both tools write their results into a shared `result_store` dict so the main
+# function can read the actual Python objects directly after the crew finishes,
+# without relying on the LLM to faithfully echo back JSON in its text output.
 
-@tool("Inspect Data File")
-def inspect_data_file_tool(file_path: str) -> str:
-    """Inspects a data file (CSV, JSON, NDJSON, Parquet, Arrow) and returns
-    its file type, row count, and column schema as JSON."""
-    result = inspect_data_file(file_path)
-    return json.dumps(result)
+def make_inspect_tool(result_store: dict[str, Any]):
+    """Factory that binds result_store into the inspect tool."""
+
+    @tool("Inspect Data File")
+    def inspect_data_file_tool(file_path: str) -> str:
+        """Inspects a data file (CSV, JSON, NDJSON, Parquet, Arrow) and returns
+        its file type, row count, and column schema as JSON."""
+        result = inspect_data_file(file_path)
+        result_store["schema_info"] = result
+        return json.dumps(result)
+
+    return inspect_data_file_tool
 
 
-def make_execute_query_tool(file_path: str, max_rows: int):
-    """Factory that binds file_path and max_rows into a crewai tool."""
+def make_execute_query_tool(file_path: str, max_rows: int, result_store: dict[str, Any]):
+    """Factory that binds file_path, max_rows, and result_store into the execute tool."""
 
     @tool("Execute SQL Query")
     def execute_query_tool(sql: str) -> str:
@@ -44,6 +53,7 @@ def make_execute_query_tool(file_path: str, max_rows: int):
         including columns, rows, row_count, returned_rows, and truncated flag."""
         validated = _validate_sql(_extract_sql(sql))
         result = execute_query(file_path, validated, max_rows)
+        result_store["query_result"] = result
         return json.dumps(result)
 
     return execute_query_tool
@@ -119,17 +129,6 @@ def _validate_sql(sql: str) -> str:
     return normalized
 
 
-def _extract_json(raw_text: str) -> dict:
-    """Extract the first JSON object from an agent task output string."""
-    match = re.search(r"\{.*\}", raw_text, flags=re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return {}
-
-
 # ── Main Crew Function ──────────────────────────────────────────────────────────
 
 async def run_data_agent(
@@ -159,7 +158,9 @@ async def run_data_agent(
         logger.error(f"  ERROR building LLM: {e}", exc_info=True)
         raise ValueError(f"Failed to initialize {provider} LLM: {e}") from e
 
-    execute_tool = make_execute_query_tool(file_path=file_path, max_rows=max_rows)
+    result_store: dict[str, Any] = {}
+    inspect_tool = make_inspect_tool(result_store)
+    execute_tool = make_execute_query_tool(file_path=file_path, max_rows=max_rows, result_store=result_store)
 
     # ── Agents ──────────────────────────────────────────────────────────────────
     data_analyst = Agent(
@@ -169,7 +170,7 @@ async def run_data_agent(
             "You are a data engineering specialist who examines tabular data files "
             "to extract schema metadata and executes validated SQL queries to retrieve results."
         ),
-        tools=[inspect_data_file_tool, execute_tool],
+        tools=[inspect_tool, execute_tool],
         llm=llm,
         verbose=False,
     )
@@ -247,16 +248,13 @@ async def run_data_agent(
 
     tasks_output = crew_output.tasks_output
 
-    # Extract schema from inspect_task output (task 0)
-    schema_info = _extract_json(str(tasks_output[0].raw)) if len(tasks_output) > 0 else {}
+    schema_info = result_store.get("schema_info", {})
 
-    # Extract and validate SQL from sql_task output (task 1)
     raw_sql = str(tasks_output[1].raw) if len(tasks_output) > 1 else ""
     sql = _validate_sql(_extract_sql(raw_sql))
     logger.info(f"Generated SQL: {sql[:150]}...")
 
-    # Extract query result from execute_task output (task 2)
-    query_result = _extract_json(str(tasks_output[2].raw)) if len(tasks_output) > 2 else {}
+    query_result = result_store.get("query_result", {})
 
     logger.info("=== run_data_agent END ===")
     return {

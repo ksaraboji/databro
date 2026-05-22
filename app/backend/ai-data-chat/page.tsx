@@ -105,10 +105,14 @@ function formatAssistantMessage(response: AskDataResponse) {
   return `Processed ${rowCount} ${fileType} rows and returned ${returnedRows} of ${totalRows} matching rows.${modelNote}${truncationNote}`;
 }
 
+const TABLE_DISPLAY_LIMIT = 100;
+
+const CELL_VALUE_MAX_LENGTH = 300;
+
 function formatCellValue(value: unknown) {
   if (value === null || value === undefined) return "NULL";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  const str = typeof value === "object" ? JSON.stringify(value) : String(value);
+  return str.length > CELL_VALUE_MAX_LENGTH ? str.slice(0, CELL_VALUE_MAX_LENGTH) + "\u2026" : str;
 }
 
 function resolveEdgeFunctionUrl(rawUrl: string, appEnv: "dev" | "prod") {
@@ -276,7 +280,7 @@ export default function AiDataChatPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.12),transparent_36%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.10),transparent_28%),linear-gradient(135deg,#f8fafc_0%,#ffffff_40%,#eef2ff_100%)] p-4 sm:p-8 font-sans">
-      <div className="mx-auto flex w-full max-w-425 flex-col gap-8 py-8">
+      <div className="mx-auto flex w-full max-w-none flex-col gap-8 py-8 2xl:max-w-screen-2xl">
         <header className="space-y-4">
           <Link
             href="/backend"
@@ -314,8 +318,8 @@ export default function AiDataChatPage() {
           </motion.div>
         </header>
 
-        <div className="flex gap-6 overflow-x-auto pb-1">
-          <section className="w-80 shrink-0 space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="ask-data-layout flex flex-col gap-6 lg:flex-row lg:items-start">
+          <section className="ask-data-left w-full space-y-6 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="space-y-2">
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <Upload className="h-5 w-5 text-indigo-600" />
@@ -394,7 +398,7 @@ export default function AiDataChatPage() {
 
           </section>
 
-          <section className="flex min-h-195 min-w-180 flex-1 flex-col rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          <section className="ask-data-center flex min-h-128 w-full flex-col rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur lg:min-h-168 2xl:min-h-192">
             <div className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-2">
@@ -459,12 +463,12 @@ export default function AiDataChatPage() {
                           </p>
                         </div>
 
-                        {message.result.rows.length > 0 ? (
+                        {Array.isArray(message.result.rows) && message.result.rows.length > 0 ? (
                           <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200 text-xs text-slate-700">
                               <thead className="bg-white">
                                 <tr>
-                                  {message.result.columns.map((column) => (
+                                  {(message.result.columns ?? []).map((column) => (
                                     <th
                                       key={column}
                                       className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600"
@@ -475,7 +479,7 @@ export default function AiDataChatPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-200 bg-white">
-                                {message.result.rows.map((row, rowIndex) => (
+                                {message.result.rows.slice(0, TABLE_DISPLAY_LIMIT).map((row, rowIndex) => (
                                   <tr key={`${message.id}-row-${rowIndex}`}>
                                     {message.result?.columns.map((column) => (
                                       <td key={`${message.id}-${rowIndex}-${column}`} className="px-3 py-2 align-top">
@@ -486,6 +490,11 @@ export default function AiDataChatPage() {
                                 ))}
                               </tbody>
                             </table>
+                            {message.result.rows.length > TABLE_DISPLAY_LIMIT && (
+                              <p className="border-t border-slate-200 px-3 py-2 text-xs text-slate-400">
+                                Showing first {TABLE_DISPLAY_LIMIT} of {message.result.rows.length} rows.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <div className="px-3 py-3 text-xs text-slate-500">No rows returned.</div>
@@ -546,7 +555,7 @@ export default function AiDataChatPage() {
             </div>
           </section>
 
-          <section className="h-fit w-80 shrink-0 space-y-3 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          <section className="ask-data-right h-fit w-full space-y-3 rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               LLM Settings
             </p>
@@ -588,6 +597,26 @@ export default function AiDataChatPage() {
 
         <FloatingHomeButton />
       </div>
+
+      <style jsx>{`
+        @media (min-width: 1024px) {
+          .ask-data-layout {
+            align-items: flex-start;
+          }
+
+          .ask-data-left,
+          .ask-data-right {
+            flex: 0 0 14rem;
+            min-width: 14rem;
+            max-width: 14rem;
+          }
+
+          .ask-data-center {
+            flex: 1 1 auto;
+            min-width: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
