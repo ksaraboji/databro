@@ -6,3 +6,4 @@ pandas
 pyarrow
 python-multipart
 python-dotenv
+duckduckgo-search

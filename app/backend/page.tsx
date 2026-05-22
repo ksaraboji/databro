@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Table2 } from "lucide-react";
+import { ArrowLeft, Stethoscope, Table2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import FloatingHomeButton from "@/components/floating-home-button";
@@ -31,6 +31,13 @@ const backendFeatures: Category[] = [
         icon: <Table2 className="w-8 h-8 text-indigo-600" />,
         href: "/backend/ai-data-chat",
         color: "bg-indigo-50 hover:bg-indigo-100",
+      },
+      {
+        name: "Prescription Insight Chat",
+        description: "Upload handwritten prescription photos, extract medicine facts, and chat safely with session-aware context.",
+        icon: <Stethoscope className="w-8 h-8 text-orange-600" />,
+        href: "/backend/prescription-chat",
+        color: "bg-orange-50 hover:bg-orange-100",
       },
     ],
   },
