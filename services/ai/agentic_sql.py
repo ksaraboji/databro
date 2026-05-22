@@ -40,7 +40,7 @@ def make_execute_query_tool(file_path: str, max_rows: int):
 
     @tool("Execute SQL Query")
     def execute_query_tool(sql: str) -> str:
-        """Executes a DuckDB SELECT query on the data file and returns results as JSON
+        """Executes a read-only DuckDB query on the data file and returns results as JSON
         including columns, rows, row_count, returned_rows, and truncated flag."""
         validated = _validate_sql(_extract_sql(sql))
         result = execute_query(file_path, validated, max_rows)
@@ -84,7 +84,11 @@ def _extract_sql(raw_text: str) -> str:
     if fenced_match:
         return fenced_match.group(1).strip()
 
-    statement_match = re.search(r"(with\s+.*|select\s+.*)", raw_text, flags=re.IGNORECASE | re.DOTALL)
+    statement_match = re.search(
+        r"(with\s+.*|select\s+.*|describe\s+.*|show\s+.*)",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if statement_match:
         return statement_match.group(1).strip()
 
@@ -97,8 +101,13 @@ def _validate_sql(sql: str) -> str:
         raise ValueError("Model returned empty SQL.")
 
     lowered = normalized.lower()
-    if not (lowered.startswith("select") or lowered.startswith("with")):
-        raise ValueError("Only read-only SELECT queries are allowed.")
+    if not (
+        lowered.startswith("select")
+        or lowered.startswith("with")
+        or lowered.startswith("describe")
+        or lowered.startswith("show")
+    ):
+        raise ValueError("Only read-only SELECT/WITH/DESCRIBE/SHOW queries are allowed.")
 
     if ";" in normalized:
         raise ValueError("Multiple SQL statements are not allowed.")
@@ -196,10 +205,11 @@ async def run_data_agent(
             "Using that schema, write a single DuckDB SQL query to satisfy the user intent below.\n\n"
             "Rules:\n"
             "1) Use only table name `data`.\n"
-            "2) Output exactly one read-only query (SELECT or WITH).\n"
+            "2) Output exactly one read-only query (SELECT, WITH, DESCRIBE, or SHOW).\n"
             "3) Output the SQL query only — no markdown fences, no explanation, no comments.\n"
             "4) Prefer explicit column names over SELECT * when practical.\n"
-            "5) If the user asks for a row count, use: SELECT COUNT(*) AS row_count FROM data\n\n"
+            "5) If the user asks for a row count, use: SELECT COUNT(*) AS row_count FROM data.\n"
+            "6) If the user asks for column/header/field/key names only, prefer: DESCRIBE data.\n\n"
             f"User intent:\n{user_intent}"
         ),
         expected_output="A single valid DuckDB SQL query string with no surrounding text.",
