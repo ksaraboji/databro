@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from agentic_sql import generate_sql_from_intent
+from agentic_sql import run_data_agent
 from config import max_result_rows
-from data_tools import execute_query, inspect_data_file
 
 
 load_dotenv()
@@ -84,33 +83,28 @@ async def ask_data(
             tmp.write(await file.read())
             tmp_path = tmp.name
 
-        logger.info(f"Inspecting data file: {file.filename}")
-        schema_info = inspect_data_file(tmp_path)
-        
-        logger.info(f"Calling generate_sql_from_intent with provider={repr(llm_provider)}, model={repr(llm_model)}")
+        logger.info(f"Running data agent for: {file.filename}")
         try:
-            sql, resolved_provider, resolved_model = await generate_sql_from_intent(
+            agent_result = await run_data_agent(
+                file_path=tmp_path,
                 user_intent=user_intent,
-                schema=schema_info["schema"],
-                row_count=schema_info["row_count"],
+                max_rows=max_result_rows(),
                 llm_provider=llm_provider,
                 llm_model=llm_model,
             )
         except ValueError as config_error:
-            logger.error(f"Configuration error during SQL generation: {config_error}")
+            logger.error(f"Configuration error during agent run: {config_error}")
             raise HTTPException(status_code=400, detail=f"Configuration error: {config_error}") from config_error
-        
-        logger.info(f"Generated SQL: {sql[:100]}... (resolved provider={resolved_provider}, model={resolved_model})")
-        
-        query_result = execute_query(tmp_path, sql, max_rows=max_result_rows())
+
+        logger.info(f"Agent complete: sql={agent_result['sql'][:100]}..., provider={agent_result['provider']}, model={agent_result['model']}")
 
         return {
             "user_intent": user_intent,
-            "llm_provider": resolved_provider,
-            "llm_model": resolved_model,
-            "generated_sql": sql,
-            "schema": schema_info,
-            "result": query_result,
+            "llm_provider": agent_result["provider"],
+            "llm_model": agent_result["model"],
+            "generated_sql": agent_result["sql"],
+            "schema": agent_result["schema_info"],
+            "result": agent_result["query_result"],
         }
 
     except ValueError as exc:
