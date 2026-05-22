@@ -2,11 +2,13 @@ import os
 import tempfile
 import logging
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from agentic_prescription import run_prescription_agent
 from agentic_sql import run_data_agent
 from config import max_result_rows
 
@@ -16,6 +18,10 @@ load_dotenv()
 # Configure logging for better debugging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Session cache for prescription chats.
+# Keys are UI-generated session_id values.
+PRESCRIPTION_SESSION_STORE: dict[str, dict[str, Any]] = {}
 
 app = FastAPI(title="DataBro AI Data Chat Backend", version="0.1.0")
 
@@ -114,6 +120,89 @@ async def ask_data(
         raise
     except Exception as exc:
         logger.error(f"Unexpected error: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Backend failed: {exc}") from exc
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.post("/v1/prescription-chat")
+async def prescription_chat(
+    user_intent: str = Form(...),
+    session_id: str = Form(...),
+    file: UploadFile | None = File(default=None),
+    llm_provider: str | None = Form(default=None),
+    llm_model: str | None = Form(default=None),
+    end_session: str | None = Form(default=None),
+):
+    if not user_intent.strip():
+        raise HTTPException(status_code=400, detail="user_intent is required.")
+
+    if not session_id.strip():
+        raise HTTPException(status_code=400, detail="session_id is required.")
+
+    should_end = (end_session or "").strip().lower() in {"1", "true", "yes", "y"}
+    normalized_session_id = session_id.strip()
+
+    if should_end:
+        PRESCRIPTION_SESSION_STORE.pop(normalized_session_id, None)
+        return {
+            "session_id": normalized_session_id,
+            "ended": True,
+            "message": "Prescription session ended and cache cleared.",
+        }
+
+    session_state = PRESCRIPTION_SESSION_STORE.setdefault(
+        normalized_session_id,
+        {
+            "raw_text": "",
+            "structured_data": {},
+            "search_cache": {},
+        },
+    )
+
+    tmp_path = None
+    try:
+        if file is not None:
+            suffix = Path(file.filename or "upload.bin").suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(await file.read())
+                tmp_path = tmp.name
+
+        agent_result = await run_prescription_agent(
+            user_intent=user_intent,
+            session_state=session_state,
+            image_path=tmp_path,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+        )
+
+        return {
+            "session_id": normalized_session_id,
+            "user_intent": user_intent,
+            "llm_provider": agent_result["provider"],
+            "llm_model": agent_result["model"],
+            "answer": agent_result["answer"],
+            "factual_points": agent_result["factual_points"],
+            "used_search": agent_result["used_search"],
+            "extraction_reused": agent_result["extraction_reused"],
+            "search_cache_size": agent_result["search_cache_size"],
+            "prescription": {
+                "raw_text": agent_result["raw_text"],
+                "structured_data": agent_result["structured_data"],
+            },
+            "safety_notice": (
+                "For informational purposes only. This is not medical advice. "
+                "Always confirm with a licensed doctor or pharmacist before taking medication."
+            ),
+        }
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Unexpected error in prescription_chat: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backend failed: {exc}") from exc
     finally:
         if tmp_path and os.path.exists(tmp_path):
