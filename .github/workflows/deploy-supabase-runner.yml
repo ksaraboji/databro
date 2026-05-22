@@ -65,9 +65,19 @@ jobs:
           supabase functions deploy ask-data-prod \
             --project-ref "$SUPABASE_PROJECT_REF"
 
+      - name: Deploy ask-prescription-dev edge function
+        run: |
+          supabase functions deploy ask-prescription-dev \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy ask-prescription-prod edge function
+        run: |
+          supabase functions deploy ask-prescription-prod \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
       - name: Deployment summary
         run: |
           echo "## Supabase deployment complete" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: $ENV_NAME" >> "$GITHUB_STEP_SUMMARY"
           echo "- Project ref: $SUPABASE_PROJECT_REF" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Functions: ask-data-dev, ask-data-prod" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Functions: ask-data-dev, ask-data-prod, ask-prescription-dev, ask-prescription-prod" >> "$GITHUB_STEP_SUMMARY"

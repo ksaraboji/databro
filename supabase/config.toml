@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.ask-data-prod]
 verify_jwt = false
+
+[functions.ask-prescription-dev]
+verify_jwt = false
+
+[functions.ask-prescription-prod]
+verify_jwt = false
