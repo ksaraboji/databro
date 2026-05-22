@@ -559,7 +559,7 @@ export default function AiDataChatPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               LLM Settings
             </p>
-            <div className="grid gap-3 xl:grid-cols-2">
+            <div className="grid gap-3">
               <div className="space-y-2">
                 <label htmlFor="llm-provider" className="text-xs font-semibold text-slate-600">
                   Provider
