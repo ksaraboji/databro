@@ -5,6 +5,7 @@ name: Deploy Supabase Edge Functions
     paths:
       - "supabase/**"
       - ".github/workflows/deploy-supabase.yml"
+      - ".github/workflows/deploy-supabase-runner.yml"
   workflow_dispatch:
 
 jobs:
