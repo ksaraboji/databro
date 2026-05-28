@@ -274,21 +274,23 @@ export default function PrescriptionChatPage() {
   };
 
   const endSession = async () => {
-    if (isThinking || !edgeFunctionBaseUrl) return;
+    if (isThinking) return;
 
     setIsThinking(true);
     try {
-      const formData = new FormData();
-      formData.append("session_id", sessionId);
-      formData.append("user_intent", "end session");
-      formData.append("end_session", "true");
+      if (edgeFunctionBaseUrl) {
+        const formData = new FormData();
+        formData.append("session_id", sessionId);
+        formData.append("user_intent", "end session");
+        formData.append("end_session", "true");
 
-      const prodDomains = ["data-bro.com", "databro.dev"];
-      const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
-      await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl, appEnv), {
-        method: "POST",
-        body: formData,
-      });
+        const prodDomains = ["data-bro.com", "databro.dev"];
+        const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
+        await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl, appEnv), {
+          method: "POST",
+          body: formData,
+        });
+      }
     } catch {
       // Session end is best-effort.
     } finally {
