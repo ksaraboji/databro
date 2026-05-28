@@ -24,12 +24,14 @@ from config import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_VISION_MODEL = os.getenv("HF_VISION_MODEL", "google/gemma-4-31B-it")
-PRESCRIPTION_DEBUG_LOGS = os.getenv("PRESCRIPTION_DEBUG_LOGS", "false").strip().lower() in {"1", "true", "yes", "on"}
-PRESCRIPTION_LOG_MAX_CHARS = int(os.getenv("PRESCRIPTION_LOG_MAX_CHARS", "3000"))
+PRESCRIPTION_DEBUG_LOGS = os.getenv("PRESCRIPTION_DEBUG_LOGS", "true").strip().lower() in {"1", "true", "yes", "on"}
+PRESCRIPTION_LOG_MAX_CHARS = int(os.getenv("PRESCRIPTION_LOG_MAX_CHARS", "0"))
 
 
 def _clip_for_log(value: Any, max_chars: int = PRESCRIPTION_LOG_MAX_CHARS) -> str:
     text = value if isinstance(value, str) else json.dumps(value, default=str)
+    if max_chars <= 0:
+        return text
     if len(text) <= max_chars:
         return text
     return f"{text[:max_chars]}... [truncated {len(text) - max_chars} chars]"

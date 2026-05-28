@@ -150,7 +150,7 @@ async def prescription_chat(
         llm_model,
         file is not None,
         should_end,
-        user_intent.strip()[:300],
+        user_intent.strip(),
     )
 
     if should_end:
@@ -197,7 +197,7 @@ async def prescription_chat(
             agent_result.get("used_search"),
             len(str(agent_result.get("raw_text", ""))),
             len(agent_result.get("factual_points", []) or []),
-            str(agent_result.get("answer", ""))[:400],
+            str(agent_result.get("answer", "")),
         )
 
         return {
