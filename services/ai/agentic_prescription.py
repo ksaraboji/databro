@@ -24,6 +24,23 @@ from config import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_VISION_MODEL = os.getenv("HF_VISION_MODEL", "google/gemma-4-31B-it")
+PRESCRIPTION_DEBUG_LOGS = os.getenv("PRESCRIPTION_DEBUG_LOGS", "false").strip().lower() in {"1", "true", "yes", "on"}
+PRESCRIPTION_LOG_MAX_CHARS = int(os.getenv("PRESCRIPTION_LOG_MAX_CHARS", "3000"))
+
+
+def _clip_for_log(value: Any, max_chars: int = PRESCRIPTION_LOG_MAX_CHARS) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars]}... [truncated {len(text) - max_chars} chars]"
+
+
+def _log_prescription_debug(event: str, **fields: Any) -> None:
+    if not PRESCRIPTION_DEBUG_LOGS:
+        return
+
+    safe_fields = {key: _clip_for_log(value) for key, value in fields.items()}
+    logger.info("prescription_debug:%s %s", event, json.dumps(safe_fields, default=str))
 
 
 def _build_llm(provider: str, model: str) -> LLM:
@@ -102,6 +119,14 @@ def _call_hf_gemma_vision_model(image_path: str, model_name: str) -> str:
     mime_type = mimetypes.guess_type(image_path)[0] or "application/octet-stream"
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
+    _log_prescription_debug(
+        "vision_request_prepared",
+        image_path=image_path,
+        model_name=model_name,
+        mime_type=mime_type,
+        image_bytes=len(image_bytes),
+    )
+
     url = f"{hf_base_url().rstrip('/')}/chat/completions"
     payload = {
         "model": model_name,
@@ -142,7 +167,13 @@ def _call_hf_gemma_vision_model(image_path: str, model_name: str) -> str:
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             payload = response.read().decode("utf-8")
+            _log_prescription_debug(
+                "vision_response_received",
+                status=getattr(response, "status", "unknown"),
+                payload_preview=payload,
+            )
     except Exception as exc:
+        _log_prescription_debug("vision_request_failed", error=str(exc), model_name=model_name)
         raise ValueError(f"Gemma vision model call failed: {exc}") from exc
 
     try:
@@ -176,8 +207,10 @@ def make_vision_extraction_tool(image_path: str, model_name: str, result_store: 
     @tool("Extract Prescription Raw Text With Gemma Vision")
     def extract_prescription_raw_text(_: str = "extract") -> str:
         """Extract raw text from the uploaded handwritten prescription image using Gemma vision."""
+        _log_prescription_debug("vision_tool_invoked", image_path=image_path, model_name=model_name)
         text = _call_hf_gemma_vision_model(image_path=image_path, model_name=model_name)
         result_store["raw_text"] = text
+        _log_prescription_debug("vision_tool_output", raw_text=text)
         return text
 
     return extract_prescription_raw_text
@@ -212,12 +245,22 @@ def _search_duckduckgo(query: str) -> dict[str, Any]:
             if len(instant_answers) >= 3:
                 break
 
-    return {
+    output = {
         "query": query,
         "instant_answers": instant_answers,
         "related": related,
         "source": "ddgs",
     }
+
+    _log_prescription_debug(
+        "duckduckgo_search_completed",
+        query=query,
+        instant_answers_count=len(instant_answers),
+        related_count=len(related),
+        result=output,
+    )
+
+    return output
 
 
 def make_duckduckgo_tool(search_cache: dict[str, Any]):
@@ -229,11 +272,15 @@ def make_duckduckgo_tool(search_cache: dict[str, Any]):
             return json.dumps({"error": "query is required"})
 
         if normalized in search_cache:
-            return json.dumps({"cached": True, "result": search_cache[normalized]})
+            cached_payload = {"cached": True, "result": search_cache[normalized]}
+            _log_prescription_debug("duckduckgo_tool_cache_hit", query=query, result=cached_payload)
+            return json.dumps(cached_payload)
 
         result = _search_duckduckgo(query)
         search_cache[normalized] = result
-        return json.dumps({"cached": False, "result": result})
+        uncached_payload = {"cached": False, "result": result}
+        _log_prescription_debug("duckduckgo_tool_cache_miss", query=query, result=uncached_payload)
+        return json.dumps(uncached_payload)
 
     return duckduckgo_medicine_search
 
@@ -259,10 +306,24 @@ async def run_prescription_agent(
     search_tool = make_duckduckgo_tool(search_cache)
 
     has_cached_extraction = bool(session_state.get("raw_text") and session_state.get("structured_data"))
+    _log_prescription_debug(
+        "run_started",
+        provider=provider,
+        model=model,
+        has_image=bool(image_path),
+        has_cached_extraction=has_cached_extraction,
+        user_intent=user_intent,
+        search_cache_size=len(search_cache),
+    )
 
     if has_cached_extraction:
         raw_text = str(session_state.get("raw_text", ""))
         structured_data = session_state.get("structured_data", {})
+        _log_prescription_debug(
+            "using_cached_extraction",
+            raw_text=raw_text,
+            structured_data=structured_data,
+        )
 
         response_agent = Agent(
             role="Prescription Facts Assistant",
@@ -298,8 +359,17 @@ async def run_prescription_agent(
         )
 
         crew_output = await crew.kickoff_async()
+        _log_prescription_debug(
+            "cached_flow_task_output",
+            response_task_raw=str(crew_output.tasks_output[0].raw) if crew_output.tasks_output else "",
+        )
         response_payload = _extract_json(str(crew_output.tasks_output[0].raw))
         answer = response_payload.get("answer") or str(crew_output.tasks_output[0].raw)
+        _log_prescription_debug(
+            "cached_flow_response_parsed",
+            response_payload=response_payload,
+            answer=answer,
+        )
 
         return {
             "provider": provider,
@@ -317,6 +387,7 @@ async def run_prescription_agent(
         raise ValueError("Prescription image is required for a new session.")
 
     vision_model = model if provider == "huggingface" else DEFAULT_VISION_MODEL
+    _log_prescription_debug("vision_model_selected", provider=provider, vision_model=vision_model)
     vision_tool = make_vision_extraction_tool(image_path=image_path, model_name=vision_model, result_store=result_store)
 
     extraction_agent = Agent(
@@ -391,15 +462,24 @@ async def run_prescription_agent(
 
     crew_output = await crew.kickoff_async()
     tasks_output = crew_output.tasks_output
+    for index, task_output in enumerate(tasks_output):
+        _log_prescription_debug("task_output", task_index=index, raw=str(task_output.raw))
 
     raw_text = result_store.get("raw_text", str(tasks_output[0].raw) if len(tasks_output) > 0 else "")
     structured_data = _extract_json(str(tasks_output[1].raw)) if len(tasks_output) > 1 else {}
     response_payload = _extract_json(str(tasks_output[2].raw)) if len(tasks_output) > 2 else {}
+    _log_prescription_debug(
+        "fresh_flow_parsed",
+        raw_text=raw_text,
+        structured_data=structured_data,
+        response_payload=response_payload,
+    )
 
     session_state["raw_text"] = raw_text
     session_state["structured_data"] = structured_data
 
     answer = response_payload.get("answer") or (str(tasks_output[2].raw) if len(tasks_output) > 2 else "")
+    _log_prescription_debug("run_completed", answer=answer, search_cache_size=len(search_cache))
 
     return {
         "provider": provider,

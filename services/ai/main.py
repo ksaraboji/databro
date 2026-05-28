@@ -143,6 +143,15 @@ async def prescription_chat(
 
     should_end = (end_session or "").strip().lower() in {"1", "true", "yes", "y"}
     normalized_session_id = session_id.strip()
+    logger.info(
+        "prescription_chat request: session_id=%s provider=%s model=%s has_file=%s end_session=%s intent_preview=%s",
+        normalized_session_id,
+        llm_provider,
+        llm_model,
+        file is not None,
+        should_end,
+        user_intent.strip()[:300],
+    )
 
     if should_end:
         PRESCRIPTION_SESSION_STORE.pop(normalized_session_id, None)
@@ -164,6 +173,11 @@ async def prescription_chat(
     tmp_path = None
     try:
         if file is not None:
+            logger.info(
+                "prescription_chat upload: filename=%s content_type=%s",
+                file.filename,
+                file.content_type,
+            )
             suffix = Path(file.filename or "upload.bin").suffix
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(await file.read())
@@ -175,6 +189,15 @@ async def prescription_chat(
             image_path=tmp_path,
             llm_provider=llm_provider,
             llm_model=llm_model,
+        )
+        logger.info(
+            "prescription_chat result: session_id=%s extraction_reused=%s used_search=%s raw_text_chars=%s factual_points=%s answer_preview=%s",
+            normalized_session_id,
+            agent_result.get("extraction_reused"),
+            agent_result.get("used_search"),
+            len(str(agent_result.get("raw_text", ""))),
+            len(agent_result.get("factual_points", []) or []),
+            str(agent_result.get("answer", ""))[:400],
         )
 
         return {
