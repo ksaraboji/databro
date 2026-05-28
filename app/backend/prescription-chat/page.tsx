@@ -92,9 +92,17 @@ const starterPrompts = [
 ];
 
 function resolveEdgeFunctionUrl(rawUrl: string, appEnv: "dev" | "prod") {
-  const normalized = rawUrl.replace(/\/$/, "");
+  const normalized = rawUrl.trim().replace(/\/$/, "");
   const functionName = appEnv === "prod" ? "ask-prescription-prod" : "ask-prescription-dev";
-  return normalized.endsWith(`/${functionName}`) ? normalized : `${normalized}/${functionName}`;
+  const parsedUrl = new URL(normalized);
+  const normalizedPath = parsedUrl.pathname.replace(/\/$/, "");
+
+  // NEXT_PUBLIC_SUPABASE_EDGE_FUNCTION_URL is expected to be the base invoke URL.
+  if (!normalizedPath.endsWith(`/${functionName}`)) {
+    parsedUrl.pathname = `${normalizedPath}/${functionName}`;
+  }
+
+  return parsedUrl.toString();
 }
 
 function getBackendErrorMessage(payload: ErrorPayload, responseText: string, status: number) {
@@ -127,11 +135,11 @@ export default function PrescriptionChatPage() {
   const [isThinking, setIsThinking] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<LlmProvider>("huggingface");
   const [selectedModel, setSelectedModel] = useState<string>(providerModelOptions.huggingface[0].value);
-  const [sessionId, setSessionId] = useState<string>(newSessionId());
+  const [sessionId, setSessionId] = useState<string>("");
   const [hasExtractedData, setHasExtractedData] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: crypto.randomUUID(),
+      id: "assistant-welcome",
       role: "assistant",
       content:
         "Upload a handwritten prescription photo and ask questions. I will extract text once per session and reuse it for follow-up questions.",
@@ -197,7 +205,7 @@ export default function PrescriptionChatPage() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Supabase Edge Function URL is not configured yet.",
+          content: "Supabase edge function base URL is not configured yet.",
         },
       ]);
       return;
@@ -274,21 +282,23 @@ export default function PrescriptionChatPage() {
   };
 
   const endSession = async () => {
-    if (isThinking || !edgeFunctionBaseUrl) return;
+    if (isThinking) return;
 
     setIsThinking(true);
     try {
-      const formData = new FormData();
-      formData.append("session_id", sessionId);
-      formData.append("user_intent", "end session");
-      formData.append("end_session", "true");
+      if (edgeFunctionBaseUrl) {
+        const formData = new FormData();
+        formData.append("session_id", sessionId);
+        formData.append("user_intent", "end session");
+        formData.append("end_session", "true");
 
-      const prodDomains = ["data-bro.com", "databro.dev"];
-      const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
-      await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl, appEnv), {
-        method: "POST",
-        body: formData,
-      });
+        const prodDomains = ["data-bro.com", "databro.dev"];
+        const appEnv = prodDomains.includes(window.location.hostname) ? "prod" : "dev";
+        await fetch(resolveEdgeFunctionUrl(edgeFunctionBaseUrl, appEnv), {
+          method: "POST",
+          body: formData,
+        });
+      }
     } catch {
       // Session end is best-effort.
     } finally {
